@@ -1,0 +1,99 @@
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key", "@external"]
+  )
+
+"""
+A player participating in a match (from the results table).
+"""
+type Player {
+  "Player display name."
+  name: String!
+  "Jersey number or licence number."
+  number: String
+}
+
+"""
+The two players representing a club in a match.
+"""
+type ClubLineup {
+  "First player."
+  player1: Player
+  "Second player (doubles)."
+  player2: Player
+}
+
+"""
+An annual competition grouping (e.g. Championnat de France 2025).
+"""
+type Competition @key(fields: "id") {
+  id: ID!
+  "Year of the competition."
+  year: Int!
+  "Competition name (e.g. Championnat de France)."
+  name: String!
+  "Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche)."
+  level: String
+  "All match results recorded in this competition."
+  results: [Result!]!
+}
+
+"""
+A single match result between two clubs.
+"""
+type Result @key(fields: "id") {
+  id: ID!
+  "Competition this result belongs to."
+  competition: Competition!
+  "Pelota discipline played."
+  specialty: Specialty!
+  "Age/skill category (e.g. Seniors Grande Semaine, Cadets)."
+  category: String
+  "Date of the match (ISO 8601)."
+  dateMatch: String
+  "Home club."
+  clubA: Club!
+  "Away club."
+  clubB: Club!
+  "Score of club A."
+  scoreA: Int
+  "Score of club B."
+  scoreB: Int
+  "Tournament phase (e.g. Finale, 1/2 Finale, Poule)."
+  phase: String
+  "Players lineup for club A."
+  clubALineup: ClubLineup
+  "Players lineup for club B."
+  clubBLineup: ClubLineup
+}
+
+# --- Entity stubs: owned by the clubs subgraph ---
+
+"Reference to a Club entity owned by the clubs subgraph."
+type Club @key(fields: "id") {
+  id: ID!
+}
+
+"Reference to a Specialty entity owned by the clubs subgraph."
+type Specialty @key(fields: "id") {
+  id: ID!
+}
+
+# --- Queries ---
+
+type Query {
+  "Fetch a single competition by its ID."
+  competition(id: ID!): Competition
+  "List competitions, optionally filtered by year."
+  competitions(year: Int): [Competition!]!
+  "Fetch a single result by its ID."
+  result(id: ID!): Result
+  "List results with optional filters."
+  results(
+    competitionId: ID
+    specialtyId: ID
+    category: String
+    phase: String
+  ): [Result!]!
+}

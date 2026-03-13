@@ -1,0 +1,126 @@
+# Reusable fragments
+
+fragment PlayerInfo on Player {
+  name
+  number
+}
+
+fragment ClubLineupInfo on ClubLineup {
+  player1 {
+    ...PlayerInfo
+  }
+  player2 {
+    ...PlayerInfo
+  }
+}
+
+fragment ResultSummary on Result {
+  id
+  category
+  dateMatch
+  phase
+  scoreA
+  scoreB
+  clubA {
+    id
+    name
+    city
+  }
+  clubB {
+    id
+    name
+    city
+  }
+  specialty {
+    id
+    name
+  }
+}
+
+fragment ResultDetail on Result {
+  ...ResultSummary
+  clubALineup {
+    ...ClubLineupInfo
+  }
+  clubBLineup {
+    ...ClubLineupInfo
+  }
+}
+
+# --- Queries ---
+
+query ListCompetitions($year: Int) {
+  competitions(year: $year) {
+    id
+    year
+    name
+    level
+  }
+}
+
+query GetCompetition($id: ID!) {
+  competition(id: $id) {
+    id
+    year
+    name
+    level
+    results {
+      ...ResultSummary
+    }
+  }
+}
+
+query ListResults(
+  $competitionId: ID
+  $specialtyId: ID
+  $category: String
+  $phase: String
+) {
+  results(
+    competitionId: $competitionId
+    specialtyId: $specialtyId
+    category: $category
+    phase: $phase
+  ) {
+    ...ResultDetail
+  }
+}
+
+query GetResult($id: ID!) {
+  result(id: $id) {
+    ...ResultDetail
+    competition {
+      id
+      name
+      year
+      level
+    }
+  }
+}
+
+# Cross-subgraph query: federation resolves Club from the clubs subgraph
+# while Result comes from the competitions subgraph
+query GetFinales($competitionId: ID!) {
+  results(competitionId: $competitionId, phase: "Finale") {
+    id
+    dateMatch
+    scoreA
+    scoreB
+    clubA {
+      id
+      name
+      city
+    }
+    clubB {
+      id
+      name
+      city
+    }
+    clubALineup {
+      ...ClubLineupInfo
+    }
+    clubBLineup {
+      ...ClubLineupInfo
+    }
+  }
+}

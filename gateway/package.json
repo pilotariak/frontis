@@ -1,0 +1,12 @@
+{
+  "name": "gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "hive-gateway supergraph supergraph.graphql --port 4000"
+  },
+  "dependencies": {
+    "@graphql-hive/gateway": "^1.7.3",
+    "graphql": "^16.9.0"
+  }
+}

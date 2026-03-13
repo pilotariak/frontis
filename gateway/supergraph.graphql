@@ -1,0 +1,256 @@
+
+
+    schema
+    @link(url: "https://specs.apollo.dev/link/v1.0")
+    @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+    
+    
+    
+    
+    
+    
+    
+  {
+    query: Query
+    
+    
+  }
+
+  
+    directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+
+    directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+
+    
+      directive @join__field(
+        graph: join__Graph
+        requires: join__FieldSet
+        provides: join__FieldSet
+        type: String
+        external: Boolean
+        override: String
+        usedOverridden: Boolean
+        
+        
+      ) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+    
+    
+
+    directive @join__implements(
+      graph: join__Graph!
+      interface: String!
+    ) repeatable on OBJECT | INTERFACE
+
+    directive @join__type(
+      graph: join__Graph!
+      key: join__FieldSet
+      extension: Boolean! = false
+      resolvable: Boolean! = true
+      isInterfaceObject: Boolean! = false
+    ) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+
+    directive @join__unionMember(
+      graph: join__Graph!
+      member: String!
+    ) repeatable on UNION
+
+    scalar join__FieldSet
+    
+  
+  
+  directive @link(
+    url: String
+    as: String
+    for: link__Purpose
+    import: [link__Import]
+  ) repeatable on SCHEMA
+
+  scalar link__Import
+
+  enum link__Purpose {
+    """
+    `SECURITY` features provide metadata necessary to securely resolve fields.
+    """
+    SECURITY
+
+    """
+    `EXECUTION` features provide metadata necessary for operation execution.
+    """
+    EXECUTION
+  }
+
+  
+  
+  
+  
+  
+  
+  
+enum join__Graph {
+  CLUBS @join__graph(name: "clubs", url: "http://localhost:4001/graphql") 
+  COMPETITIONS @join__graph(name: "competitions", url: "http://localhost:4002/graphql") 
+}
+
+"""
+A Basque pelota discipline (e.g. Place Libre, Trinquet, Mur à Gauche).
+"""
+type Specialty @join__type(graph: CLUBS, key: "id")  @join__type(graph: COMPETITIONS, key: "id")  {
+  id: ID!
+  """
+  Human-readable name of the discipline.
+  """
+  name: String! @join__field(graph: CLUBS) 
+}
+
+"""
+A pelota club (e.g. Denek Bat, Noizbait, Bixintxo).
+"""
+type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: COMPETITIONS, key: "id")  {
+  id: ID!
+  """
+  Official club name.
+  """
+  name: String! @join__field(graph: CLUBS) 
+  """
+  City where the club is based.
+  """
+  city: String @join__field(graph: CLUBS) 
+}
+
+type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  {
+  """
+  Fetch a single specialty by its ID.
+  """
+  specialty(id: ID!) : Specialty @join__field(graph: CLUBS) 
+  """
+  List all specialties.
+  """
+  specialties: [Specialty!]! @join__field(graph: CLUBS) 
+  """
+  Fetch a single club by its ID.
+  """
+  club(id: ID!) : Club @join__field(graph: CLUBS) 
+  """
+  List all clubs, optionally filtered by city.
+  """
+  clubs(city: String) : [Club!]! @join__field(graph: CLUBS) 
+  """
+  Fetch a single competition by its ID.
+  """
+  competition(id: ID!) : Competition @join__field(graph: COMPETITIONS) 
+  """
+  List competitions, optionally filtered by year.
+  """
+  competitions(year: Int) : [Competition!]! @join__field(graph: COMPETITIONS) 
+  """
+  Fetch a single result by its ID.
+  """
+  result(id: ID!) : Result @join__field(graph: COMPETITIONS) 
+  """
+  List results with optional filters.
+  """
+  results(competitionId: ID, specialtyId: ID, category: String, phase: String) : [Result!]! @join__field(graph: COMPETITIONS) 
+}
+
+"""
+A player participating in a match (from the results table).
+"""
+type Player @join__type(graph: COMPETITIONS)  {
+  """
+  Player display name.
+  """
+  name: String!
+  """
+  Jersey number or licence number.
+  """
+  number: String
+}
+
+"""
+The two players representing a club in a match.
+"""
+type ClubLineup @join__type(graph: COMPETITIONS)  {
+  """
+  First player.
+  """
+  player1: Player
+  """
+  Second player (doubles).
+  """
+  player2: Player
+}
+
+"""
+An annual competition grouping (e.g. Championnat de France 2025).
+"""
+type Competition @join__type(graph: COMPETITIONS, key: "id")  {
+  id: ID!
+  """
+  Year of the competition.
+  """
+  year: Int!
+  """
+  Competition name (e.g. Championnat de France).
+  """
+  name: String!
+  """
+  Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche).
+  """
+  level: String
+  """
+  All match results recorded in this competition.
+  """
+  results: [Result!]!
+}
+
+"""
+A single match result between two clubs.
+"""
+type Result @join__type(graph: COMPETITIONS, key: "id")  {
+  id: ID!
+  """
+  Competition this result belongs to.
+  """
+  competition: Competition!
+  """
+  Pelota discipline played.
+  """
+  specialty: Specialty!
+  """
+  Age/skill category (e.g. Seniors Grande Semaine, Cadets).
+  """
+  category: String
+  """
+  Date of the match (ISO 8601).
+  """
+  dateMatch: String
+  """
+  Home club.
+  """
+  clubA: Club!
+  """
+  Away club.
+  """
+  clubB: Club!
+  """
+  Score of club A.
+  """
+  scoreA: Int
+  """
+  Score of club B.
+  """
+  scoreB: Int
+  """
+  Tournament phase (e.g. Finale, 1/2 Finale, Poule).
+  """
+  phase: String
+  """
+  Players lineup for club A.
+  """
+  clubALineup: ClubLineup
+  """
+  Players lineup for club B.
+  """
+  clubBLineup: ClubLineup
+}
+    
