@@ -9,13 +9,10 @@ export interface Context {
   db: D1Database;
 }
 
-export interface CompetitionRow {
+export interface SpecialtyRow {
   id: number;
-  year: number;
   name: string;
-  level: string | null;
 }
-
 
 export function getDatabase(env: Env, league: string): D1Database {
   const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;

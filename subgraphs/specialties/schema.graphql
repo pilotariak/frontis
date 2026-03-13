@@ -1,0 +1,21 @@
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key"]
+  )
+
+"""
+A Basque pelota discipline (e.g. Place Libre, Trinquet, Mur à Gauche).
+"""
+type Specialty @key(fields: "id") {
+  id: ID!
+  "Human-readable name of the discipline."
+  name: String!
+}
+
+type Query {
+  "Fetch a single specialty by its ID."
+  specialty(id: ID!): Specialty
+  "List all specialties."
+  specialties: [Specialty!]!
+}

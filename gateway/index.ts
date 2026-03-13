@@ -1,9 +1,12 @@
 import { createGatewayRuntime } from "@graphql-hive/gateway-runtime";
 import http from "@graphql-mesh/transport-http";
+import landingPage from "./index.html";
 import supergraph from "./supergraph.graphql";
 
 const gateway = createGatewayRuntime({
   supergraph,
+  landingPage: false,
+  graphiql: false,
   transports: { http },
   plugins: () => [
     {
@@ -33,6 +36,12 @@ export default {
     env: Record<string, unknown>,
     ctx: ExecutionContext
   ): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/") {
+      return new Response(landingPage, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
     const response = await gateway(request, env, ctx);
     ctx.waitUntil(gateway[Symbol.asyncDispose]());
     return response;

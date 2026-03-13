@@ -14,11 +14,6 @@ export interface ClubRow {
   name: string;
 }
 
-export interface SpecialtyRow {
-  id: number;
-  name: string;
-}
-
 export function getDatabase(env: Env, league: string): D1Database {
   const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
   const db = env[key];

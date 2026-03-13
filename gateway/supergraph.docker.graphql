@@ -90,17 +90,7 @@ enum join__Graph {
   CLUBS @join__graph(name: "clubs", url: "http://clubs_subgraph:4001/graphql") 
   COMPETITIONS @join__graph(name: "competitions", url: "http://competitions_subgraph:4002/graphql") 
   ECHO @join__graph(name: "echo", url: "http://echo_subgraph:4003/graphql") 
-}
-
-"""
-A Basque pelota discipline (e.g. Place Libre, Trinquet, Mur à Gauche).
-"""
-type Specialty @join__type(graph: CLUBS, key: "id")  @join__type(graph: COMPETITIONS, key: "id")  {
-  id: ID!
-  """
-  Human-readable name of the discipline.
-  """
-  name: String! @join__field(graph: CLUBS) 
+  SPECIALTIES @join__graph(name: "specialties", url: "http://specialties_subgraph:4004/graphql") 
 }
 
 """
@@ -112,29 +102,17 @@ type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: COMPETITIONS,
   Official club name.
   """
   name: String! @join__field(graph: CLUBS) 
-  """
-  City where the club is based.
-  """
-  city: String @join__field(graph: CLUBS) 
 }
 
-type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  {
-  """
-  Fetch a single specialty by its ID.
-  """
-  specialty(id: ID!) : Specialty @join__field(graph: CLUBS) 
-  """
-  List all specialties.
-  """
-  specialties: [Specialty!]! @join__field(graph: CLUBS) 
+type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: SPECIALTIES)  {
   """
   Fetch a single club by its ID.
   """
   club(id: ID!) : Club @join__field(graph: CLUBS) 
   """
-  List all clubs, optionally filtered by city.
+  List all clubs.
   """
-  clubs(city: String) : [Club!]! @join__field(graph: CLUBS) 
+  clubs: [Club!]! @join__field(graph: CLUBS) 
   """
   Fetch a single competition by its ID.
   """
@@ -159,6 +137,14 @@ type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__t
   Return the current version of the Frontis project.
   """
   version: String! @join__field(graph: ECHO) 
+  """
+  Fetch a single specialty by its ID.
+  """
+  specialty(id: ID!) : Specialty @join__field(graph: SPECIALTIES) 
+  """
+  List all specialties.
+  """
+  specialties: [Specialty!]! @join__field(graph: SPECIALTIES) 
 }
 
 """
@@ -261,5 +247,16 @@ type Result @join__type(graph: COMPETITIONS, key: "id")  {
   Players lineup for club B.
   """
   clubBLineup: ClubLineup
+}
+
+"""
+Reference to a Specialty entity owned by the specialties subgraph.
+"""
+type Specialty @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: SPECIALTIES, key: "id")  {
+  id: ID!
+  """
+  Human-readable name of the discipline.
+  """
+  name: String! @join__field(graph: SPECIALTIES) 
 }
     
