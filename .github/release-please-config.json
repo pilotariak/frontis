@@ -9,32 +9,32 @@
   "changelog-sections": [
     {
       "type": "feat",
-      "section": "Features",
+      "section": "🚀 Features",
       "hidden": false
     },
     {
       "type": "change",
-      "section": "Changes",
+      "section": "🚧 Changes",
       "hidden": false
     },
     {
       "type": "fix",
-      "section": "Bug Fixes",
+      "section": "🐛 Bug Fixes",
       "hidden": false
     },
     {
       "type": "chore",
-      "section": "Maintenance",
+      "section": "🚨 Maintenance",
       "hidden": false
     },
     {
       "type": "deps",
-      "section": "Maintenance",
+      "section": "🚨 Maintenance",
       "hidden": false
     },
     {
       "type": "docs",
-      "section": "Documentation",
+      "section": "📚 Documentation",
       "hidden": false
     }
   ]
