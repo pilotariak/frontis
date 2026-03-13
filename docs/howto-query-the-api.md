@@ -5,7 +5,7 @@ stitches together the `echo`, `clubs`, and `competitions` subgraphs behind a sin
 
 **Gateway endpoint:** `http://localhost:4000/graphql`
 
-All requests to the `clubs` and `competitions` subgraphs require an **`X-League` header**
+All requests to the `clubs` and `competitions` subgraphs require an **`X-Pilotariak-League` header**
 identifying the target database. Supported values: `lcapb`, `lidfpb`.
 
 ---
@@ -20,7 +20,7 @@ identifying the target database. Supported values: `lcapb`, `lidfpb`.
 ## Echo
 
 The echo subgraph is useful for quickly verifying that the gateway is up and routing correctly.
-It does not require an `X-League` header.
+It does not require an `X-Pilotariak-League` header.
 
 ### Basic echo
 
@@ -67,7 +67,7 @@ Expected response:
 ```bash
 curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq
 ```
 
@@ -76,7 +76,7 @@ curl -s -X POST http://localhost:4001/graphql \
 ```bash
 curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ club(id: \"1\") { id name } }"}' | jq
 ```
 
@@ -89,7 +89,7 @@ curl -s -X POST http://localhost:4001/graphql \
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ specialties { id name } }"}' | jq
 ```
 
@@ -98,7 +98,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ specialty(id: \"1\") { id name } }"}' | jq
 ```
 
@@ -111,7 +111,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ competitions { id name year level } }"}' | jq
 ```
 
@@ -120,7 +120,7 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ competitions(year: 2025) { id name year level } }"}' | jq
 ```
 
@@ -129,7 +129,7 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{
     "query": "{ competition(id: \"1\") { id name year level results { id category phase scoreA scoreB } } }"
   }' | jq
@@ -144,7 +144,7 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ results { id category phase scoreA scoreB } }"}' | jq
 ```
 
@@ -153,7 +153,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ results(competitionId: \"1\") { id category phase scoreA scoreB } }"}' | jq
 ```
 
@@ -162,7 +162,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{
     "query": "{ results(specialtyId: \"1\", category: \"Seniors\", phase: \"Finale\") { id scoreA scoreB } }"
   }' | jq
@@ -174,13 +174,13 @@ curl -s -X POST http://localhost:4000/graphql \
 
 This query spans both subgraphs: `results` and `competition` come from the
 `competitions` subgraph, while `clubA` and `clubB` are resolved from
-the `clubs` subgraph at query time by the gateway. The `X-League` header is
+the `clubs` subgraph at query time by the gateway. The `X-Pilotariak-League` header is
 forwarded by the gateway to both subgraphs automatically.
 
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{
     "query": "query GetFinales($competitionId: ID!) { results(competitionId: $competitionId, phase: \"Finale\") { id category scoreA scoreB clubA { name } clubB { name } clubALineup { player1 { name number } player2 { name number } } clubBLineup { player1 { name number } player2 { name number } } } }",
     "variables": { "competitionId": "1" }
@@ -196,7 +196,7 @@ For complex queries, pass variables separately in the request body:
 ```bash
 curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lidfpb" \
+  -H "X-Pilotariak-League: lidfpb" \
   -d '{
     "query": "query GetClub($id: ID!) { club(id: $id) { id name } }",
     "variables": { "id": "1" }
@@ -208,7 +208,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ## Querying subgraphs directly
 
 During development you can bypass the gateway and hit subgraphs directly.
-The `X-League` header is still required for `clubs` and `competitions`.
+The `X-Pilotariak-League` header is still required for `clubs` and `competitions`.
 
 | Subgraph     | URL                             |
 | ------------ | ------------------------------- |
@@ -217,7 +217,7 @@ The `X-League` header is still required for `clubs` and `competitions`.
 | competitions | `http://localhost:4002/graphql` |
 
 ```bash
-# echo subgraph directly (no X-League needed)
+# echo subgraph directly (no X-Pilotariak-League needed)
 curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ echo(message: \"ping\") }"}' | jq
@@ -225,13 +225,13 @@ curl -s -X POST http://localhost:4003/graphql \
 # clubs subgraph directly
 curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lcapb" \
+  -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq
 
 # competitions subgraph directly
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
-  -H "X-League: lidfpb" \
+  -H "X-Pilotariak-League: lidfpb" \
   -d '{"query": "{ competitions { id name year } }"}' | jq
 ```
 

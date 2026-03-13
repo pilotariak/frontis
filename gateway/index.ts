@@ -12,13 +12,13 @@ const gateway = createGatewayRuntime({
         setOptions: (opts: RequestInit) => void;
         context: { request?: Request };
       }) {
-        const league = context?.request?.headers?.get("x-league");
+        const league = context?.request?.headers?.get("x-pilotariak-league");
         if (league) {
           setOptions({
             ...options,
             headers: {
               ...(options.headers as Record<string, string> ?? {}),
-              "x-league": league,
+              "x-pilotariak-league": league,
             },
           });
         }

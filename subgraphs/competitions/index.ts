@@ -176,9 +176,9 @@ const yoga = createYoga({
   schema: schema_,
   graphqlEndpoint: "/graphql",
   context: ({ request, env }: { request: Request; env: Env }) => {
-    const league = request.headers.get("x-league");
+    const league = request.headers.get("x-pilotariak-league");
     if (!league) {
-      throw new GraphQLError("Missing X-League header", {
+      throw new GraphQLError("Missing X-Pilotariak-League header", {
         extensions: { code: "BAD_REQUEST" },
       });
     }
