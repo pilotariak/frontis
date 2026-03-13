@@ -1,15 +1,13 @@
-name = "frontis-clubs"
-main = "index.ts"
+name = "frontis-scheduler"
+main = "src/index.ts"
 compatibility_date = "2026-03-13"
 compatibility_flags = ["nodejs_compat"]
 
-[[rules]]
-type = "Text"
-globs = ["**/*.graphql"]
-fallthrough = false
+[triggers]
+crons = ["0 3 * * *"]
 
 [dev]
-inspector_port = 9230
+inspector_port = 9233
 
 [[d1_databases]]
 binding       = "DB_LEAGUE_LCAPB"

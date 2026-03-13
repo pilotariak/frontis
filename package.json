@@ -3,18 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "database",
     "gateway",
-    "subgraphs/*"
+    "subgraphs/*",
+    "workers/*"
   ],
   "scripts": {
     "compose": "bun run subgraphs/compose.ts",
     "compose:workers": "WORKERS_SUBDOMAIN=${WORKERS_SUBDOMAIN} bun run subgraphs/compose.ts",
     "dev": "concurrently --names gateway,echo,clubs,competitions -c cyan,blue,green,yellow \"bun run --filter gateway dev\" \"bun run --filter echo dev\" \"bun run --filter clubs dev\" \"bun run --filter competitions dev\"",
+    "migrate:local": "bun run --filter database migrate:local",
+    "migrate:remote": "bun run --filter database migrate:remote",
+    "migrate:list": "bun run --filter database migrate:list",
     "deploy": "bun run compose:workers && bun run --filter echo deploy && bun run --filter clubs deploy && bun run --filter competitions deploy && bun run --filter gateway deploy",
-    "gateway": "bun run --filter gateway dev",
-    "echo": "bun run --filter echo dev",
-    "clubs": "bun run --filter clubs dev",
-    "competitions": "bun run --filter competitions dev"
+    "scheduler:local": "bun run --filter scheduler dev",
+    "scheduler:remote": "bun run --filter scheduler dev --remote",
+    "scheduler:deploy": "bun run --filter scheduler deploy",
+    "graphql:gateway:local": "bun run --filter gateway dev",
+    "graphql:echo:local": "bun run --filter echo dev",
+    "graphql:clubs:local": "bun run --filter clubs dev",
+    "graphql:competitions:local": "bun run --filter competitions dev"
   },
   "devDependencies": {
     "@theguild/federation-composition": "^0.18.0",
@@ -25,5 +33,8 @@
   },
   "engines": {
     "bun": ">=1.1.0"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
   }
 }
