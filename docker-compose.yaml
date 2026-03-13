@@ -10,8 +10,22 @@ services:
       NODE_ENV: production
     command: ["supergraph", "supergraph.graphql", "--port", "4000"]
     depends_on:
+      - echo_subgraph
       - clubs_subgraph
       - competitions_subgraph
+    networks:
+      - graphql
+
+  echo_subgraph:
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: echo
+    ports:
+      - "4003:4003"
+    environment:
+      PORT: "4003"
     networks:
       - graphql
 

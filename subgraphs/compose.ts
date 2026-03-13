@@ -22,6 +22,12 @@ function readSchema(subgraph: string) {
 
 const subgraphs = [
   {
+    name: "echo",
+    url: "http://localhost:4003/graphql",
+    dockerUrl: "http://echo_subgraph:4003/graphql",
+    typeDefs: readSchema("echo"),
+  },
+  {
     name: "clubs",
     url: "http://localhost:4001/graphql",
     dockerUrl: "http://clubs_subgraph:4001/graphql",
