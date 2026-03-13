@@ -27,7 +27,7 @@ It does not require an `X-Pilotariak-League` header.
 ### Basic echo
 
 ```bash
-curl -s -X POST http://localhost:4003/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ echo(message: \"hello\") }"}' | jq
 ```
@@ -45,7 +45,7 @@ Expected response:
 ### Get the Frontis version
 
 ```bash
-curl -s -X POST http://localhost:4003/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ version }"}' | jq
 ```
@@ -67,7 +67,7 @@ Expected response:
 ### List all clubs
 
 ```bash
-curl -s -X POST http://localhost:4001/graphql \
+curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq
@@ -76,7 +76,7 @@ curl -s -X POST http://localhost:4001/graphql \
 ### Fetch a single club by ID
 
 ```bash
-curl -s -X POST http://localhost:4001/graphql \
+curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ club(id: \"1\") { id name } }"}' | jq
@@ -223,20 +223,20 @@ The `X-Pilotariak-League` header is still required for D1-backed subgraphs.
 
 | Subgraph     | URL                             | League header required |
 | ------------ | ------------------------------- | ---------------------- |
-| echo         | `http://localhost:4003/graphql` | no                     |
+| echo         | `http://localhost:4001/graphql` | no                     |
 | specialties  | `http://localhost:4004/graphql` | yes                    |
-| clubs        | `http://localhost:4001/graphql` | yes                    |
+| clubs        | `http://localhost:4003/graphql` | yes                    |
 | competitions | `http://localhost:4002/graphql` | yes                    |
 | results      | `http://localhost:4005/graphql` | yes                    |
 
 ```bash
 # echo subgraph directly (no X-Pilotariak-League needed)
-curl -s -X POST http://localhost:4003/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ echo(message: \"ping\") }"}' | jq
 
 # clubs subgraph directly
-curl -s -X POST http://localhost:4001/graphql \
+curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq

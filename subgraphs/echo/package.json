@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 4003",
+    "dev": "wrangler dev --port 4001",
     "deploy": "wrangler deploy"
   },
   "dependencies": {

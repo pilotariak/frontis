@@ -29,8 +29,8 @@ const subdomain = process.env.WORKERS_SUBDOMAIN ?? "your-account";
 const subgraphs = [
   {
     name: "echo",
-    url: "http://localhost:4003/graphql",
-    dockerUrl: "http://echo_subgraph:4003/graphql",
+    url: "http://localhost:4001/graphql",
+    dockerUrl: "http://echo_subgraph:4001/graphql",
     workerUrl: `https://frontis-echo.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("echo"),
   },
@@ -43,8 +43,8 @@ const subgraphs = [
   },
   {
     name: "clubs",
-    url: "http://localhost:4001/graphql",
-    dockerUrl: "http://clubs_subgraph:4001/graphql",
+    url: "http://localhost:4003/graphql",
+    dockerUrl: "http://clubs_subgraph:4003/graphql",
     workerUrl: `https://frontis-clubs.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("clubs"),
   },

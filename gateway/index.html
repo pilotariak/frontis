@@ -374,7 +374,7 @@
   <h2>Pilotariak GraphQL Gateway</h2>
   <p>
     Federated GraphQL API for Basque pelota competition management.
-    Stitches clubs, competitions, and results behind a single endpoint.
+    Stitches specialties, clubs, competitions, and results behind a single endpoint.
   </p>
   <div class="hero-actions">
     <a class="btn btn-primary" href="https://github.com/pilotariak/frontis/blob/main/docs/howto-query-the-api.md" target="_blank">API Reference</a>
@@ -400,7 +400,19 @@
         <span class="tag">echo</span>
         <span class="tag">version</span>
       </div>
-      <div class="port">:4003</div>
+      <div class="port">:4001</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#ffa65722;">🎯</div>
+        <h3>specialties</h3>
+      </div>
+      <p>Basque pelota disciplines (Place Libre, Trinquet, Mur à Gauche…).</p>
+      <div class="tag-list">
+        <span class="tag">Specialty</span>
+      </div>
+      <div class="port">:4004 · requires X-Pilotariak-League</div>
     </div>
 
     <div class="card">
@@ -408,12 +420,11 @@
         <div class="card-icon" style="background:#3fb95022;">🏛️</div>
         <h3>clubs</h3>
       </div>
-      <p>Pelota clubs and disciplines per league.</p>
+      <p>Pelota clubs per league.</p>
       <div class="tag-list">
         <span class="tag">Club</span>
-        <span class="tag">Specialty</span>
       </div>
-      <div class="port">:4001 · requires X-Pilotariak-League</div>
+      <div class="port">:4003 · requires X-Pilotariak-League</div>
     </div>
 
     <div class="card">
@@ -421,13 +432,25 @@
         <div class="card-icon" style="background:#bc8cff22;">🏆</div>
         <h3>competitions</h3>
       </div>
-      <p>Championships, match results, and player lineups per league.</p>
+      <p>Championships and annual competition groupings per league.</p>
       <div class="tag-list">
         <span class="tag">Competition</span>
-        <span class="tag">Result</span>
-        <span class="tag">Lineup</span>
       </div>
       <div class="port">:4002 · requires X-Pilotariak-League</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#ff7b7222;">⚽</div>
+        <h3>results</h3>
+      </div>
+      <p>Match results, scores, and player lineups per league.</p>
+      <div class="tag-list">
+        <span class="tag">Result</span>
+        <span class="tag">Player</span>
+        <span class="tag">ClubLineup</span>
+      </div>
+      <div class="port">:4005 · requires X-Pilotariak-League</div>
     </div>
 
   </div>

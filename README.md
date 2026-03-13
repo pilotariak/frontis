@@ -12,9 +12,9 @@ It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to feder
 
 | Subgraph       | Port | Inspector | Owns                |
 | -------------- | ---- | --------- | ------------------- |
-| `echo`         | 4003 | 9229      | liveness, version   |
+| `echo`         | 4001 | 9229      | liveness, version   |
 | `specialties`  | 4004 | 9234      | `Specialty`         |
-| `clubs`        | 4001 | 9230      | `Club`              |
+| `clubs`        | 4003 | 9230      | `Club`              |
 | `competitions` | 4002 | 9231      | `Competition`       |
 | `results`      | 4005 | 9235      | `Result`, `Player`  |
 
