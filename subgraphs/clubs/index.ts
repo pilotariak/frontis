@@ -33,26 +33,13 @@ const resolvers = {
       { db }: Context
     ): Promise<ClubRow | null> {
       return db
-        .prepare("SELECT id, name, city FROM clubs WHERE id = ?")
+        .prepare("SELECT id, name FROM clubs WHERE id = ?")
         .bind(Number(id))
         .first<ClubRow>();
     },
 
-    async clubs(
-      _: unknown,
-      { city }: { city?: string },
-      { db }: Context
-    ): Promise<ClubRow[]> {
-      if (city) {
-        const { results } = await db
-          .prepare("SELECT id, name, city FROM clubs WHERE city = ?")
-          .bind(city)
-          .all<ClubRow>();
-        return results;
-      }
-      const { results } = await db
-        .prepare("SELECT id, name, city FROM clubs")
-        .all<ClubRow>();
+    async clubs(_: unknown, _args: unknown, { db }: Context): Promise<ClubRow[]> {
+      const { results } = await db.prepare("SELECT id, name FROM clubs").all<ClubRow>();
       return results;
     },
   },
@@ -75,7 +62,7 @@ const resolvers = {
       { db }: Context
     ): Promise<ClubRow | null> {
       return db
-        .prepare("SELECT id, name, city FROM clubs WHERE id = ?")
+        .prepare("SELECT id, name FROM clubs WHERE id = ?")
         .bind(Number(ref.id))
         .first<ClubRow>();
     },
