@@ -10,58 +10,31 @@
 
 It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate three subgraphs:
 
-| Subgraph | Port | Inspector | Owns |
-|---|---|---|---|
-| `echo` | 4003 | 9229 | liveness, version |
-| `clubs` | 4001 | 9230 | `Club`, `Specialty` |
-| `competitions` | 4002 | 9231 | `Competition`, `Result` |
+| Subgraph       | Port | Inspector | Owns                    |
+| -------------- | ---- | --------- | ----------------------- |
+| `echo`         | 4003 | 9229      | liveness, version       |
+| `clubs`        | 4001 | 9230      | `Club`, `Specialty`     |
+| `competitions` | 4002 | 9231      | `Competition`, `Result` |
 
 The gateway runs on **port 4000** (inspector: **9232**) and presents a unified schema to clients.
 
 ## Getting Started
 
-### Prerequisites
-
-- [Bun](https://bun.sh) >= 1.1
-- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (installed via `bun install`)
-
-### Install
-
 ```bash
 bun install
-```
-
-### Run locally
-
-```bash
-# 1. Start subgraphs
-bun run echo         # http://localhost:4003/graphql
-bun run clubs        # http://localhost:4001/graphql
-bun run competitions # http://localhost:4002/graphql
-
-# 2. Compose the supergraph SDL
 bun run compose
-
-# 3. Start the gateway
-bun run gateway      # http://localhost:4000/graphql
-```
-
-Or start everything at once:
-
-```bash
-bun run dev
-```
-
-### Docker
-
-```bash
-# Compose supergraph with Docker URLs first
-bun run compose
-
-docker compose up --build
+bun run dev  # gateway + all subgraphs
 ```
 
 Gateway available at `http://localhost:4000/graphql`.
+
+## How-to guides
+
+| Guide                                                        | Description                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| [`docs/howto-dev.md`](docs/howto-dev.md)                     | Local dev, Docker, scheduler, deploy, port reference |
+| [`docs/howto-query-the-api.md`](docs/howto-query-the-api.md) | curl examples for all GraphQL queries                |
+| [`docs/howto-database.md`](docs/howto-database.md)           | D1 migrations, schema, adding new leagues            |
 
 ## Architecture
 
@@ -89,9 +62,20 @@ query GetFinales($competitionId: ID!) {
   results(competitionId: $competitionId, phase: "Finale") {
     scoreA
     scoreB
-    clubA { name city }   # resolved from the clubs subgraph
-    clubB { name city }
-    clubALineup { player1 { name number } }
+    clubA {
+      name
+      city
+    } # resolved from the clubs subgraph
+    clubB {
+      name
+      city
+    }
+    clubALineup {
+      player1 {
+        name
+        number
+      }
+    }
   }
 }
 ```
