@@ -1,0 +1,11 @@
+{
+  "name": "database",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate:local": "wrangler d1 migrations apply pilotariak_lcapb --local && wrangler d1 migrations apply pilotariak_lidfpb --local",
+    "migrate:remote": "wrangler d1 migrations apply pilotariak_lcapb --remote && wrangler d1 migrations apply pilotariak_lidfpb --remote",
+    "migrate:list": "wrangler d1 migrations list pilotariak_lcapb && wrangler d1 migrations list pilotariak_lidfpb",
+    "migrate:create": "wrangler d1 migrations create pilotariak_lcapb"
+  }
+}

@@ -1,47 +1,105 @@
 import { buildSubgraphSchema } from "@apollo/subgraph";
-import { parse } from "graphql";
+import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
-import { clubs as clubsData, specialties as specialtiesData } from "./data.js";
-import type { Club, Specialty } from "./data.js";
+import { getDatabase } from "./db.js";
+import type { ClubRow, Context, Env, SpecialtyRow } from "./db.js";
 import schema from "./schema.graphql";
 
 const typeDefs = parse(schema);
 
 const resolvers = {
   Query: {
-    specialty(_: unknown, { id }: { id: string }): Specialty | undefined {
-      return specialtiesData.find((s) => s.id === id);
+    async specialty(
+      _: unknown,
+      { id }: { id: string },
+      { db }: Context
+    ): Promise<SpecialtyRow | null> {
+      return db
+        .prepare("SELECT id, name FROM specialties WHERE id = ?")
+        .bind(Number(id))
+        .first<SpecialtyRow>();
     },
-    specialties(): Specialty[] {
-      return specialtiesData;
+
+    async specialties(_: unknown, _args: unknown, { db }: Context): Promise<SpecialtyRow[]> {
+      const { results } = await db
+        .prepare("SELECT id, name FROM specialties")
+        .all<SpecialtyRow>();
+      return results;
     },
-    club(_: unknown, { id }: { id: string }): Club | undefined {
-      return clubsData.find((c) => c.id === id);
+
+    async club(
+      _: unknown,
+      { id }: { id: string },
+      { db }: Context
+    ): Promise<ClubRow | null> {
+      return db
+        .prepare("SELECT id, name, city FROM clubs WHERE id = ?")
+        .bind(Number(id))
+        .first<ClubRow>();
     },
-    clubs(_: unknown, { city }: { city?: string }): Club[] {
+
+    async clubs(
+      _: unknown,
+      { city }: { city?: string },
+      { db }: Context
+    ): Promise<ClubRow[]> {
       if (city) {
-        return clubsData.filter((c) => c.city === city);
+        const { results } = await db
+          .prepare("SELECT id, name, city FROM clubs WHERE city = ?")
+          .bind(city)
+          .all<ClubRow>();
+        return results;
       }
-      return clubsData;
+      const { results } = await db
+        .prepare("SELECT id, name, city FROM clubs")
+        .all<ClubRow>();
+      return results;
     },
   },
 
-  // Entity resolvers — called by the gateway when resolving cross-subgraph reference resolution
   Specialty: {
-    __resolveReference(ref: { id: string }): Specialty | undefined {
-      return specialtiesData.find((s) => s.id === ref.id);
+    async __resolveReference(
+      ref: { id: string },
+      { db }: Context
+    ): Promise<SpecialtyRow | null> {
+      return db
+        .prepare("SELECT id, name FROM specialties WHERE id = ?")
+        .bind(Number(ref.id))
+        .first<SpecialtyRow>();
     },
   },
+
   Club: {
-    __resolveReference(ref: { id: string }): Club | undefined {
-      return clubsData.find((c) => c.id === ref.id);
+    async __resolveReference(
+      ref: { id: string },
+      { db }: Context
+    ): Promise<ClubRow | null> {
+      return db
+        .prepare("SELECT id, name, city FROM clubs WHERE id = ?")
+        .bind(Number(ref.id))
+        .first<ClubRow>();
     },
   },
 };
 
+const schema_ = buildSubgraphSchema({ typeDefs, resolvers });
+
 const yoga = createYoga({
-  schema: buildSubgraphSchema({ typeDefs, resolvers }),
+  schema: schema_,
   graphqlEndpoint: "/graphql",
+  context: ({ request, env }: { request: Request; env: Env }) => {
+    const league = request.headers.get("x-league");
+    if (!league) {
+      throw new GraphQLError("Missing X-League header", {
+        extensions: { code: "BAD_REQUEST" },
+      });
+    }
+    return { db: getDatabase(env, league) };
+  },
 });
 
-export default { fetch: yoga };
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
+    return yoga.fetch(request, { env }, ctx);
+  },
+};
