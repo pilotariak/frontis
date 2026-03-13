@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "compose": "bun run subgraphs/compose.ts",
+    "compose:workers": "WORKERS_SUBDOMAIN=${WORKERS_SUBDOMAIN} bun run subgraphs/compose.ts",
     "dev": "concurrently --names gateway,echo,clubs,competitions -c cyan,blue,green,yellow \"bun run --filter gateway dev\" \"bun run --filter echo dev\" \"bun run --filter clubs dev\" \"bun run --filter competitions dev\"",
+    "deploy": "bun run compose:workers && bun run --filter echo deploy && bun run --filter clubs deploy && bun run --filter competitions deploy && bun run --filter gateway deploy",
     "gateway": "bun run --filter gateway dev",
     "echo": "bun run --filter echo dev",
     "clubs": "bun run --filter clubs dev",
@@ -18,7 +20,8 @@
     "@theguild/federation-composition": "^0.18.0",
     "concurrently": "^9.0.0",
     "graphql": "^16.9.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.72.0"
   },
   "engines": {
     "bun": ">=1.1.0"

@@ -8,21 +8,22 @@
 
 **Frontis** is the GraphQL federation gateway for the Pilotariak platform — a Basque pelota competition management system.
 
-It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate two subgraphs:
+It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate three subgraphs:
 
-| Subgraph | Port | Owns |
-|---|---|---|
-| `clubs` | 4001 | `Club`, `Specialty` |
-| `competitions` | 4002 | `Competition`, `Result` |
+| Subgraph | Port | Inspector | Owns |
+|---|---|---|---|
+| `echo` | 4003 | 9229 | liveness, version |
+| `clubs` | 4001 | 9230 | `Club`, `Specialty` |
+| `competitions` | 4002 | 9231 | `Competition`, `Result` |
 
-The gateway runs on **port 4000** and presents a unified schema to clients.
+The gateway runs on **port 4000** (inspector: **9232**) and presents a unified schema to clients.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js >= 22
-- Yarn
+- [Bun](https://bun.sh) >= 1.1
+- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (installed via `bun install`)
 
 ### Install
 
@@ -34,6 +35,7 @@ bun install
 
 ```bash
 # 1. Start subgraphs
+bun run echo         # http://localhost:4003/graphql
 bun run clubs        # http://localhost:4001/graphql
 bun run competitions # http://localhost:4002/graphql
 
@@ -68,7 +70,8 @@ clients
   │
   ▼
 gateway (Hive Gateway, :4000)
-  ├─── clubs (:4001)       — Specialty, Club entities
+  ├─── echo (:4003)         — liveness, version
+  ├─── clubs (:4001)        — Specialty, Club entities
   └─── competitions (:4002) — Competition, Result entities
 ```
 

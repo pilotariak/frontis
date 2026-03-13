@@ -21,7 +21,7 @@ The echo subgraph is useful for quickly verifying that the gateway is up and rou
 ### Basic echo
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ echo(message: \"hello\") }"}' | jq
 ```
@@ -39,7 +39,7 @@ Expected response:
 ### Get the Frontis version
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ version }"}' | jq
 ```
@@ -61,7 +61,7 @@ Expected response:
 ### List all clubs
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ clubs { id name city } }"}' | jq
 ```
@@ -69,7 +69,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ### Filter clubs by city
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ clubs(city: \"Biarritz\") { id name city } }"}' | jq
 ```
@@ -77,29 +77,9 @@ curl -s -X POST http://localhost:4000/graphql \
 ### Fetch a single club by ID
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ club(id: \"1\") { id name city } }"}' | jq
-```
-
----
-
-## Specialties (disciplines)
-
-### List all specialties
-
-```bash
-curl -s -X POST http://localhost:4000/graphql \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ specialties { id name } }"}' | jq
-```
-
-### Fetch a single specialty by ID
-
-```bash
-curl -s -X POST http://localhost:4000/graphql \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ specialty(id: \"1\") { id name } }"}' | jq
 ```
 
 ---
@@ -109,7 +89,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ### List all competitions
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ competitions { id name year level } }"}' | jq
 ```
@@ -117,7 +97,7 @@ curl -s -X POST http://localhost:4000/graphql \
 ### Filter competitions by year
 
 ```bash
-curl -s -X POST http://localhost:4000/graphql \
+curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ competitions(year: 2025) { id name year level } }"}' | jq
 ```
@@ -200,11 +180,11 @@ curl -s -X POST http://localhost:4000/graphql \
 
 During development you can bypass the gateway and hit subgraphs directly:
 
-| Subgraph      | URL                              |
-|---------------|----------------------------------|
-| echo          | `http://localhost:4003/graphql`  |
-| clubs         | `http://localhost:4001/graphql`  |
-| competitions  | `http://localhost:4002/graphql`  |
+| Subgraph     | URL                             |
+| ------------ | ------------------------------- |
+| echo         | `http://localhost:4003/graphql` |
+| clubs        | `http://localhost:4001/graphql` |
+| competitions | `http://localhost:4002/graphql` |
 
 ```bash
 # echo subgraph directly

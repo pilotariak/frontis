@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "hive-gateway supergraph supergraph.graphql --port 4000"
+    "dev": "wrangler dev --port 4000",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@graphql-hive/gateway": "^1.7.3",
+    "@graphql-hive/gateway-runtime": "^1.7.3",
+    "@graphql-mesh/transport-http": "^0.6.0",
     "graphql": "^16.9.0"
   }
 }

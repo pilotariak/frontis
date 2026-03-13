@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch index.ts"
+    "dev": "wrangler dev --port 4002",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@apollo/subgraph": "^2.9.0",

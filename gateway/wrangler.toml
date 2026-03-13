@@ -1,0 +1,16 @@
+name = "frontis-gateway"
+main = "index.ts"
+compatibility_date = "2026-03-13"
+compatibility_flags = ["nodejs_compat"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.graphql"]
+fallthrough = false
+
+[dev]
+inspector_port = 9232
+
+[observability]
+enabled = true
+head_sampling_rate = 1
