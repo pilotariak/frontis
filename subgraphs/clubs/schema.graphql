@@ -20,8 +20,6 @@ type Club @key(fields: "id") {
   id: ID!
   "Official club name."
   name: String!
-  "City where the club is based."
-  city: String
 }
 
 type Query {
@@ -31,6 +29,6 @@ type Query {
   specialties: [Specialty!]!
   "Fetch a single club by its ID."
   club(id: ID!): Club
-  "List all clubs, optionally filtered by city."
-  clubs(city: String): [Club!]!
+  "List all clubs."
+  clubs: [Club!]!
 }

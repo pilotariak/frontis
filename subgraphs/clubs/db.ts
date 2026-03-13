@@ -12,7 +12,6 @@ export interface Context {
 export interface ClubRow {
   id: number;
   name: string;
-  city: string | null;
 }
 
 export interface SpecialtyRow {
