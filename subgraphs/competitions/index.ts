@@ -1,7 +1,3 @@
-import { readFileSync } from "node:fs";
-import { createServer } from "node:http";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import { parse } from "graphql";
 import { createYoga } from "graphql-yoga";
@@ -10,12 +6,9 @@ import {
   results as resultsData,
 } from "./data.js";
 import type { Competition, Result } from "./data.js";
+import schema from "./schema.graphql";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const typeDefs = parse(
-  readFileSync(join(__dirname, "schema.graphql"), "utf-8")
-);
+const typeDefs = parse(schema);
 
 const resolvers = {
   Query: {
@@ -90,14 +83,9 @@ const resolvers = {
   },
 };
 
-const schema = buildSubgraphSchema({ typeDefs, resolvers });
-
-const yoga = createYoga({ schema, graphqlEndpoint: "/graphql" });
-const server = createServer(yoga);
-
-const PORT = parseInt(process.env.PORT ?? "4002", 10);
-server.listen(PORT, () => {
-  console.log(
-    `🏆 Competitions subgraph ready at http://localhost:${PORT}/graphql`
-  );
+const yoga = createYoga({
+  schema: buildSubgraphSchema({ typeDefs, resolvers }),
+  graphqlEndpoint: "/graphql",
 });
+
+export default { fetch: yoga };

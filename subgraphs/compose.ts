@@ -2,9 +2,13 @@
  * Composes the supergraph SDL from all subgraph schemas using
  * @theguild/federation-composition (no Rover CLI required).
  *
- * Generates two output files:
+ * Generates three output files:
  *   - ../gateway/supergraph.graphql          (localhost URLs — local dev)
  *   - ../gateway/supergraph.docker.graphql   (Docker network hostnames)
+ *   - ../gateway/supergraph.workers.graphql  (Cloudflare Workers URLs)
+ *
+ * Workers URLs default to <name>.workers.dev — override by setting env vars:
+ *   WORKERS_SUBDOMAIN=<your-account-subdomain> bun run compose:workers
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -20,31 +24,38 @@ function readSchema(subgraph: string) {
   return parse(sdl);
 }
 
+const subdomain = process.env.WORKERS_SUBDOMAIN ?? "your-account";
+
 const subgraphs = [
   {
     name: "echo",
     url: "http://localhost:4003/graphql",
     dockerUrl: "http://echo_subgraph:4003/graphql",
+    workerUrl: `https://frontis-echo.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("echo"),
   },
   {
     name: "clubs",
     url: "http://localhost:4001/graphql",
     dockerUrl: "http://clubs_subgraph:4001/graphql",
+    workerUrl: `https://frontis-clubs.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("clubs"),
   },
   {
     name: "competitions",
     url: "http://localhost:4002/graphql",
     dockerUrl: "http://competitions_subgraph:4002/graphql",
+    workerUrl: `https://frontis-competitions.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("competitions"),
   },
 ];
 
-function compose(useDockerUrls: boolean): string {
-  const services = subgraphs.map(({ name, url, dockerUrl, typeDefs }) => ({
+type UrlMode = "local" | "docker" | "workers";
+
+function compose(mode: UrlMode): string {
+  const services = subgraphs.map(({ name, url, dockerUrl, workerUrl, typeDefs }) => ({
     name,
-    url: useDockerUrls ? dockerUrl : url,
+    url: mode === "docker" ? dockerUrl : mode === "workers" ? workerUrl : url,
     typeDefs,
   }));
 
@@ -68,14 +79,14 @@ function compose(useDockerUrls: boolean): string {
 
 const gatewayDir = join(__dirname, "../gateway");
 
-const localSdl = compose(false);
+const localSdl = compose("local");
 writeFileSync(join(gatewayDir, "supergraph.graphql"), localSdl, "utf-8");
 console.log("✅ Written gateway/supergraph.graphql (localhost URLs)");
 
-const dockerSdl = compose(true);
-writeFileSync(
-  join(gatewayDir, "supergraph.docker.graphql"),
-  dockerSdl,
-  "utf-8"
-);
+const dockerSdl = compose("docker");
+writeFileSync(join(gatewayDir, "supergraph.docker.graphql"), dockerSdl, "utf-8");
 console.log("✅ Written gateway/supergraph.docker.graphql (Docker URLs)");
+
+const workersSdl = compose("workers");
+writeFileSync(join(gatewayDir, "supergraph.workers.graphql"), workersSdl, "utf-8");
+console.log(`✅ Written gateway/supergraph.workers.graphql (Workers URLs — subdomain: ${subdomain})`);
