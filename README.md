@@ -28,14 +28,6 @@ bun run dev  # gateway + all subgraphs
 
 Gateway available at `http://localhost:4000/graphql`.
 
-## How-to guides
-
-| Guide                                                        | Description                                          |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| [`docs/howto-dev.md`](docs/howto-dev.md)                     | Local dev, Docker, scheduler, deploy, port reference |
-| [`docs/howto-query-the-api.md`](docs/howto-query-the-api.md) | curl examples for all GraphQL queries                |
-| [`docs/howto-database.md`](docs/howto-database.md)           | D1 migrations, schema, adding new leagues            |
-
 ## Architecture
 
 ```
@@ -47,6 +39,14 @@ gateway (Hive Gateway, :4000)
   ├─── clubs (:4001)        — Specialty, Club entities
   └─── competitions (:4002) — Competition, Result entities
 ```
+
+## How-to guides
+
+| Guide                                                        | Description                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| [`docs/howto-dev.md`](docs/howto-dev.md)                     | Local dev, Docker, scheduler, deploy, port reference |
+| [`docs/howto-query-the-api.md`](docs/howto-query-the-api.md) | curl examples for all GraphQL queries                |
+| [`docs/howto-database.md`](docs/howto-database.md)           | D1 migrations, schema, adding new leagues            |
 
 Federation v2.5 is used. The `Result` type in the competitions subgraph references
 `Club` and `Specialty` entities owned by the clubs subgraph via `@key` directives.
