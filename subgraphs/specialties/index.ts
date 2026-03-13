@@ -2,39 +2,41 @@ import { buildSubgraphSchema } from "@apollo/subgraph";
 import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
-import type { ClubRow, Context, Env } from "./db.js";
+import type { Context, Env, SpecialtyRow } from "./db.js";
 import schema from "./schema.graphql";
 
 const typeDefs = parse(schema);
 
 const resolvers = {
   Query: {
-    async club(
+    async specialty(
       _: unknown,
       { id }: { id: string },
       { db }: Context
-    ): Promise<ClubRow | null> {
+    ): Promise<SpecialtyRow | null> {
       return db
-        .prepare("SELECT id, name FROM clubs WHERE id = ?")
+        .prepare("SELECT id, name FROM specialties WHERE id = ?")
         .bind(Number(id))
-        .first<ClubRow>();
+        .first<SpecialtyRow>();
     },
 
-    async clubs(_: unknown, _args: unknown, { db }: Context): Promise<ClubRow[]> {
-      const { results } = await db.prepare("SELECT id, name FROM clubs").all<ClubRow>();
+    async specialties(_: unknown, _args: unknown, { db }: Context): Promise<SpecialtyRow[]> {
+      const { results } = await db
+        .prepare("SELECT id, name FROM specialties")
+        .all<SpecialtyRow>();
       return results;
     },
   },
 
-  Club: {
+  Specialty: {
     async __resolveReference(
       ref: { id: string },
       { db }: Context
-    ): Promise<ClubRow | null> {
+    ): Promise<SpecialtyRow | null> {
       return db
-        .prepare("SELECT id, name FROM clubs WHERE id = ?")
+        .prepare("SELECT id, name FROM specialties WHERE id = ?")
         .bind(Number(ref.id))
-        .first<ClubRow>();
+        .first<SpecialtyRow>();
     },
   },
 };

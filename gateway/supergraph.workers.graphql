@@ -87,10 +87,16 @@
   
   
 enum join__Graph {
-  CLUBS @join__graph(name: "clubs", url: "http://localhost:4001/graphql") 
-  COMPETITIONS @join__graph(name: "competitions", url: "http://localhost:4002/graphql") 
-  ECHO @join__graph(name: "echo", url: "http://localhost:4003/graphql") 
-  SPECIALTIES @join__graph(name: "specialties", url: "http://localhost:4004/graphql") 
+  CLUBS @join__graph(name: "clubs", url: "https://frontis-clubs.your-account.workers.dev/graphql") 
+  COMPETITIONS @join__graph(
+    name: "competitions"
+    url: "https://frontis-competitions.your-account.workers.dev/graphql"
+  )
+  ECHO @join__graph(name: "echo", url: "https://frontis-echo.your-account.workers.dev/graphql") 
+  SPECIALTIES @join__graph(
+    name: "specialties"
+    url: "https://frontis-specialties.your-account.workers.dev/graphql"
+  )
 }
 
 """

@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [[rules]]
 type = "Text"
-globs = ["**/*.graphql"]
+globs = ["**/*.graphql", "**/*.html"]
 fallthrough = false
 
 [dev]

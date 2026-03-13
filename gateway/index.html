@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Frontis — Pilotariak GraphQL Gateway</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --bg-card-hover: #1c2230;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb33;
+      --green: #3fb950;
+      --green-dim: #238636;
+      --purple: #bc8cff;
+      --orange: #ffa657;
+      --red: #ff7b72;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header .version {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.2rem 0.65rem;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: 860px;
+      margin: 5rem auto 3rem;
+      padding: 0 2rem;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--green);
+      background: #238636 22;
+      border: 1px solid var(--green-dim);
+      border-radius: 20px;
+      padding: 0.25rem 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .badge .dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero h2 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, var(--text) 40%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto 2rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.15s, background 0.15s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--bg-card); }
+
+    /* ── Endpoint pill ── */
+    .endpoint {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--accent);
+      margin-top: 1.5rem;
+    }
+
+    .method {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    /* ── Section ── */
+    section {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 2rem 4rem;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Subgraph grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      background: var(--bg-card-hover);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .card-icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .card h3 { font-size: 0.95rem; font-weight: 600; }
+    .card p { font-size: 0.825rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .tag {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      color: var(--text-muted);
+    }
+
+    .port {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--orange);
+      margin-top: 0.75rem;
+    }
+
+    /* ── Code block ── */
+    .code-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .code-dots { display: flex; gap: 0.35rem; }
+    .code-dots span {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+
+    pre {
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.7;
+    }
+
+    .kw  { color: var(--purple); }
+    .str { color: var(--green); }
+    .cm  { color: var(--text-muted); font-style: italic; }
+    .acc { color: var(--accent); }
+    .org { color: var(--orange); }
+
+    /* ── Status table ── */
+    .table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      text-align: left;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #21262d;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-card-hover); }
+
+    td code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+    }
+
+    .status-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      color: var(--green);
+    }
+
+    .status-dot::before {
+      content: '';
+      display: block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">F</div>
+  <h1>Frontis</h1>
+  <span class="version" id="version">v0.1.0</span>
+</header>
+
+<div class="hero">
+  <div class="badge">
+    <span class="dot"></span>
+    GraphQL Federation v2.5
+  </div>
+  <h2>Pilotariak GraphQL Gateway</h2>
+  <p>
+    Federated GraphQL API for Basque pelota competition management.
+    Stitches clubs, competitions, and results behind a single endpoint.
+  </p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="https://github.com/pilotariak/frontis/blob/main/docs/howto-query-the-api.md" target="_blank">API Reference</a>
+    <a class="btn btn-secondary" href="https://github.com/pilotariak/frontis" target="_blank">GitHub</a>
+  </div>
+  <div class="endpoint">
+    <span class="method">POST</span>
+    /graphql
+  </div>
+</div>
+
+<section>
+  <p class="section-title">Subgraphs</p>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#1f6feb22;">🔔</div>
+        <h3>echo</h3>
+      </div>
+      <p>Liveness probe and version reporting for the federation.</p>
+      <div class="tag-list">
+        <span class="tag">echo</span>
+        <span class="tag">version</span>
+      </div>
+      <div class="port">:4003</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#3fb95022;">🏛️</div>
+        <h3>clubs</h3>
+      </div>
+      <p>Pelota clubs and disciplines per league.</p>
+      <div class="tag-list">
+        <span class="tag">Club</span>
+        <span class="tag">Specialty</span>
+      </div>
+      <div class="port">:4001 · requires X-Pilotariak-League</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:#bc8cff22;">🏆</div>
+        <h3>competitions</h3>
+      </div>
+      <p>Championships, match results, and player lineups per league.</p>
+      <div class="tag-list">
+        <span class="tag">Competition</span>
+        <span class="tag">Result</span>
+        <span class="tag">Lineup</span>
+      </div>
+      <div class="port">:4002 · requires X-Pilotariak-League</div>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <p class="section-title">Quick start</p>
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots">
+        <span style="background:#ff5f57"></span>
+        <span style="background:#febc2e"></span>
+        <span style="background:#28c840"></span>
+      </div>
+      <span>curl</span>
+    </div>
+    <pre><span class="cm"># List clubs for the LCAPB league</span>
+<span class="acc">curl</span> -s -X POST http://localhost:4000/graphql \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"X-Pilotariak-League: lcapb"</span> \
+  -d <span class="str">'{"query":"{ clubs { id name } }"}'</span> | jq
+
+<span class="cm"># Cross-subgraph: results + club names (federation in action)</span>
+<span class="acc">curl</span> -s -X POST http://localhost:4000/graphql \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"X-Pilotariak-League: lcapb"</span> \
+  -d <span class="str">'{"query":"{ results { id scoreA scoreB clubA { name } clubB { name } } }"}'</span> | jq</pre>
+  </div>
+</section>
+
+<footer>
+  Built with
+  <a href="https://the-guild.dev/graphql/hive/docs/gateway" target="_blank">Hive Gateway</a>
+  ·
+  <a href="https://www.apollographql.com/docs/federation/" target="_blank">Apollo Federation v2</a>
+  ·
+  <a href="https://github.com/pilotariak" target="_blank">Pilotariak</a>
+</footer>
+
+<script>
+  // Fetch the version from the echo subgraph
+  fetch('/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: '{ version }' }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d?.data?.version) {
+        document.getElementById('version').textContent = 'v' + d.data.version;
+      }
+    })
+    .catch(() => {});
+</script>
+
+</body>
+</html>

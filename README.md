@@ -8,13 +8,15 @@
 
 **Frontis** is the GraphQL federation gateway for the Pilotariak platform — a Basque pelota competition management system.
 
-It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate three subgraphs:
+It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate five subgraphs:
 
-| Subgraph       | Port | Inspector | Owns                    |
-| -------------- | ---- | --------- | ----------------------- |
-| `echo`         | 4003 | 9229      | liveness, version       |
-| `clubs`        | 4001 | 9230      | `Club`, `Specialty`     |
-| `competitions` | 4002 | 9231      | `Competition`, `Result` |
+| Subgraph       | Port | Inspector | Owns                |
+| -------------- | ---- | --------- | ------------------- |
+| `echo`         | 4003 | 9229      | liveness, version   |
+| `specialties`  | 4004 | 9234      | `Specialty`         |
+| `clubs`        | 4001 | 9230      | `Club`              |
+| `competitions` | 4002 | 9231      | `Competition`       |
+| `results`      | 4005 | 9235      | `Result`, `Player`  |
 
 The gateway runs on **port 4000** (inspector: **9232**) and presents a unified schema to clients.
 
@@ -36,8 +38,10 @@ clients
   ▼
 gateway (Hive Gateway, :4000)
   ├─── echo (:4003)         — liveness, version
-  ├─── clubs (:4001)        — Specialty, Club entities
-  └─── competitions (:4002) — Competition, Result entities
+  ├─── specialties (:4004)  — Specialty entities
+  ├─── clubs (:4001)        — Club entities
+  ├─── competitions (:4002) — Competition entities
+  └─── results (:4005)      — Result, Player entities
 ```
 
 ## How-to guides
@@ -48,27 +52,27 @@ gateway (Hive Gateway, :4000)
 | [`docs/howto-query-the-api.md`](docs/howto-query-the-api.md) | curl examples for all GraphQL queries                |
 | [`docs/howto-database.md`](docs/howto-database.md)           | D1 migrations, schema, adding new leagues            |
 
-Federation v2.5 is used. The `Result` type in the competitions subgraph references
-`Club` and `Specialty` entities owned by the clubs subgraph via `@key` directives.
-The gateway stitches them at query time.
+Federation v2.5 is used. Each subgraph owns its entities and declares stubs for
+entities owned by others via `@key` directives. The gateway stitches them at query
+time — e.g. `Result` references `Competition`, `Club`, and `Specialty` entities
+resolved from their respective subgraphs.
 
 ## Example queries
 
 See [`operations/`](operations/) for ready-to-use GraphQL operations.
 
 ```graphql
-# Cross-subgraph: Result from the competitions subgraph + Club from the clubs subgraph
+# Cross-subgraph: Result from results subgraph + Club from clubs subgraph
+# + Competition from competitions subgraph — all stitched by the gateway
 query GetFinales($competitionId: ID!) {
   results(competitionId: $competitionId, phase: "Finale") {
     scoreA
     scoreB
     clubA {
       name
-      city
     } # resolved from the clubs subgraph
     clubB {
       name
-      city
     }
     clubALineup {
       player1 {

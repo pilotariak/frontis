@@ -23,15 +23,17 @@ bun install
 bun run dev
 ```
 
-This starts the gateway, echo, clubs, and competitions subgraphs concurrently using `concurrently`.
+This starts the gateway, echo, specialties, clubs, competitions, and results subgraphs concurrently using `concurrently`.
 
 ### Individually
 
 ```bash
-bun run graphql:echo:local         # http://localhost:4003/graphql  (inspector: 9229)
-bun run graphql:clubs:local        # http://localhost:4001/graphql  (inspector: 9230)
-bun run graphql:competitions:local # http://localhost:4002/graphql  (inspector: 9231)
-bun run graphql:gateway:local      # http://localhost:4000/graphql  (inspector: 9232)
+bun run graphql:echo:local          # http://localhost:4003/graphql  (inspector: 9229)
+bun run graphql:specialties:local   # http://localhost:4004/graphql  (inspector: 9234)
+bun run graphql:clubs:local         # http://localhost:4001/graphql  (inspector: 9230)
+bun run graphql:competitions:local  # http://localhost:4002/graphql  (inspector: 9231)
+bun run graphql:results:local       # http://localhost:4005/graphql  (inspector: 9235)
+bun run graphql:gateway:local       # http://localhost:4000/graphql  (inspector: 9232)
 ```
 
 > Each worker uses a unique inspector port to avoid conflicts when running in parallel.
@@ -117,8 +119,10 @@ bun run scheduler:deploy
 | Worker       | App port | Inspector port |
 | ------------ | -------- | -------------- |
 | echo         | 4003     | 9229           |
+| specialties  | 4004     | 9234           |
 | clubs        | 4001     | 9230           |
 | competitions | 4002     | 9231           |
+| results      | 4005     | 9235           |
 | gateway      | 4000     | 9232           |
 | scheduler    | 8787     | 9233           |
 
@@ -131,8 +135,10 @@ frontis/
 ├── gateway/          ← Hive Gateway (federation entry point)
 ├── subgraphs/
 │   ├── echo/         ← liveness, version
-│   ├── clubs/        ← Specialty, Club entities (D1)
-│   └── competitions/ ← Competition, Result entities (D1)
+│   ├── specialties/  ← Specialty entities (D1)
+│   ├── clubs/        ← Club entities (D1)
+│   ├── competitions/ ← Competition entities (D1)
+│   └── results/      ← Result, Player entities (D1)
 ├── workers/
 │   └── scheduler/    ← cron scraper → D1
 ├── database/         ← D1 migrations for all league databases
