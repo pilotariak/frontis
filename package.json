@@ -1,0 +1,24 @@
+{
+  "name": "frontis",
+  "private": true,
+  "workspaces": [
+    "gateway",
+    "subgraphs/*"
+  ],
+  "scripts": {
+    "compose": "bun run subgraphs/compose.ts",
+    "dev": "concurrently --names gateway,clubs,competitions -c cyan,green,yellow \"bun run --filter gateway dev\" \"bun run --filter clubs dev\" \"bun run --filter competitions dev\"",
+    "gateway": "bun run --filter gateway dev",
+    "clubs": "bun run --filter clubs dev",
+    "competitions": "bun run --filter competitions dev"
+  },
+  "devDependencies": {
+    "@theguild/federation-composition": "^0.18.0",
+    "concurrently": "^9.0.0",
+    "graphql": "^16.9.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

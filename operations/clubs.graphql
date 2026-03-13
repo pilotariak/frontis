@@ -1,0 +1,38 @@
+# Fragments for reuse across operations
+
+fragment SpecialtyBasic on Specialty {
+  id
+  name
+}
+
+fragment ClubBasic on Club {
+  id
+  name
+  city
+}
+
+# --- Queries ---
+
+query ListSpecialties {
+  specialties {
+    ...SpecialtyBasic
+  }
+}
+
+query GetSpecialty($id: ID!) {
+  specialty(id: $id) {
+    ...SpecialtyBasic
+  }
+}
+
+query ListClubs($city: String) {
+  clubs(city: $city) {
+    ...ClubBasic
+  }
+}
+
+query GetClub($id: ID!) {
+  club(id: $id) {
+    ...ClubBasic
+  }
+}

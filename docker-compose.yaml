@@ -1,0 +1,46 @@
+services:
+  gateway:
+    image: ghcr.io/graphql-hive/gateway:1.13.5
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./gateway/gateway.config.ts:/serve/gateway.config.ts:ro
+      - ./gateway/supergraph.docker.graphql:/serve/supergraph.graphql:ro
+    environment:
+      NODE_ENV: production
+    command: ["supergraph", "supergraph.graphql", "--port", "4000"]
+    depends_on:
+      - clubs_subgraph
+      - competitions_subgraph
+    networks:
+      - graphql
+
+  clubs_subgraph:
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: clubs
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: "4001"
+    networks:
+      - graphql
+
+  competitions_subgraph:
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: competitions
+    ports:
+      - "4002:4002"
+    environment:
+      PORT: "4002"
+    networks:
+      - graphql
+
+networks:
+  graphql:
+    driver: bridge
