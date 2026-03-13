@@ -89,6 +89,7 @@
 enum join__Graph {
   CLUBS @join__graph(name: "clubs", url: "http://clubs_subgraph:4001/graphql") 
   COMPETITIONS @join__graph(name: "competitions", url: "http://competitions_subgraph:4002/graphql") 
+  ECHO @join__graph(name: "echo", url: "http://echo_subgraph:4003/graphql") 
 }
 
 """
@@ -117,7 +118,7 @@ type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: COMPETITIONS,
   city: String @join__field(graph: CLUBS) 
 }
 
-type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  {
+type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  {
   """
   Fetch a single specialty by its ID.
   """
@@ -150,6 +151,14 @@ type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  {
   List results with optional filters.
   """
   results(competitionId: ID, specialtyId: ID, category: String, phase: String) : [Result!]! @join__field(graph: COMPETITIONS) 
+  """
+  Echo back the provided message. Useful for liveness checks.
+  """
+  echo(message: String!) : String! @join__field(graph: ECHO) 
+  """
+  Return the current version of the Frontis project.
+  """
+  version: String! @join__field(graph: ECHO) 
 }
 
 """

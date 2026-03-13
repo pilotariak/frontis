@@ -1,5 +1,6 @@
 {
   "name": "frontis",
+  "version": "0.1.0",
   "private": true,
   "workspaces": [
     "gateway",
@@ -7,8 +8,9 @@
   ],
   "scripts": {
     "compose": "bun run subgraphs/compose.ts",
-    "dev": "concurrently --names gateway,clubs,competitions -c cyan,green,yellow \"bun run --filter gateway dev\" \"bun run --filter clubs dev\" \"bun run --filter competitions dev\"",
+    "dev": "concurrently --names gateway,echo,clubs,competitions -c cyan,blue,green,yellow \"bun run --filter gateway dev\" \"bun run --filter echo dev\" \"bun run --filter clubs dev\" \"bun run --filter competitions dev\"",
     "gateway": "bun run --filter gateway dev",
+    "echo": "bun run --filter echo dev",
     "clubs": "bun run --filter clubs dev",
     "competitions": "bun run --filter competitions dev"
   },

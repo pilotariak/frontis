@@ -1,0 +1,12 @@
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key"]
+  )
+
+type Query {
+  "Echo back the provided message. Useful for liveness checks."
+  echo(message: String!): String!
+  "Return the current version of the Frontis project."
+  version: String!
+}

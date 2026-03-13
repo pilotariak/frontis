@@ -1,7 +1,7 @@
 # How to query the Frontis GraphQL API
 
 This guide shows how to query the Frontis federated gateway using `curl`. The gateway
-stitches together the `clubs` and `competitions` subgraphs behind a single endpoint.
+stitches together the `echo`, `clubs`, and `competitions` subgraphs behind a single endpoint.
 
 **Gateway endpoint:** `http://localhost:4000/graphql`
 
@@ -11,6 +11,48 @@ stitches together the `clubs` and `competitions` subgraphs behind a single endpo
 
 - The stack is running locally (see [README](../README.md) for startup instructions)
 - `curl` is available in your shell
+
+---
+
+## Echo
+
+The echo subgraph is useful for quickly verifying that the gateway is up and routing correctly.
+
+### Basic echo
+
+```bash
+curl -s -X POST http://localhost:4000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ echo(message: \"hello\") }"}' | jq
+```
+
+Expected response:
+
+```json
+{
+  "data": {
+    "echo": "hello"
+  }
+}
+```
+
+### Get the Frontis version
+
+```bash
+curl -s -X POST http://localhost:4000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ version }"}' | jq
+```
+
+Expected response:
+
+```json
+{
+  "data": {
+    "version": "0.1.0"
+  }
+}
+```
 
 ---
 
@@ -160,10 +202,16 @@ During development you can bypass the gateway and hit subgraphs directly:
 
 | Subgraph      | URL                              |
 |---------------|----------------------------------|
+| echo          | `http://localhost:4003/graphql`  |
 | clubs         | `http://localhost:4001/graphql`  |
 | competitions  | `http://localhost:4002/graphql`  |
 
 ```bash
+# echo subgraph directly
+curl -s -X POST http://localhost:4003/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ echo(message: \"ping\") }"}' | jq
+
 # clubs subgraph directly
 curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
