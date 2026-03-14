@@ -1,5 +1,48 @@
+---
+networks:
+  graphql:
+    driver: bridge
+
+x-common: &common
+  networks:
+  - graphql
+  restart: unless-stopped
+  logging:
+    options:
+      max-size: 50m
+      max-file: "3"
+
+# To switch to gRPC: set OTEL_EXPORTER_OTLP_PROTOCOL=grpc and
+# change OTEL_EXPORTER_OTLP_ENDPOINT to http://otel:4317
+x-subgraph-otel: &subgraph-otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
+x-subgraph-healthcheck: &subgraph-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 15s
+
 services:
+  otel:
+    <<: *common
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000"   # Grafana UI
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - graphql
+
   gateway:
+    <<: *common
     image: ghcr.io/graphql-hive/gateway:1.13.5
     ports:
       - "4000:4000"
@@ -8,41 +51,78 @@ services:
       - ./gateway/supergraph.docker.graphql:/serve/supergraph.graphql:ro
     environment:
       NODE_ENV: production
+      OTEL_SERVICE_NAME: frontis-gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     command: ["supergraph", "supergraph.graphql", "--port", "4000"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
-      - echo_subgraph
-      - clubs_subgraph
-      - competitions_subgraph
+      otel:
+        condition: service_healthy
+      echo:
+        condition: service_healthy
+      clubs:
+        condition: service_healthy
+      competitions:
+        condition: service_healthy
+      results:
+        condition: service_healthy
+      specialties:
+        condition: service_healthy
     networks:
       - graphql
 
-  echo_subgraph:
+  echo:
+    <<: *common
     build:
       context: .
       dockerfile: subgraphs/Dockerfile
       args:
         SUBGRAPH: echo
     ports:
-      - "4003:4003"
+      - "4001:4001"
     environment:
-      PORT: "4003"
+      PORT: "4001"
+      OTEL_SERVICE_NAME: frontis-echo
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4001/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
     networks:
       - graphql
 
-  clubs_subgraph:
+  clubs:
+    <<: *common
     build:
       context: .
       dockerfile: subgraphs/Dockerfile
       args:
         SUBGRAPH: clubs
     ports:
-      - "4001:4001"
+      - "4003:4003"
     environment:
-      PORT: "4001"
+      PORT: "4003"
+      OTEL_SERVICE_NAME: frontis-clubs
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4003/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
     networks:
       - graphql
 
-  competitions_subgraph:
+  competitions:
+    <<: *common
     build:
       context: .
       dockerfile: subgraphs/Dockerfile
@@ -52,9 +132,57 @@ services:
       - "4002:4002"
     environment:
       PORT: "4002"
+      OTEL_SERVICE_NAME: frontis-competitions
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4002/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
     networks:
       - graphql
 
-networks:
-  graphql:
-    driver: bridge
+  results:
+    <<: *common
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: results
+    ports:
+      - "4005:4005"
+    environment:
+      PORT: "4005"
+      OTEL_SERVICE_NAME: frontis-results
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4005/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
+    networks:
+      - graphql
+
+  specialties:
+    <<: *common
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: specialties
+    ports:
+      - "4004:4004"
+    environment:
+      PORT: "4004"
+      OTEL_SERVICE_NAME: frontis-specialties
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4004/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
+    networks:
+      - graphql
