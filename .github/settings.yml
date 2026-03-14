@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+---
+_extends: .github:.github/settings.yml
+
+# repo-specific settings
+
+repository:
+  name: "frontis"
+  description: "The Pilotariak GraphQL Federation"
+  topics: pilotariak, graphql, federation
+
+labels:
+
+## CLOUD PROVIDERS
+- name: "cloud/cloudflare"
+  description: "Cloudflare provider"
+  color: "068082"
+
+- name: "cloud/hive"
+  description: "The Hive Gateway"
+  color: "068082"
+
+## AREA
+
+- name: "area/graphql"
+  description: "GraphQL"
+  color: "cc317c"
+
+- name: "area/database"
+  description: "Cloudflare D1"
+  color: "cc317c"
+
+- name: "area/docker"
+  description: "Docker"
+  color: "cc317c"
+
+## DEPENDENCY
+
+- name: "dependency/typescript"
+  description: "Dependency Typescript"
+  color: "6fcb70"
+
+- name: "dependency/docker"
+  description: "Dependency Docker"
+  color: "6fcb70"
