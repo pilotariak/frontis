@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/pilotariak/frontis/compare/v0.2.0...v0.3.0) (2026-03-14)
+
+
+### 🚀 Features
+
+* **otel:** integrate OpenTelemetry observability across gateway and subgraphs ([#18](https://github.com/pilotariak/frontis/issues/18)) ([df0b583](https://github.com/pilotariak/frontis/commit/df0b58327bc7b52371d47a5e56eca58619dbe528)), closes [#14](https://github.com/pilotariak/frontis/issues/14)
+
 ## [0.2.0](https://github.com/pilotariak/frontis/compare/v0.1.0...v0.2.0) (2026-03-13)
 
 
