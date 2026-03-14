@@ -37,11 +37,25 @@ export default {
     ctx: ExecutionContext
   ): Promise<Response> {
     const url = new URL(request.url);
+
     if (request.method === "GET" && url.pathname === "/") {
       return new Response(landingPage, {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
+
+    if (request.method === "GET" && url.pathname === "/healthz") {
+      return new Response(JSON.stringify({ status: "ok" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/readyz") {
+      return new Response(JSON.stringify({ status: "ok", ready: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const response = await gateway(request, env, ctx);
     ctx.waitUntil(gateway[Symbol.asyncDispose]());
     return response;

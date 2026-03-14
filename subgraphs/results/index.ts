@@ -1,9 +1,14 @@
 import { buildSubgraphSchema } from "@apollo/subgraph";
+import { useOpenTelemetry } from "@envelop/opentelemetry";
 import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
 import type { Context, Env, ResultRow } from "./db.js";
-import schema from "./schema.graphql";
+import schema from "./schema.graphql" with { type: "text" };
+import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
+import { setupTracing } from "./tracing.js";
+
+setupTracing("frontis-results");
 
 const typeDefs = parse(schema);
 
@@ -113,6 +118,7 @@ const schema_ = buildSubgraphSchema({ typeDefs, resolvers });
 const yoga = createYoga({
   schema: schema_,
   graphqlEndpoint: "/graphql",
+  plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-results")],
   context: ({ request, env }: { request: Request; env: Env }) => {
     const league = request.headers.get("x-pilotariak-league");
     if (!league) {
@@ -125,7 +131,7 @@ const yoga = createYoga({
 });
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
-    return yoga.fetch(request, { env }, ctx);
-  },
+  fetch: withHttpMetrics((request: Request, env: Env, ctx: ExecutionContext) =>
+    yoga.fetch(request, { env }, ctx)
+  ),
 };
