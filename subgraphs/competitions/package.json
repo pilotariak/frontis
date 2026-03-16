@@ -21,5 +21,8 @@
     "@opentelemetry/sdk-trace-node": "^1.30.0",
     "graphql": "^16.9.0",
     "graphql-yoga": "^5.13.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.72.0"
   }
 }
