@@ -13,35 +13,35 @@ repository:
 
 labels:
 
-## CLOUD PROVIDERS
-- name: "cloud/cloudflare"
-  description: "Cloudflare provider"
-  color: "068082"
+  ## CLOUD PROVIDERS
+  - name: "cloud/cloudflare"
+    description: "Cloudflare provider"
+    color: "068082"
 
-- name: "cloud/hive"
-  description: "The Hive Gateway"
-  color: "068082"
+  - name: "cloud/hive"
+    description: "The Hive Gateway"
+    color: "068082"
 
-## AREA
+  ## AREA
 
-- name: "area/graphql"
-  description: "GraphQL"
-  color: "cc317c"
+  - name: "area/graphql"
+    description: "GraphQL"
+    color: "cc317c"
 
-- name: "area/database"
-  description: "Cloudflare D1"
-  color: "cc317c"
+  - name: "area/database"
+    description: "Cloudflare D1"
+    color: "cc317c"
 
-- name: "area/docker"
-  description: "Docker"
-  color: "cc317c"
+  - name: "area/docker"
+    description: "Docker"
+    color: "cc317c"
 
-## DEPENDENCY
+  ## DEPENDENCY
 
-- name: "dependency/typescript"
-  description: "Dependency Typescript"
-  color: "6fcb70"
+  - name: "dependency/typescript"
+    description: "Dependency Typescript"
+    color: "6fcb70"
 
-- name: "dependency/docker"
-  description: "Dependency Docker"
-  color: "6fcb70"
+  - name: "dependency/docker"
+    description: "Dependency Docker"
+    color: "6fcb70"
