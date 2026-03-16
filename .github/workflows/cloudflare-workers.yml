@@ -4,8 +4,10 @@
 ---
 name: Deploy / Worker
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - v*
+  workflow_dispatch:  # Allow manual triggering
 
 permissions:
   contents: read
