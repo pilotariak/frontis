@@ -14,3 +14,19 @@ inspector_port = 9232
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+[vars]
+ENVIRONMENT = dev
+SUBGRAPH_ECHO_URL = "http://localhost:4001/graphql"
+SUBGRAPH_COMPETITIONS_URL = "http://localhost:4002/graphql"
+SUBGRAPH_CLUBS_URL = "http://localhost:4003/graphql"
+SUBGRAPH_SPECIALTIES_URL = "http://localhost:4004/graphql"
+SUBGRAPH_RESULTS_URL = "http://localhost:4005/graphql"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+SUBGRAPH_ECHO_URL = "https://frontis-echo.nicolas-lamirault.workers.dev/graphql"
+SUBGRAPH_COMPETITIONS_URL = "https://frontis-competitions.nicolas-lamirault.workers.dev/graphql"
+SUBGRAPH_CLUBS_URL = "https://frontis-clubs.nicolas-lamirault.workers.dev/graphql"
+SUBGRAPH_SPECIALTIES_URL = "https://frontis-specialties.nicolas-lamirault.workers.dev/graphql"
+SUBGRAPH_RESULTS_URL = "https://frontis-results.nicolas-lamirault.workers.dev/graphql"

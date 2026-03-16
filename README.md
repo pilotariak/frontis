@@ -10,13 +10,13 @@
 
 It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate five subgraphs:
 
-| Subgraph       | Port | Inspector | Owns                |
-| -------------- | ---- | --------- | ------------------- |
-| `echo`         | 4001 | 9229      | liveness, version   |
-| `specialties`  | 4004 | 9234      | `Specialty`         |
-| `clubs`        | 4003 | 9230      | `Club`              |
-| `competitions` | 4002 | 9231      | `Competition`       |
-| `results`      | 4005 | 9235      | `Result`, `Player`  |
+| Subgraph       | Port | Inspector | Owns               |
+| -------------- | ---- | --------- | ------------------ |
+| `echo`         | 4001 | 9229      | liveness, version  |
+| `clubs`        | 4003 | 9230      | `Club`             |
+| `competitions` | 4002 | 9231      | `Competition`      |
+| `results`      | 4005 | 9235      | `Result`, `Player` |
+| `specialties`  | 4004 | 9234      | `Specialty`        |
 
 The gateway runs on **port 4000** (inspector: **9232**) and presents a unified schema to clients.
 

@@ -8,6 +8,11 @@ on:
     tags:
       - v*
   workflow_dispatch:  # Allow manual triggering
+    inputs:
+      environment:
+        description: "Choose an environment to deploy to: <dev|staging|prod>"
+        required: true
+        default: "dev"
 
 permissions:
   contents: read
@@ -50,6 +55,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: "subgraphs/${{ matrix.subgraph }}"
+          environment: production
 
   deploy-gateway:
     name: Deploy Gateway
@@ -72,3 +78,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: "gateway"
+          environment: production
