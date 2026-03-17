@@ -1,4 +1,4 @@
-import { defineConfig, useOpenTelemetry } from "@graphql-hive/gateway";
+import { defineConfig, useOpenTelemetry, Logger, JSONLogWriter } from "@graphql-hive/gateway";
 import { usePrometheus } from "@graphql-yoga/plugin-prometheus";
 import { metrics } from "@opentelemetry/api";
 import { OTLPMetricExporter as OTLPMetricExporterGrpc } from "@opentelemetry/exporter-metrics-otlp-grpc";
@@ -26,12 +26,26 @@ function getOtelExporters(endpoint: string) {
   };
 }
 
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+function buildLogger(): Logger | LogLevel {
+  const level = (process.env.LOG_LEVEL?.toLowerCase() ?? (
+    process.env.NODE_ENV === "production" ? "warn" : "debug"
+  )) as LogLevel;
+  if (process.env.LOG_JSON === "1") {
+    return new Logger({ level, writers: [new JSONLogWriter()] });
+  }
+  return level;
+}
+
 const otelEndpoint =
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4318";
 const { traceExporter, metricExporter } = getOtelExporters(otelEndpoint);
 const serviceName = process.env.OTEL_SERVICE_NAME || "frontis-gateway";
 
 export const gatewayConfig = defineConfig({
+  logging: buildLogger(),
+  maskedErrors: process.env.NODE_ENV === "production",
   supergraph: {
     type: "hive",
     endpoint: process.env.HIVE_CDN_ENDPOINT, // ?? "https://cdn.graphql-hive.com/artifacts/v1",

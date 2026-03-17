@@ -79,6 +79,16 @@ function serviceBindingFetch(env: any) {
   };
 }
 
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+function getLogLevel(env: any): LogLevel {
+  const level = env.LOG_LEVEL?.toLowerCase();
+  if (level === "debug" || level === "info" || level === "warn" || level === "error") {
+    return level;
+  }
+  return env.ENVIRONMENT === "production" ? "warn" : "debug";
+}
+
 // Let gateway be initialized lazily to use environment variables in Module Worker mode
 let gateway: ReturnType<typeof createGatewayRuntime>;
 
@@ -149,7 +159,8 @@ export default {
         : undefined;
 
       gateway = createGatewayRuntime({
-        logging: true,
+        logging: getLogLevel(env),
+        maskedErrors: env.ENVIRONMENT === "production",
         transports: {
           http: httpTransport,
         },

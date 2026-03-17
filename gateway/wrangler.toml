@@ -40,6 +40,7 @@ service = "frontis-results"
 
 [vars]
 ENVIRONMENT = "dev"
+LOG_LEVEL = "debug"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
@@ -60,6 +61,7 @@ id = "aeca138a6eb44f0e99d2ecfbef2bd119"
 
 [env.production.vars]
 ENVIRONMENT = "production"
+LOG_LEVEL = "warn"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"

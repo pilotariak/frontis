@@ -16,6 +16,7 @@ This reference documents all environment variables, Wrangler bindings, and confi
 | `GRAPHQL_MAX_DIRECTIVES`      | no         | `10`                    | Maximum number of directives in a query document.                  |
 | `HIVE_CDN_ENDPOINT`           | yes (prod) | —                       | URL of the Hive CDN artifact endpoint for the supergraph SDL.      |
 | `HIVE_CDN_TOKEN`              | yes (prod) | —                       | Access token for the Hive CDN. Store as a Wrangler secret.         |
+| `LOG_LEVEL`                   | no         | `debug` (dev) / `warn` (prod) | Gateway log level. Accepted values: `debug`, `info`, `warn`, `error`. Overrides the environment default. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no         | `http://localhost:4318` | OTLP collector endpoint for traces and metrics.                    |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | no         | `http/protobuf`         | OTLP export protocol. Supported values: `http/protobuf`, `grpc`.   |
 | `OTEL_SERVICE_NAME`           | no         | `frontis-gateway`       | Service name reported in traces.                                   |
@@ -50,6 +51,19 @@ The `[observability]` section in `wrangler.toml` enables Cloudflare's built-in W
 enabled = true
 head_sampling_rate = 1
 ```
+
+### Logging
+
+Log verbosity is controlled by the `LOG_LEVEL` variable:
+
+- **`debug`** — verbose; logs all gateway internals. Default in `dev`.
+- **`info`** — operational events only.
+- **`warn`** — warnings and errors. Default in `production`.
+- **`error`** — errors only.
+
+In production, errors returned to GraphQL clients are masked: internal stack traces and upstream error details are hidden and replaced with a generic message. In development all error details are forwarded to the client for easier debugging.
+
+For the Node.js gateway config (`gateway.config.ts`), set `LOG_JSON=1` to emit structured JSON log lines (useful for log aggregator ingestion).
 
 ---
 
