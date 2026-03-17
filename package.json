@@ -20,6 +20,7 @@
     "scheduler:remote": "bun run --filter scheduler dev --remote",
     "scheduler:deploy": "bun run --filter scheduler deploy",
     "graphql:gateway:local": "bun run --filter gateway dev",
+    "graphql:gateway:remote": "bun run --filter gateway dev --remote",
     "graphql:echo:local": "bun run --filter echo dev",
     "graphql:specialties:local": "bun run --filter specialties dev",
     "graphql:specialties:remote": "bun run --filter specialties dev --remote",
