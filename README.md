@@ -8,28 +8,6 @@
 
 **Frontis** is the GraphQL federation gateway for the Pilotariak platform — a Basque pelota competition management system.
 
-It uses [Hive Gateway](https://the-guild.dev/graphql/hive/docs/gateway) to federate five subgraphs:
-
-| Subgraph       | Port | Inspector | Owns               |
-| -------------- | ---- | --------- | ------------------ |
-| `echo`         | 4001 | 9229      | liveness, version  |
-| `clubs`        | 4003 | 9230      | `Club`             |
-| `competitions` | 4002 | 9231      | `Competition`      |
-| `results`      | 4005 | 9235      | `Result`, `Player` |
-| `specialties`  | 4004 | 9234      | `Specialty`        |
-
-The gateway runs on **port 4000** (inspector: **9232**) and presents a unified schema to clients.
-
-## Getting Started
-
-```bash
-bun install
-bun run compose
-bun run dev  # gateway + all subgraphs
-```
-
-Gateway available at `http://localhost:4000/graphql`.
-
 ## Architecture
 
 ```
@@ -48,12 +26,12 @@ gateway (Hive Gateway, :4000)
 
 Documentation follows the [Diátaxis](https://diataxis.fr/) framework — see [`docs/`](docs/) for the full index.
 
-| Type | Documents |
-| ---- | --------- |
-| **Tutorials** | [Getting started](docs/tutorials/getting-started.md) |
+| Type              | Documents                                                                                                                                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tutorials**     | [Getting started](docs/tutorials/getting-started.md)                                                                                                                                                                                                |
 | **How-to guides** | [Dev & run](docs/how-to/howto-dev.md) · [Query the API](docs/how-to/howto-query-the-api.md) · [Database](docs/how-to/howto-database.md) · [Hive Registry](docs/how-to/howto-hive-registry.md) · [Add a subgraph](docs/how-to/howto-add-subgraph.md) |
-| **Reference** | [GraphQL schema](docs/reference/graphql-schema.md) · [Configuration](docs/reference/configuration.md) · [Ports](docs/reference/ports.md) |
-| **Explanation** | [Architecture](docs/explanation/architecture.md) · [Federation concepts](docs/explanation/federation-concepts.md) |
+| **Reference**     | [GraphQL schema](docs/reference/graphql-schema.md) · [Configuration](docs/reference/configuration.md) · [Ports](docs/reference/ports.md)                                                                                                            |
+| **Explanation**   | [Architecture](docs/explanation/architecture.md) · [Federation concepts](docs/explanation/federation-concepts.md)                                                                                                                                   |
 
 Federation v2.5 is used. Each subgraph owns its entities and declares stubs for
 entities owned by others via `@key` directives. The gateway stitches them at query
