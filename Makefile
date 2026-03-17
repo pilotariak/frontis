@@ -45,6 +45,43 @@ check-%:
 		echo -e "$(ERROR_COLOR)$(KO)$(NO_COLOR) $*"; \
 	fi
 
+##@ Dev
+
 .PHONY: clean
 clean: ## Clean project
 	@echo -e "$(INFO)$(INFO_COLOR)[Clean] Processing $(NO_COLOR)"
+
+##@ Cloudflare
+
+.PHONY: cloudflare-deploy
+cloudflare-deploy: guard-SERVICE ## Deploy service to Cloudflare workers
+	@echo -e "$(INFO)$(INFO_COLOR)[Cloudflare] Deploy $(SERVICE)$(NO_COLOR)"
+	@pushd $(SERVICE) && bunx wrangler deploy && popd
+
+##@ Hive
+
+.PHONY: hive-check
+hive-check: guard-SERVICE guard-HIVE_ENV ## Check the GraphQL schema (SERVICE=xxx HIVE_ENV=xxx)
+	@echo -e "$(INFO)$(INFO_COLOR)[Hive] Check the GraphQL schema for $(SERVICE)$(NO_COLOR)"
+	@bunx @graphql-hive/cli schema:check \
+		--registry.accessToken "$(HIVE_ACCESS_TOKEN)" \
+		--target "$(HIVE_ORG)/$(HIVE_PROJECT)/$(HIVE_ENV)" \
+		--service "$(SERVICE)" \
+		subgraphs/$(SERVICE)/schema.graphql
+
+.PHONY: hive-publish
+hive-publish: guard-SERVICE guard-HIVE_ORG guard-HIVE_PROJECT guard-HIVE_ENV guard-HIVE_URL ## Publish the GraphQL schema (SERVICE=xxx HIVE_ENV=xxx)
+	@echo -e "$(INFO)$(INFO_COLOR)[Hive] Publish the GraphQL schema: $(SERVICE)$(NO_COLOR)"
+	@bunx @graphql-hive/cli schema:publish \
+		--registry.accessToken "$(HIVE_ACCESS_TOKEN)" \
+		--target "$(HIVE_ORG)/$(HIVE_PROJECT)/$(HIVE_ENV)" \
+		--service "$(SERVICE)" \
+		--url $(HIVE_URL) \
+		--author "Pilotariak" \
+		subgraphs/$(SERVICE)/schema.graphql
+
+.PHONY: hive-supergraph
+hive-supergraph: ## Curl the supergraph (reads HIVE_CDN_ENDPOINT and HIVE_CDN_TOKEN from gateway/.dev.vars)
+	@CDN_ENDPOINT=$$(grep '^HIVE_CDN_ENDPOINT=' gateway/.dev.vars | cut -d= -f2-); \
+	CDN_TOKEN=$$(grep '^HIVE_CDN_TOKEN=' gateway/.dev.vars | cut -d= -f2-); \
+	curl -H "X-Hive-CDN-Key: $$CDN_TOKEN" $$CDN_ENDPOINT/supergraph

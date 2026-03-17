@@ -1,39 +1,38 @@
-import { createGatewayRuntime } from "@graphql-hive/gateway-runtime";
-import http from "@graphql-mesh/transport-http";
+import { createGatewayRuntime } from "@graphql-hive/gateway";
+import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
-import supergraph from "./supergraph.graphql";
 
-const gateway = createGatewayRuntime({
-  supergraph,
-  landingPage: false,
-  graphiql: false,
-  transports: { http },
-  plugins: () => [
-    {
-      onFetch({ options, setOptions, context }: {
-        options: RequestInit;
-        setOptions: (opts: RequestInit) => void;
-        context: { request?: Request };
-      }) {
-        const league = context?.request?.headers?.get("x-pilotariak-league");
-        if (league) {
-          setOptions({
-            ...options,
-            headers: {
-              ...(options.headers as Record<string, string> ?? {}),
-              "x-pilotariak-league": league,
-            },
-          });
-        }
-      },
-    },
-  ],
-});
+// Maps worker names to their service binding keys in env
+const SERVICE_BINDING_MAP: Record<string, string> = {
+  "frontis-echo": "ECHO",
+  "frontis-specialties": "SPECIALTIES",
+  "frontis-clubs": "CLUBS",
+  "frontis-competitions": "COMPETITIONS",
+  "frontis-results": "RESULTS",
+};
+
+// Routes fetch calls to subgraph workers.dev URLs through CF Service Bindings.
+// Worker-to-Worker HTTP calls via workers.dev do not work within CF's network;
+// service bindings provide direct in-network Worker-to-Worker communication.
+function serviceBindingFetch(env: any) {
+  return function (url: string, init?: RequestInit): Promise<Response> {
+    const hostname = new URL(url).hostname; // e.g. frontis-echo.nicolas-lamirault.workers.dev
+    const workerName = hostname.split(".")[0]; // e.g. frontis-echo
+    const binding = SERVICE_BINDING_MAP[workerName];
+    if (binding && env[binding]) {
+      return env[binding].fetch(new Request(url, init));
+    }
+    return globalThis.fetch(url, init);
+  };
+}
+
+// Let gateway be initialized lazily to use environment variables in Module Worker mode
+let gateway: ReturnType<typeof createGatewayRuntime>;
 
 export default {
   async fetch(
     request: Request,
-    env: Record<string, unknown>,
+    env: any,
     ctx: ExecutionContext
   ): Promise<Response> {
     const url = new URL(request.url);
@@ -56,8 +55,46 @@ export default {
       });
     }
 
-    const response = await gateway(request, env, ctx);
-    ctx.waitUntil(gateway[Symbol.asyncDispose]());
+    if (!gateway) {
+      gateway = createGatewayRuntime({
+        logging: true,
+        transports: {
+          http: httpTransport,
+        },
+        fetchAPI: {
+          fetch: serviceBindingFetch(env),
+        },
+        supergraph: {
+          type: "hive",
+          endpoint: env.HIVE_CDN_ENDPOINT || "https://cdn.graphql-hive.com/artifacts/v1",
+          key: env.HIVE_CDN_TOKEN,
+        },
+        landingPage: false,
+        graphiql: false,
+        plugins: () => [
+          {
+            onFetch({ options, setOptions, context }: {
+              options: RequestInit;
+              setOptions: (opts: RequestInit) => void;
+              context: { request?: Request };
+            }) {
+              const league = context?.request?.headers?.get("x-pilotariak-league");
+              if (league) {
+                setOptions({
+                  ...options,
+                  headers: {
+                    ...(options.headers as Record<string, string> ?? {}),
+                    "x-pilotariak-league": league,
+                  },
+                });
+              }
+            },
+          },
+        ],
+      });
+    }
+
+    const response = await gateway.fetch(request, env, ctx);
     return response;
   },
 };

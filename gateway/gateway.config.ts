@@ -32,21 +32,11 @@ const { traceExporter, metricExporter } = getOtelExporters(otelEndpoint);
 const serviceName = process.env.OTEL_SERVICE_NAME || "frontis-gateway";
 
 export const gatewayConfig = defineConfig({
-  /**
-   * Supergraph SDL is loaded from the file specified on the CLI.
-   * Run `bun run compose` first to generate it.
-   */
-
-  /**
-   * Optional: uncomment to pull the supergraph from the Hive Registry CDN
-   * instead of a local file.
-   *
-   * hive: {
-   *   endpoint: process.env.HIVE_CDN_ENDPOINT!,
-   *   key: process.env.HIVE_CDN_KEY!,
-   * },
-   */
-
+  supergraph: {
+    type: "hive",
+    endpoint: process.env.HIVE_CDN_ENDPOINT, // ?? "https://cdn.graphql-hive.com/artifacts/v1",
+    key: process.env.HIVE_CDN_TOKEN!,
+  },
   healthCheckEndpoint: "/healthz",
 
   plugins: (ctx) => [
