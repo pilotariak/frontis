@@ -1,4 +1,4 @@
-import { createGatewayRuntime } from "@graphql-hive/gateway";
+import { createGatewayRuntime, useRateLimit } from "@graphql-hive/gateway";
 import CFWorkerKVCache from "@graphql-mesh/cache-cfw-kv";
 import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
@@ -78,6 +78,34 @@ export default {
       const maxTokens = parseInt(env.GRAPHQL_MAX_TOKENS ?? "1000", 10);
       const maxDirectives = parseInt(env.GRAPHQL_MAX_DIRECTIVES ?? "10", 10);
 
+      // Rate limit windows (ms) and max requests per window per client IP
+      const rateLimitWindowMs = parseInt(env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
+      const rateLimitMaxList = parseInt(env.RATE_LIMIT_MAX_LIST ?? "60", 10);
+      const rateLimitMaxItem = parseInt(env.RATE_LIMIT_MAX_ITEM ?? "120", 10);
+
+      // Identify clients by Cloudflare's authoritative IP header, falling back to x-forwarded-for
+      const clientIdentifier =
+        "{context.headers.cf-connecting-ip}" +
+        "|{context.headers.x-forwarded-for}" +
+        "|{context.headers.host}";
+
+      const rateLimitConfig = [
+        // List queries — broader result sets, lower limit
+        { type: "Query", field: "clubs",        max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "competitions", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "results",      max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "specialties",  max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        // Single-item queries — higher limit
+        { type: "Query", field: "club",         max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "competition",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "result",       max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+        { type: "Query", field: "specialty",    max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+      ];
+
+      const rateLimitCache = env.RATE_LIMIT_CACHE
+        ? new CFWorkerKVCache({ namespace: env.RATE_LIMIT_CACHE })
+        : undefined;
+
       gateway = createGatewayRuntime({
         logging: true,
         transports: {
@@ -99,6 +127,9 @@ export default {
         graphiql: false,
         disableIntrospection: env.ENVIRONMENT === "production" ? {} : undefined,
         plugins: () => [
+          ...(rateLimitCache
+            ? [useRateLimit({ config: rateLimitConfig, cache: rateLimitCache }) as any]
+            : []),
           {
             onValidate({ addValidationRule }: { addValidationRule: (rule: unknown) => void }) {
               addValidationRule(createMaxDepthRule(maxDepth));
