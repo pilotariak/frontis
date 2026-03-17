@@ -102,9 +102,9 @@ bun run migrate:remote
 
    ```toml
    [[d1_databases]]
-   binding        = "DB_LEAGUE_<LEAGUE>"
-   database_name  = "pilotariak_<league>"
-   database_id    = "<id from step 1>"
+   binding = "DB_LEAGUE_<LEAGUE>"
+   database_name = "pilotariak_<league>"
+   database_id = "<id from step 1>"
    migrations_dir = "migrations"
    ```
 

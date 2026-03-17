@@ -14,11 +14,11 @@
 Security fixes are only applied to the latest commit on the default branch.
 As there is no stable release yet, users are encouraged to always update to the latest version.
 
-| Version              | Supported        |
-| -------------------- | ---------------- |
-| Latest (main branch) | yes              |
-| Tagged pre-releases  | Best effort      |
-| Older commits        | Not supported    |
+| Version              | Supported     |
+| -------------------- | ------------- |
+| Latest (main branch) | yes           |
+| Tagged pre-releases  | Best effort   |
+| Older commits        | Not supported |
 
 ## Reporting a Vulnerability
 

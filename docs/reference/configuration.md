@@ -8,19 +8,19 @@ This reference documents all environment variables, Wrangler bindings, and confi
 
 ### Environment variables
 
-| Variable                    | Required | Default         | Description                                                          |
-| --------------------------- | -------- | --------------- | -------------------------------------------------------------------- |
-| `ENVIRONMENT`               | no       | `dev`           | Deployment environment identifier (`dev`, `staging`, `production`)   |
-| `LOG_LEVEL`                 | no       | `debug` (dev) / `warn` (prod) | Gateway log level. Accepted values: `debug`, `info`, `warn`, `error`. Overrides the environment default. |
-| `GRAPHQL_MAX_DEPTH`         | no       | `7`             | Maximum allowed query depth. Deeper queries are rejected.            |
-| `GRAPHQL_MAX_TOKENS`        | no       | `1000`          | Maximum number of tokens in a query document.                        |
-| `GRAPHQL_MAX_DIRECTIVES`    | no       | `10`            | Maximum number of directives in a query document.                    |
-| `HIVE_CDN_ENDPOINT`         | yes (prod)| —              | URL of the Hive CDN artifact endpoint for the supergraph SDL.        |
-| `HIVE_CDN_TOKEN`            | yes (prod)| —              | Access token for the Hive CDN. Store as a Wrangler secret.           |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | no     | `http://localhost:4318` | OTLP collector endpoint for traces and metrics.           |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | no     | `http/protobuf` | OTLP export protocol. Supported values: `http/protobuf`, `grpc`.    |
-| `OTEL_SERVICE_NAME`         | no       | `frontis-gateway`| Service name reported in traces.                                    |
-| `OTEL_SERVICE_VERSION`      | no       | `0.1.0`         | Service version reported in traces.                                  |
+| Variable                      | Required   | Default                 | Description                                                        |
+| ----------------------------- | ---------- | ----------------------- | ------------------------------------------------------------------ |
+| `ENVIRONMENT`                 | no         | `dev`                   | Deployment environment identifier (`dev`, `staging`, `production`) |
+| `GRAPHQL_MAX_DEPTH`           | no         | `7`                     | Maximum allowed query depth. Deeper queries are rejected.          |
+| `GRAPHQL_MAX_TOKENS`          | no         | `1000`                  | Maximum number of tokens in a query document.                      |
+| `GRAPHQL_MAX_DIRECTIVES`      | no         | `10`                    | Maximum number of directives in a query document.                  |
+| `HIVE_CDN_ENDPOINT`           | yes (prod) | —                       | URL of the Hive CDN artifact endpoint for the supergraph SDL.      |
+| `HIVE_CDN_TOKEN`              | yes (prod) | —                       | Access token for the Hive CDN. Store as a Wrangler secret.         |
+| `LOG_LEVEL`                   | no         | `debug` (dev) / `warn` (prod) | Gateway log level. Accepted values: `debug`, `info`, `warn`, `error`. Overrides the environment default. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no         | `http://localhost:4318` | OTLP collector endpoint for traces and metrics.                    |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | no         | `http/protobuf`         | OTLP export protocol. Supported values: `http/protobuf`, `grpc`.   |
+| `OTEL_SERVICE_NAME`           | no         | `frontis-gateway`       | Service name reported in traces.                                   |
+| `OTEL_SERVICE_VERSION`        | no         | `0.1.0`                 | Service version reported in traces.                                |
 
 ### Wrangler bindings
 
@@ -28,18 +28,18 @@ This reference documents all environment variables, Wrangler bindings, and confi
 
 The gateway calls subgraphs via Cloudflare service bindings (in-process, no public HTTP):
 
-| Binding         | Worker name           | Subgraph      |
-| --------------- | --------------------- | ------------- |
-| `ECHO`          | `frontis-echo`        | echo          |
-| `SPECIALTIES`   | `frontis-specialties` | specialties   |
-| `CLUBS`         | `frontis-clubs`       | clubs         |
-| `COMPETITIONS`  | `frontis-competitions`| competitions  |
-| `RESULTS`       | `frontis-results`     | results       |
+| Binding        | Worker name            | Subgraph     |
+| -------------- | ---------------------- | ------------ |
+| `ECHO`         | `frontis-echo`         | echo         |
+| `SPECIALTIES`  | `frontis-specialties`  | specialties  |
+| `CLUBS`        | `frontis-clubs`        | clubs        |
+| `COMPETITIONS` | `frontis-competitions` | competitions |
+| `RESULTS`      | `frontis-results`      | results      |
 
 #### KV namespaces
 
-| Binding            | Purpose                                      |
-| ------------------ | -------------------------------------------- |
+| Binding            | Purpose                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
 | `SUPERGRAPH_CACHE` | Caches the supergraph SDL fetched from Hive CDN. Avoids a remote fetch on every cold start. |
 
 ### Observability
@@ -71,18 +71,18 @@ For the Node.js gateway config (`gateway.config.ts`), set `LOG_JSON=1` to emit s
 
 ### Shared environment variables
 
-| Variable     | Required | Default | Description                                    |
-| ------------ | -------- | ------- | ---------------------------------------------- |
-| `ENVIRONMENT`| no       | `dev`   | Deployment environment identifier               |
+| Variable      | Required | Default | Description                       |
+| ------------- | -------- | ------- | --------------------------------- |
+| `ENVIRONMENT` | no       | `dev`   | Deployment environment identifier |
 
 ### D1 database bindings
 
 All D1-backed subgraphs (`clubs`, `competitions`, `results`, `specialties`) bind to league databases:
 
-| Binding             | Database name        | League |
-| ------------------- | -------------------- | ------ |
-| `DB_LEAGUE_LCAPB`   | `pilotariak_lcapb`   | LCAPB  |
-| `DB_LEAGUE_LIDFPB`  | `pilotariak_lidfpb`  | LIDFPB |
+| Binding            | Database name       | League |
+| ------------------ | ------------------- | ------ |
+| `DB_LEAGUE_LCAPB`  | `pilotariak_lcapb`  | LCAPB  |
+| `DB_LEAGUE_LIDFPB` | `pilotariak_lidfpb` | LIDFPB |
 
 The active binding is selected at runtime based on the `X-Pilotariak-League` request header.
 
@@ -92,10 +92,10 @@ The active binding is selected at runtime based on the `X-Pilotariak-League` req
 
 Used exclusively for running migrations. Not deployed as a Worker.
 
-| Binding             | Database name        | Purpose                        |
-| ------------------- | -------------------- | ------------------------------ |
-| `DB_LEAGUE_LCAPB`   | `pilotariak_lcapb`   | LCAPB league data              |
-| `DB_LEAGUE_LIDFPB`  | `pilotariak_lidfpb`  | LIDFPB league data             |
+| Binding            | Database name       | Purpose            |
+| ------------------ | ------------------- | ------------------ |
+| `DB_LEAGUE_LCAPB`  | `pilotariak_lcapb`  | LCAPB league data  |
+| `DB_LEAGUE_LIDFPB` | `pilotariak_lidfpb` | LIDFPB league data |
 
 ---
 
@@ -113,8 +113,8 @@ Runs daily at 03:00 UTC.
 
 ### Secrets
 
-| Secret          | Description                                              |
-| --------------- | -------------------------------------------------------- |
+| Secret            | Description                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
 | (league-specific) | The scheduler may require API keys or session tokens for league websites. Set via `wrangler secret put`. |
 
 ---

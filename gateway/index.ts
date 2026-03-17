@@ -6,7 +6,48 @@ import {
   createMaxDepthRule,
   createMaxTokensRule,
   createMaxDirectivesRule,
+  createCostAnalysisRule,
+  type CostMap,
 } from "./validation.js";
+
+// Schema-specific demand control cost map.
+//
+// Costs reflect relative subgraph call expense:
+//   - Trivial scalars (echo, version):       0
+//   - Single-item lookups (club, specialty):  2–10
+//   - List root queries (clubs, results):    15–60  (one call per list + N entity resolutions)
+//   - Cross-subgraph entity fields in Result: 4 each (competition, specialty, clubA, clubB)
+//   - Cross-subgraph nested list (Competition.results): 20
+//
+// With maxCost=1000 a typical query costs ~20–200; a 10× aliased expensive
+// query costs 600–800, and truly pathological queries are rejected.
+const DEMAND_CONTROL_COST_MAP: CostMap = {
+  Query: {
+    echo: 0,
+    version: 0,
+    club: 2,
+    specialty: 2,
+    competition: 5,
+    result: 10,
+    clubs: 15,
+    specialties: 15,
+    competitions: 25,
+    results: 60,
+  },
+  Competition: {
+    // Triggers cross-subgraph entity resolution for every result item
+    results: 20,
+  },
+  Result: {
+    // Each field triggers a cross-subgraph entity lookup
+    competition: 4,
+    specialty: 4,
+    clubA: 4,
+    clubB: 4,
+    clubALineup: 2,
+    clubBLineup: 2,
+  },
+};
 
 // Maps worker names to their service binding keys in env
 const SERVICE_BINDING_MAP: Record<string, string> = {
@@ -87,6 +128,7 @@ export default {
       const maxDepth = parseInt(env.GRAPHQL_MAX_DEPTH ?? "7", 10);
       const maxTokens = parseInt(env.GRAPHQL_MAX_TOKENS ?? "1000", 10);
       const maxDirectives = parseInt(env.GRAPHQL_MAX_DIRECTIVES ?? "10", 10);
+      const maxCost = parseInt(env.GRAPHQL_MAX_COST ?? "1000", 10);
 
       // Rate limit windows (ms) and max requests per window per client IP
       const rateLimitWindowMs = parseInt(env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
@@ -146,6 +188,7 @@ export default {
               addValidationRule(createMaxDepthRule(maxDepth));
               addValidationRule(createMaxTokensRule(maxTokens));
               addValidationRule(createMaxDirectivesRule(maxDirectives));
+              addValidationRule(createCostAnalysisRule(maxCost, DEMAND_CONTROL_COST_MAP));
             },
           },
           {

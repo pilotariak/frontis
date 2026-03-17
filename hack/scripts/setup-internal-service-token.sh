@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
-#
-# Generate INTERNAL_SERVICE_TOKEN and push it to all Cloudflare Workers.
-# Optionally writes the token to each worker's .dev.vars for local development.
-#
-# Usage: ./setup-internal-service-token.sh [--dev-vars]
-#
-# Options:
-#   --dev-vars   Also write the token to each worker's .dev.vars file
-#
-# Example:
-#   ./setup-internal-service-token.sh
-#   ./setup-internal-service-token.sh --dev-vars
 
 set -euo pipefail
 

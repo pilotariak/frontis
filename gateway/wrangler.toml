@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
 name = "frontis-gateway"
 main = "index.ts"
 compatibility_date = "2026-03-13"
@@ -41,6 +44,8 @@ LOG_LEVEL = "debug"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
+# Demand control: max query cost (sum of per-field weights); 0 = disabled
+GRAPHQL_MAX_COST = "1000"
 # Rate limiting: window in ms, max requests per window per client IP
 RATE_LIMIT_WINDOW_MS = "60000"
 RATE_LIMIT_MAX_LIST = "60"
@@ -60,6 +65,7 @@ LOG_LEVEL = "warn"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
+GRAPHQL_MAX_COST = "1000"
 RATE_LIMIT_WINDOW_MS = "60000"
 RATE_LIMIT_MAX_LIST = "60"
 RATE_LIMIT_MAX_ITEM = "120"
