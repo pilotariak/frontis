@@ -37,6 +37,20 @@ service = "frontis-results"
 
 [vars]
 ENVIRONMENT = "dev"
+GRAPHQL_MAX_DEPTH = "7"
+GRAPHQL_MAX_TOKENS = "1000"
+GRAPHQL_MAX_DIRECTIVES = "10"
+
+[[kv_namespaces]]
+binding = "SUPERGRAPH_CACHE"
+id = "9b61ecdddbf84363a2b9d7f886aec23a"
 
 [env.production.vars]
 ENVIRONMENT = "production"
+GRAPHQL_MAX_DEPTH = "7"
+GRAPHQL_MAX_TOKENS = "1000"
+GRAPHQL_MAX_DIRECTIVES = "10"
+
+[[env.production.kv_namespaces]]
+binding = "SUPERGRAPH_CACHE"
+id = "9b61ecdddbf84363a2b9d7f886aec23a"
