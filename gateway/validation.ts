@@ -1,7 +1,13 @@
-import { GraphQLError } from "graphql";
+import { GraphQLError, isListType, isNonNullType } from "graphql";
 import type { ValidationContext, ASTVisitor } from "graphql";
 
 export type ValidationRule = (context: ValidationContext) => ASTVisitor;
+
+/**
+ * Field cost weights keyed by type name then field name.
+ * A cost of 0 means the field is free (e.g. trivial scalars).
+ */
+export type CostMap = Record<string, Record<string, number>>;
 
 /**
  * Rejects queries exceeding the configured nesting depth.
@@ -63,6 +69,64 @@ export function createMaxTokensRule(maxTokens: number): ValidationRule {
             );
           }
           count = 0;
+        },
+      },
+    };
+  };
+}
+
+/**
+ * Demand control: assigns a cost to every field in the query and rejects
+ * the operation when the total exceeds maxCost.
+ *
+ * Cost resolution order:
+ *   1. Explicit entry in costMap[typeName][fieldName]
+ *   2. defaultListCost  — field whose return type is a list (wraps any nesting)
+ *   3. defaultFieldCost — everything else
+ *
+ * Cost is computed at validation time (pre-execution), so it guards against
+ * expensive queries before any resolver or subgraph call is made.
+ */
+export function createCostAnalysisRule(
+  maxCost: number,
+  costMap: CostMap = {},
+  defaultListCost: number = 10,
+  defaultFieldCost: number = 1
+): ValidationRule {
+  return (context: ValidationContext): ASTVisitor => {
+    let totalCost = 0;
+
+    function computeFieldCost(): number {
+      const parentType = context.getParentType();
+      const fieldDef = context.getFieldDef();
+
+      if (!parentType || !fieldDef) return defaultFieldCost;
+
+      const typeCosts = costMap[parentType.name];
+      if (typeCosts && fieldDef.name in typeCosts) {
+        return typeCosts[fieldDef.name];
+      }
+
+      const t = fieldDef.type;
+      const isList =
+        isListType(t) || (isNonNullType(t) && isListType(t.ofType));
+      return isList ? defaultListCost : defaultFieldCost;
+    }
+
+    return {
+      Field() {
+        totalCost += computeFieldCost();
+      },
+      Document: {
+        leave() {
+          if (totalCost > maxCost) {
+            context.reportError(
+              new GraphQLError(
+                `Query cost limit of ${maxCost} exceeded (cost: ${totalCost}).`
+              )
+            );
+          }
+          totalCost = 0;
         },
       },
     };

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
 name = "frontis-scheduler"
 main = "src/index.ts"
 compatibility_date = "2026-03-13"
@@ -10,14 +13,14 @@ crons = ["0 3 * * *"]
 inspector_port = 9233
 
 [[d1_databases]]
-binding       = "DB_LEAGUE_LCAPB"
+binding = "DB_LEAGUE_LCAPB"
 database_name = "pilotariak_lcapb"
-database_id   = "f2344757-9f73-4e16-bca9-554331062864"
+database_id = "f2344757-9f73-4e16-bca9-554331062864"
 
 [[d1_databases]]
-binding       = "DB_LEAGUE_LIDFPB"
+binding = "DB_LEAGUE_LIDFPB"
 database_name = "pilotariak_lidfpb"
-database_id   = "7672f60e-bd73-423e-ba92-d073c69d9c07"
+database_id = "7672f60e-bd73-423e-ba92-d073c69d9c07"
 
 [observability]
 enabled = true

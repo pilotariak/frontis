@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
-#
-# Publish all subgraph schemas to the Hive Registry.
-#
-# Usage: ./hive-graphql-publish.sh <organization> <project> <environment> <domain>
-#
-# Example:
-#   HIVE_ACCESS_TOKEN=xxx ./hive-graphql-publish.sh pilotariak frontis development nicolas-lamirault.workers.dev
 
 set -euo pipefail
 

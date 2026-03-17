@@ -56,14 +56,14 @@ bun run dev
 
 Wait until you see all six services report ready. Each one listens on its own port:
 
-| Service      | URL                             |
-| ------------ | ------------------------------- |
-| gateway      | http://localhost:4000/graphql   |
-| echo         | http://localhost:4001/graphql   |
-| competitions | http://localhost:4002/graphql   |
-| clubs        | http://localhost:4003/graphql   |
-| specialties  | http://localhost:4004/graphql   |
-| results      | http://localhost:4005/graphql   |
+| Service      | URL                           |
+| ------------ | ----------------------------- |
+| gateway      | http://localhost:4000/graphql |
+| echo         | http://localhost:4001/graphql |
+| competitions | http://localhost:4002/graphql |
+| clubs        | http://localhost:4003/graphql |
+| specialties  | http://localhost:4004/graphql |
+| results      | http://localhost:4005/graphql |
 
 ---
 

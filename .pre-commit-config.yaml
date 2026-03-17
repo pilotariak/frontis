@@ -31,15 +31,15 @@ repos:
     pass_filenames: true
     files: \.*$
     args: []
-- repo: local
-  hooks:
-  - id: dprint
-    name: "📝 Dprint / Formatting"
-    entry: bash -c 'dprint fmt'
-    language: system
-    pass_filenames: true
-    files: \.*$
-    args: []
+# - repo: local
+#   hooks:
+#   - id: dprint
+#     name: "📝 Dprint / Formatting"
+#     entry: bash -c 'dprint fmt'
+#     language: system
+#     pass_filenames: true
+#     files: \.*$
+#     args: []
 # Lint
 - repo: https://github.com/compilerla/conventional-pre-commit
   rev: v4.4.0

@@ -30,7 +30,7 @@ type Club @key(fields: "id") {
 }
 ```
 
-Other subgraphs that need to *reference* `Club` declare a stub — only the key fields, no other fields:
+Other subgraphs that need to _reference_ `Club` declare a stub — only the key fields, no other fields:
 
 ```graphql
 # In results/schema.graphql
@@ -54,6 +54,7 @@ For the query:
 ```
 
 The gateway:
+
 1. Fetches all `Result` objects from the results subgraph, requesting `clubA { id }` (the key).
 2. Batches the `clubA` ids into a single `_entities` query to the clubs subgraph.
 3. Merges the returned `{ name }` values back.
@@ -87,11 +88,11 @@ This prevents a bad schema change in one subgraph from silently breaking the ent
 
 Hive tracks schemas per **target** (environment). Frontis uses three:
 
-| Target                             | Purpose                                    |
-| ---------------------------------- | ------------------------------------------ |
-| `pilotariak/frontis/development`   | Local and feature branch development       |
-| `pilotariak/frontis/staging`       | Pre-production validation                  |
-| `pilotariak/frontis/production`    | Live production                            |
+| Target                           | Purpose                              |
+| -------------------------------- | ------------------------------------ |
+| `pilotariak/frontis/development` | Local and feature branch development |
+| `pilotariak/frontis/staging`     | Pre-production validation            |
+| `pilotariak/frontis/production`  | Live production                      |
 
 Each target has its own supergraph SDL. Publishing to `development` does not affect `production`. This gives a safe promotion path: develop → stage → promote.
 

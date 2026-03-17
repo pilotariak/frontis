@@ -1,6 +1,6 @@
 # Architecture of Frontis
 
-This document explains *why* Frontis is built the way it is. It covers the architectural decisions behind GraphQL federation, the choice of Cloudflare Workers, the data routing strategy, and the tradeoffs involved.
+This document explains _why_ Frontis is built the way it is. It covers the architectural decisions behind GraphQL federation, the choice of Cloudflare Workers, the data routing strategy, and the tradeoffs involved.
 
 Read this when you want to understand the system — not when you need to perform a specific task.
 
@@ -18,7 +18,7 @@ The alternative — a monolithic GraphQL server — would couple all domains tog
 
 ## Why Federation v2.5?
 
-Apollo Federation v2 introduced `@key` as a first-class entity resolution mechanism. A subgraph declares which type it *owns* and which fields constitute its key. Other subgraphs can *reference* that type using only its key — the gateway resolves the full object from the owning subgraph at query time.
+Apollo Federation v2 introduced `@key` as a first-class entity resolution mechanism. A subgraph declares which type it _owns_ and which fields constitute its key. Other subgraphs can _reference_ that type using only its key — the gateway resolves the full object from the owning subgraph at query time.
 
 In Frontis, the `results` subgraph owns `Result`. It references `Club`, `Competition`, and `Specialty` using entity stubs:
 
@@ -30,6 +30,7 @@ type Club @key(fields: "id") {
 ```
 
 When a client asks for `result.clubA.name`, the gateway:
+
 1. Fetches the `Result` (with `clubA { id }`) from the results subgraph.
 2. Sends a `_entities` query to the clubs subgraph with the `id`.
 3. Merges `{ name }` back into the response.
@@ -115,11 +116,11 @@ Nightly (cron):
 
 The gateway enforces limits on all incoming queries to prevent abuse:
 
-| Limit              | Default |
-| ------------------ | ------- |
-| `GRAPHQL_MAX_DEPTH` | 7       |
-| `GRAPHQL_MAX_TOKENS` | 1000   |
-| `GRAPHQL_MAX_DIRECTIVES` | 10 |
+| Limit                    | Default |
+| ------------------------ | ------- |
+| `GRAPHQL_MAX_DEPTH`      | 7       |
+| `GRAPHQL_MAX_TOKENS`     | 1000    |
+| `GRAPHQL_MAX_DIRECTIVES` | 10      |
 
 These are configured via environment variables in `gateway/wrangler.toml` and can be adjusted per environment.
 

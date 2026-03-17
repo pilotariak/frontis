@@ -14,10 +14,10 @@ A pelota club (e.g. Denek Bat, Noizbait, Bixintxo).
 
 **Owned by**: `clubs` subgraph
 
-| Field  | Type      | Description         |
-| ------ | --------- | ------------------- |
-| `id`   | `ID!`     | Unique club ID      |
-| `name` | `String!` | Official club name  |
+| Field  | Type      | Description        |
+| ------ | --------- | ------------------ |
+| `id`   | `ID!`     | Unique club ID     |
+| `name` | `String!` | Official club name |
 
 ---
 
@@ -27,13 +27,13 @@ An annual competition grouping (e.g. Championnat de France 2025).
 
 **Owned by**: `competitions` subgraph
 
-| Field     | Type        | Description                                                      |
-| --------- | ----------- | ---------------------------------------------------------------- |
-| `id`      | `ID!`       | Unique competition ID                                            |
-| `year`    | `Int!`      | Year of the competition                                          |
-| `name`    | `String!`   | Competition name (e.g. Championnat de France)                    |
-| `level`   | `String`    | Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche) |
-| `results` | `[Result!]!`| All match results recorded in this competition                   |
+| Field     | Type         | Description                                                        |
+| --------- | ------------ | ------------------------------------------------------------------ |
+| `id`      | `ID!`        | Unique competition ID                                              |
+| `year`    | `Int!`       | Year of the competition                                            |
+| `name`    | `String!`    | Competition name (e.g. Championnat de France)                      |
+| `level`   | `String`     | Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche) |
+| `results` | `[Result!]!` | All match results recorded in this competition                     |
 
 ---
 
@@ -43,9 +43,9 @@ A Basque pelota discipline (e.g. Place Libre, Trinquet, Mur à Gauche).
 
 **Owned by**: `specialties` subgraph
 
-| Field  | Type      | Description                         |
-| ------ | --------- | ----------------------------------- |
-| `id`   | `ID!`     | Unique specialty ID                 |
+| Field  | Type      | Description                           |
+| ------ | --------- | ------------------------------------- |
+| `id`   | `ID!`     | Unique specialty ID                   |
 | `name` | `String!` | Human-readable name of the discipline |
 
 ---
@@ -56,22 +56,22 @@ A single match result between two clubs.
 
 **Owned by**: `results` subgraph
 
-| Field          | Type          | Description                                              |
-| -------------- | ------------- | -------------------------------------------------------- |
-| `id`           | `ID!`         | Unique result ID                                         |
-| `competition`  | `Competition!`| Competition this result belongs to *(cross-subgraph)*   |
-| `specialty`    | `Specialty!`  | Pelota discipline played *(cross-subgraph)*              |
-| `category`     | `String`      | Age/skill category (e.g. Seniors Grande Semaine, Cadets) |
-| `dateMatch`    | `String`      | Date of the match (ISO 8601)                             |
-| `clubA`        | `Club!`       | Home club *(cross-subgraph)*                             |
-| `clubB`        | `Club!`       | Away club *(cross-subgraph)*                             |
-| `scoreA`       | `Int`         | Score of club A                                          |
-| `scoreB`       | `Int`         | Score of club B                                          |
-| `phase`        | `String`      | Tournament phase (e.g. Finale, 1/2 Finale, Poule)       |
-| `clubALineup`  | `ClubLineup`  | Players lineup for club A                                |
-| `clubBLineup`  | `ClubLineup`  | Players lineup for club B                                |
+| Field         | Type           | Description                                              |
+| ------------- | -------------- | -------------------------------------------------------- |
+| `id`          | `ID!`          | Unique result ID                                         |
+| `competition` | `Competition!` | Competition this result belongs to _(cross-subgraph)_    |
+| `specialty`   | `Specialty!`   | Pelota discipline played _(cross-subgraph)_              |
+| `category`    | `String`       | Age/skill category (e.g. Seniors Grande Semaine, Cadets) |
+| `dateMatch`   | `String`       | Date of the match (ISO 8601)                             |
+| `clubA`       | `Club!`        | Home club _(cross-subgraph)_                             |
+| `clubB`       | `Club!`        | Away club _(cross-subgraph)_                             |
+| `scoreA`      | `Int`          | Score of club A                                          |
+| `scoreB`      | `Int`          | Score of club B                                          |
+| `phase`       | `String`       | Tournament phase (e.g. Finale, 1/2 Finale, Poule)        |
+| `clubALineup` | `ClubLineup`   | Players lineup for club A                                |
+| `clubBLineup` | `ClubLineup`   | Players lineup for club B                                |
 
-Fields marked *(cross-subgraph)* are resolved via entity federation — the gateway fetches them from their owning subgraphs.
+Fields marked _(cross-subgraph)_ are resolved via entity federation — the gateway fetches them from their owning subgraphs.
 
 ---
 
@@ -79,10 +79,10 @@ Fields marked *(cross-subgraph)* are resolved via entity federation — the gate
 
 The two players representing a club in a match (doubles format).
 
-| Field     | Type     | Description                 |
-| --------- | -------- | --------------------------- |
-| `player1` | `Player` | First player                |
-| `player2` | `Player` | Second player (doubles only)|
+| Field     | Type     | Description                  |
+| --------- | -------- | ---------------------------- |
+| `player1` | `Player` | First player                 |
+| `player2` | `Player` | Second player (doubles only) |
 
 ---
 
@@ -90,10 +90,10 @@ The two players representing a club in a match (doubles format).
 
 A player participating in a match.
 
-| Field    | Type     | Description                      |
-| -------- | -------- | -------------------------------- |
-| `name`   | `String!`| Player display name              |
-| `number` | `String` | Jersey number or licence number  |
+| Field    | Type      | Description                     |
+| -------- | --------- | ------------------------------- |
+| `name`   | `String!` | Player display name             |
+| `number` | `String`  | Jersey number or licence number |
 
 ---
 
@@ -213,7 +213,7 @@ Lists results with optional filters. All filters are combinable.
 
 ## Required headers
 
-| Header                  | Required by                               | Values             |
-| ----------------------- | ----------------------------------------- | ------------------ |
-| `Content-Type`          | All requests                              | `application/json` |
-| `X-Pilotariak-League`   | `clubs`, `competitions`, `results`, `specialties` | `lcapb`, `lidfpb` |
+| Header                | Required by                                       | Values             |
+| --------------------- | ------------------------------------------------- | ------------------ |
+| `Content-Type`        | All requests                                      | `application/json` |
+| `X-Pilotariak-League` | `clubs`, `competitions`, `results`, `specialties` | `lcapb`, `lidfpb`  |

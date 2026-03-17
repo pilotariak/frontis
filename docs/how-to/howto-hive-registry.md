@@ -17,11 +17,11 @@ The `--target` flag identifies **where** in Hive the schema is published. It fol
 <organization>/<project>/<environment>
 ```
 
-| Part           | Description                                                   | Example        |
-| -------------- | ------------------------------------------------------------- | -------------- |
-| `organization` | The Hive organization slug                                    | `pilotariak`   |
-| `project`      | The Hive project slug (maps to this repository)               | `frontis`      |
-| `environment`  | The Hive target (environment) name: `development`, `staging`, or `production` | `development`  |
+| Part           | Description                                                                   | Example       |
+| -------------- | ----------------------------------------------------------------------------- | ------------- |
+| `organization` | The Hive organization slug                                                    | `pilotariak`  |
+| `project`      | The Hive project slug (maps to this repository)                               | `frontis`     |
+| `environment`  | The Hive target (environment) name: `development`, `staging`, or `production` | `development` |
 
 For example, `pilotariak/frontis/development` publishes to the **development** target of the **frontis** project in the **pilotariak** organization.
 
@@ -41,13 +41,13 @@ bunx @graphql-hive/cli schema:publish \
 
 ### Flag reference
 
-| Flag                      | Description                                                                 |
-| ------------------------- | --------------------------------------------------------------------------- |
-| `--registry.accessToken`  | Registry access token from Hive (keep this secret, use an env variable)     |
-| `--target`                | `org/project/environment` path (see above)                                  |
-| `--service`               | The subgraph service name as registered in the supergraph composition       |
-| `--url`                   | The deployed URL of this subgraph's GraphQL endpoint                        |
-| `--author`                | Free-form author label (use a team name, username, or CI actor)             |
+| Flag                     | Description                                                             |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `--registry.accessToken` | Registry access token from Hive (keep this secret, use an env variable) |
+| `--target`               | `org/project/environment` path (see above)                              |
+| `--service`              | The subgraph service name as registered in the supergraph composition   |
+| `--url`                  | The deployed URL of this subgraph's GraphQL endpoint                    |
+| `--author`               | Free-form author label (use a team name, username, or CI actor)         |
 
 ---
 
@@ -105,11 +105,11 @@ bunx @graphql-hive/cli schema:publish \
 
 ## Environments
 
-| Hive target                          | Use for                                      |
-| ------------------------------------ | -------------------------------------------- |
-| `pilotariak/frontis/development`     | Local development and feature branches       |
-| `pilotariak/frontis/staging`         | Pre-production validation                    |
-| `pilotariak/frontis/production`      | Live production release                      |
+| Hive target                      | Use for                                |
+| -------------------------------- | -------------------------------------- |
+| `pilotariak/frontis/development` | Local development and feature branches |
+| `pilotariak/frontis/staging`     | Pre-production validation              |
+| `pilotariak/frontis/production`  | Live production release                |
 
 ---
 
