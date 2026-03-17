@@ -7,6 +7,10 @@ import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
 
+interface Env {
+  INTERNAL_SERVICE_TOKEN: string;
+}
+
 setupTracing("frontis-echo");
 
 const typeDefs = parse(schema);
@@ -28,4 +32,13 @@ const yoga = createYoga({
   plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-echo")],
 });
 
-export default { fetch: withHttpMetrics(yoga.fetch.bind(yoga)) };
+const yogaFetch = withHttpMetrics(yoga.fetch.bind(yoga));
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (request.headers.get("x-internal-token") !== env.INTERNAL_SERVICE_TOKEN) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return yogaFetch(request, env, ctx);
+  },
+};
