@@ -1,4 +1,5 @@
 import { defineConfig, useOpenTelemetry, Logger, JSONLogWriter } from "@graphql-hive/gateway";
+import pkg from "../package.json" with { type: "json" };
 import { usePrometheus } from "@graphql-yoga/plugin-prometheus";
 import { metrics } from "@opentelemetry/api";
 import { OTLPMetricExporter as OTLPMetricExporterGrpc } from "@opentelemetry/exporter-metrics-otlp-grpc";
@@ -82,7 +83,7 @@ export const gatewayConfig = defineConfig({
         });
         buildInfoCounter.add(1, {
           [ATTR_SERVICE_NAME]: serviceName,
-          [ATTR_SERVICE_VERSION]: process.env.OTEL_SERVICE_VERSION ?? "0.1.0",
+          [ATTR_SERVICE_VERSION]: process.env.OTEL_SERVICE_VERSION ?? pkg.version,
           [ATTR_TELEMETRY_SDK_LANGUAGE]: TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS,
         });
       },
