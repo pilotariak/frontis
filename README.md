@@ -44,13 +44,16 @@ gateway (Hive Gateway, :4000)
   └─── results (:4005)      — Result, Player entities
 ```
 
-## How-to guides
+## Documentation
 
-| Guide                                                        | Description                                          |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| [`docs/howto-dev.md`](docs/howto-dev.md)                     | Local dev, Docker, scheduler, deploy, port reference |
-| [`docs/howto-query-the-api.md`](docs/howto-query-the-api.md) | curl examples for all GraphQL queries                |
-| [`docs/howto-database.md`](docs/howto-database.md)           | D1 migrations, schema, adding new leagues            |
+Documentation follows the [Diátaxis](https://diataxis.fr/) framework — see [`docs/`](docs/) for the full index.
+
+| Type | Documents |
+| ---- | --------- |
+| **Tutorials** | [Getting started](docs/tutorials/getting-started.md) |
+| **How-to guides** | [Dev & run](docs/how-to/howto-dev.md) · [Query the API](docs/how-to/howto-query-the-api.md) · [Database](docs/how-to/howto-database.md) · [Hive Registry](docs/how-to/howto-hive-registry.md) · [Add a subgraph](docs/how-to/howto-add-subgraph.md) |
+| **Reference** | [GraphQL schema](docs/reference/graphql-schema.md) · [Configuration](docs/reference/configuration.md) · [Ports](docs/reference/ports.md) |
+| **Explanation** | [Architecture](docs/explanation/architecture.md) · [Federation concepts](docs/explanation/federation-concepts.md) |
 
 Federation v2.5 is used. Each subgraph owns its entities and declares stubs for
 entities owned by others via `@key` directives. The gateway stitches them at query
