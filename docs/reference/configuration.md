@@ -11,6 +11,7 @@ This reference documents all environment variables, Wrangler bindings, and confi
 | Variable                    | Required | Default         | Description                                                          |
 | --------------------------- | -------- | --------------- | -------------------------------------------------------------------- |
 | `ENVIRONMENT`               | no       | `dev`           | Deployment environment identifier (`dev`, `staging`, `production`)   |
+| `LOG_LEVEL`                 | no       | `debug` (dev) / `warn` (prod) | Gateway log level. Accepted values: `debug`, `info`, `warn`, `error`. Overrides the environment default. |
 | `GRAPHQL_MAX_DEPTH`         | no       | `7`             | Maximum allowed query depth. Deeper queries are rejected.            |
 | `GRAPHQL_MAX_TOKENS`        | no       | `1000`          | Maximum number of tokens in a query document.                        |
 | `GRAPHQL_MAX_DIRECTIVES`    | no       | `10`            | Maximum number of directives in a query document.                    |
@@ -50,6 +51,19 @@ The `[observability]` section in `wrangler.toml` enables Cloudflare's built-in W
 enabled = true
 head_sampling_rate = 1
 ```
+
+### Logging
+
+Log verbosity is controlled by the `LOG_LEVEL` variable:
+
+- **`debug`** — verbose; logs all gateway internals. Default in `dev`.
+- **`info`** — operational events only.
+- **`warn`** — warnings and errors. Default in `production`.
+- **`error`** — errors only.
+
+In production, errors returned to GraphQL clients are masked: internal stack traces and upstream error details are hidden and replaced with a generic message. In development all error details are forwarded to the client for easier debugging.
+
+For the Node.js gateway config (`gateway.config.ts`), set `LOG_JSON=1` to emit structured JSON log lines (useful for log aggregator ingestion).
 
 ---
 
