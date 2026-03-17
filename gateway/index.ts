@@ -1,6 +1,12 @@
 import { createGatewayRuntime } from "@graphql-hive/gateway";
+import CFWorkerKVCache from "@graphql-mesh/cache-cfw-kv";
 import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
+import {
+  createMaxDepthRule,
+  createMaxTokensRule,
+  createMaxDirectivesRule,
+} from "./validation.js";
 
 // Maps worker names to their service binding keys in env
 const SERVICE_BINDING_MAP: Record<string, string> = {
@@ -68,6 +74,10 @@ export default {
     }
 
     if (!gateway) {
+      const maxDepth = parseInt(env.GRAPHQL_MAX_DEPTH ?? "7", 10);
+      const maxTokens = parseInt(env.GRAPHQL_MAX_TOKENS ?? "1000", 10);
+      const maxDirectives = parseInt(env.GRAPHQL_MAX_DIRECTIVES ?? "10", 10);
+
       gateway = createGatewayRuntime({
         logging: true,
         transports: {
@@ -81,10 +91,21 @@ export default {
           endpoint: env.HIVE_CDN_ENDPOINT || "https://cdn.graphql-hive.com/artifacts/v1",
           key: env.HIVE_CDN_TOKEN,
         },
+        cache: env.SUPERGRAPH_CACHE
+          ? new CFWorkerKVCache({ namespace: env.SUPERGRAPH_CACHE })
+          : undefined,
+        pollingInterval: 30_000,
         landingPage: false,
         graphiql: false,
-        introspection: env.ENVIRONMENT !== "production",
+        disableIntrospection: env.ENVIRONMENT === "production" ? {} : undefined,
         plugins: () => [
+          {
+            onValidate({ addValidationRule }: { addValidationRule: (rule: unknown) => void }) {
+              addValidationRule(createMaxDepthRule(maxDepth));
+              addValidationRule(createMaxTokensRule(maxTokens));
+              addValidationRule(createMaxDirectivesRule(maxDirectives));
+            },
+          },
           {
             onFetch({ options, setOptions, context }: {
               options: RequestInit;
