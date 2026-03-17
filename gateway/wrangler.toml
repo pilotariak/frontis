@@ -35,8 +35,8 @@ service = "frontis-competitions"
 binding = "RESULTS"
 service = "frontis-results"
 
-# [vars]
-# ENVIRONMENT = "dev"
+[vars]
+ENVIRONMENT = "dev"
 
-# [env.production.vars]
-# ENVIRONMENT = "production"
+[env.production.vars]
+ENVIRONMENT = "production"

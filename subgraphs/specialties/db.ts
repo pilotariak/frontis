@@ -3,6 +3,7 @@ import { GraphQLError } from "graphql";
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
   DB_LEAGUE_LIDFPB: D1Database;
+  INTERNAL_SERVICE_TOKEN: string;
 }
 
 export interface Context {

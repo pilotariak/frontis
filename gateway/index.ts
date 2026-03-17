@@ -19,9 +19,15 @@ function serviceBindingFetch(env: any) {
     const hostname = new URL(url).hostname; // e.g. frontis-echo.nicolas-lamirault.workers.dev
     const workerName = hostname.split(".")[0]; // e.g. frontis-echo
     const binding = SERVICE_BINDING_MAP[workerName];
-    if (binding && env[binding]) {
-      return env[binding].fetch(new Request(url, init));
+    if (binding) {
+      if (!env[binding]) {
+        throw new Error(`Service binding ${binding} missing in env for worker: ${workerName}`);
+      }
+      const headers = new Headers((init?.headers as HeadersInit) ?? {});
+      headers.set("x-internal-token", env.INTERNAL_SERVICE_TOKEN);
+      return env[binding].fetch(new Request(url, { ...init, headers }));
     }
+    // Not a known subgraph — fall through to global fetch (e.g. Hive CDN)
     return globalThis.fetch(url, init);
   };
 }
@@ -44,15 +50,21 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/healthz") {
-      return new Response(JSON.stringify({ status: "ok" }), {
+      return new Response(JSON.stringify({ status: "ok", environment: env.ENVIRONMENT ?? "unknown" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
 
     if (request.method === "GET" && url.pathname === "/readyz") {
-      return new Response(JSON.stringify({ status: "ok", ready: true }), {
+      const ready = gateway != null;
+      return new Response(JSON.stringify({ status: "ok", ready }), {
+        status: ready ? 200 : 503,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    if (!env.INTERNAL_SERVICE_TOKEN) {
+      return new Response("Gateway misconfigured: INTERNAL_SERVICE_TOKEN not set", { status: 500 });
     }
 
     if (!gateway) {
@@ -71,6 +83,7 @@ export default {
         },
         landingPage: false,
         graphiql: false,
+        introspection: env.ENVIRONMENT !== "production",
         plugins: () => [
           {
             onFetch({ options, setOptions, context }: {

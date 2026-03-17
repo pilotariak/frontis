@@ -53,10 +53,12 @@ clean: ## Clean project
 
 ##@ Cloudflare
 
+ENV ?=
+
 .PHONY: cloudflare-deploy
-cloudflare-deploy: guard-SERVICE ## Deploy service to Cloudflare workers
+cloudflare-deploy: guard-SERVICE ## Deploy service to Cloudflare workers (SERVICE=xxx [ENV=production])
 	@echo -e "$(INFO)$(INFO_COLOR)[Cloudflare] Deploy $(SERVICE)$(NO_COLOR)"
-	@pushd $(SERVICE) && bunx wrangler deploy && popd
+	@pushd $(SERVICE) && bunx wrangler deploy --env="$(ENV)" && popd
 
 ##@ Hive
 

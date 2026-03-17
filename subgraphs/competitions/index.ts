@@ -86,8 +86,15 @@ const yoga = createYoga({
   },
 });
 
+const yogaFetch = withHttpMetrics((request: Request, env: Env, ctx: ExecutionContext) =>
+  yoga.fetch(request, { env }, ctx)
+);
+
 export default {
-  fetch: withHttpMetrics((request: Request, env: Env, ctx: ExecutionContext) =>
-    yoga.fetch(request, { env }, ctx)
-  ),
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (request.headers.get("x-internal-token") !== env.INTERNAL_SERVICE_TOKEN) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return yogaFetch(request, env, ctx);
+  },
 };
