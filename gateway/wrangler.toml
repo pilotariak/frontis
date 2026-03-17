@@ -40,17 +40,32 @@ ENVIRONMENT = "dev"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
+# Rate limiting: window in ms, max requests per window per client IP
+RATE_LIMIT_WINDOW_MS = "60000"
+RATE_LIMIT_MAX_LIST = "60"
+RATE_LIMIT_MAX_ITEM = "120"
 
 [[kv_namespaces]]
 binding = "SUPERGRAPH_CACHE"
 id = "9b61ecdddbf84363a2b9d7f886aec23a"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_CACHE"
+id = "aeca138a6eb44f0e99d2ecfbef2bd119"
 
 [env.production.vars]
 ENVIRONMENT = "production"
 GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
+RATE_LIMIT_WINDOW_MS = "60000"
+RATE_LIMIT_MAX_LIST = "60"
+RATE_LIMIT_MAX_ITEM = "120"
 
 [[env.production.kv_namespaces]]
 binding = "SUPERGRAPH_CACHE"
 id = "9b61ecdddbf84363a2b9d7f886aec23a"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_CACHE"
+id = "aeca138a6eb44f0e99d2ecfbef2bd119"
