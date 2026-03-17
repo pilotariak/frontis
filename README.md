@@ -38,33 +38,6 @@ entities owned by others via `@key` directives. The gateway stitches them at que
 time — e.g. `Result` references `Competition`, `Club`, and `Specialty` entities
 resolved from their respective subgraphs.
 
-## Example queries
-
-See [`operations/`](operations/) for ready-to-use GraphQL operations.
-
-```graphql
-# Cross-subgraph: Result from results subgraph + Club from clubs subgraph
-# + Competition from competitions subgraph — all stitched by the gateway
-query GetFinales($competitionId: ID!) {
-  results(competitionId: $competitionId, phase: "Finale") {
-    scoreA
-    scoreB
-    clubA {
-      name
-    } # resolved from the clubs subgraph
-    clubB {
-      name
-    }
-    clubALineup {
-      player1 {
-        name
-        number
-      }
-    }
-  }
-}
-```
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
