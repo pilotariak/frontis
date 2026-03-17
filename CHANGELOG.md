@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/pilotariak/frontis/compare/v0.3.0...v0.4.0) (2026-03-17)
+
+
+### 🚀 Features
+
+* **gateway:** add query cost analysis for demand control ([#28](https://github.com/pilotariak/frontis/issues/28)) ([b9063a6](https://github.com/pilotariak/frontis/commit/b9063a6056e1bcdd6b50145afa66ee5bdeb1cb2b)), closes [#9](https://github.com/pilotariak/frontis/issues/9)
+* **gateway:** add structured logging and error masking ([#27](https://github.com/pilotariak/frontis/issues/27)) ([7110ec8](https://github.com/pilotariak/frontis/commit/7110ec8c5b90b7446273e64c70572b3634b8a43d)), closes [#13](https://github.com/pilotariak/frontis/issues/13)
+* **gateway:** configure hive registry and cloudflare service bindings ([#21](https://github.com/pilotariak/frontis/issues/21)) ([0e1c9f3](https://github.com/pilotariak/frontis/commit/0e1c9f3edf29bcf2fe6f739674af4e926032059a)), closes [#20](https://github.com/pilotariak/frontis/issues/20)
+
+
+### 📚 Documentation
+
+* **docs:** add diataxis documentation structure ([#25](https://github.com/pilotariak/frontis/issues/25)) ([fb48cba](https://github.com/pilotariak/frontis/commit/fb48cba02a74e622dafea78f16d3a1704975a2e5))
+
 ## [0.3.0](https://github.com/pilotariak/frontis/compare/v0.2.0...v0.3.0) (2026-03-14)
 
 
