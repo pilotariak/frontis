@@ -23,9 +23,11 @@ export default {
         );
       }
 
+      const dryRun = url.searchParams.get("dry_run") === "true";
+
       try {
-        const count = await scrapeAndSave(env, { league, competition, specialty, category, phase });
-        return new Response(JSON.stringify({ saved: count }), {
+        const count = await scrapeAndSave(env, { league, competition, specialty, category, phase }, dryRun);
+        return new Response(JSON.stringify({ dry_run: dryRun, saved: count }), {
           headers: { "Content-Type": "application/json" },
         });
       } catch (err: unknown) {
@@ -40,8 +42,10 @@ export default {
     const exampleUrl = new URL(req.url);
     exampleUrl.pathname = "/scrape";
     exampleUrl.search = "?league=lcapb&competition=20260501&specialty=2&category=1&phase=0";
+    const dryRunUrl = new URL(exampleUrl.toString());
+    dryRunUrl.searchParams.set("dry_run", "true");
     return new Response(
-      `Frontis Scheduler\n\nTo manually trigger a scrape:\n  curl "${exampleUrl.toString()}"\n\nSupported leagues: lcapb, lidfpb\n`
+      `Frontis Scheduler\n\nTo manually trigger a scrape:\n  curl "${exampleUrl.toString()}"\n\nTo preview without writing to the database (dry-run):\n  curl "${dryRunUrl.toString()}"\n\nSupported leagues: lcapb, lidfpb\n`
     );
   },
 

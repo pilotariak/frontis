@@ -138,8 +138,21 @@ function getDatabase(env: Env, league: string): D1Database {
   return db;
 }
 
-export async function scrapeAndSave(env: Env, options: ScraperOptions): Promise<number> {
+export async function scrapeAndSave(
+  env: Env,
+  options: ScraperOptions,
+  dryRun = false
+): Promise<number> {
   const results = await fetchData(options);
+  if (dryRun) {
+    console.log(`[dry-run][${options.league}] Would save ${results.length} results:`);
+    for (const r of results) {
+      console.log(
+        `[dry-run]  ${r.date_match} | ${r.competition} | ${r.specialty} | ${r.category} | phase=${r.phase} | ${r.club_a} vs ${r.club_b} (${r.score_a ?? "?"}-${r.score_b ?? "?"})`
+      );
+    }
+    return results.length;
+  }
   const db = getDatabase(env, options.league);
   return saveData(db, results);
 }
