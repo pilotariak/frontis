@@ -24,9 +24,6 @@
 ### 🚨 Maintenance
 
 * initial project setup ([9988c24](https://github.com/pilotariak/frontis/commit/9988c240a5db46cc69a742265cf0be6ed1856531))
-* **main:** release 0.2.0 ([#4](https://github.com/pilotariak/frontis/issues/4)) ([414a32d](https://github.com/pilotariak/frontis/commit/414a32d2f6129c093e4d11c0377a0c87c0bdf149))
-* **main:** release 0.3.0 ([#19](https://github.com/pilotariak/frontis/issues/19)) ([112bf25](https://github.com/pilotariak/frontis/commit/112bf25a8cad183e164e2201017303b800422f2b))
-* **main:** release 0.4.0 ([#22](https://github.com/pilotariak/frontis/issues/22)) ([be953aa](https://github.com/pilotariak/frontis/commit/be953aa0d59ba558773d5f486bb561cc1a658c10))
 
 
 ### 📚 Documentation
