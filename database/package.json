@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "migrate:lcapb:local": "wrangler d1 migrations apply pilotariak_lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations apply pilotariak_lidfpb --local --persist-to ../.wrangler/state",
-    "migrate:lcapb:remote": "wrangler d1 migrations apply pilotariak_lcapb --remote && wrangler d1 migrations apply pilotariak_lidfpb --remote",
-    "migrate:lcapb:list": "wrangler d1 migrations list pilotariak_lcapb --persist-to ../.wrangler/state && wrangler d1 migrations list pilotariak_lidfpb --persist-to ../.wrangler/state",
+    "migrate:local": "wrangler d1 migrations apply pilotariak_lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations apply pilotariak_lidfpb --local --persist-to ../.wrangler/state",
+    "migrate:remote": "wrangler d1 migrations apply pilotariak_lcapb --remote && wrangler d1 migrations apply pilotariak_lidfpb --remote",
+    "migrate:list": "wrangler d1 migrations list pilotariak_lcapb --persist-to ../.wrangler/state && wrangler d1 migrations list pilotariak_lidfpb --persist-to ../.wrangler/state",
     "db:lcapb:local": "wrangler d1 execute pilotariak_lcapb --local --persist-to ../.wrangler/state --command",
     "db:lidfpb:local": "wrangler d1 execute pilotariak_lidfpb --local --persist-to ../.wrangler/state --command",
     "db:lcapb:remote": "wrangler d1 execute pilotariak_lcapb --remote --command",
