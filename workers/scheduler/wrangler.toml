@@ -11,16 +11,19 @@ crons = ["0 3 * * *"]
 
 [dev]
 inspector_port = 9233
+persist_to = "../../.wrangler/state"
 
 [[d1_databases]]
 binding = "DB_LEAGUE_LCAPB"
 database_name = "pilotariak_lcapb"
 database_id = "f2344757-9f73-4e16-bca9-554331062864"
+migrations_dir = "../../database/migrations"
 
 [[d1_databases]]
 binding = "DB_LEAGUE_LIDFPB"
 database_name = "pilotariak_lidfpb"
 database_id = "7672f60e-bd73-423e-ba92-d073c69d9c07"
+migrations_dir = "../../database/migrations"
 
 [observability]
 enabled = true

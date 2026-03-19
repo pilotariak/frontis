@@ -24,7 +24,9 @@ database/
 ├── dummy.ts               ← required by wrangler, never deployed
 ├── package.json           ← migration scripts
 └── migrations/
-    └── 0001_initial.sql   ← full schema (specialties, clubs, competitions, results)
+    ├── 0001_initial.sql             ← full schema (specialties, clubs, competitions, results)
+    ├── 0002_source_ids.sql          ← add source_id to lookups; add categories and phases tables
+    └── 0003_competitions_schema.sql ← drop year/level from competitions; add source_id
 ```
 
 ---
@@ -42,8 +44,8 @@ bun run migrate:local
 This runs:
 
 ```bash
-wrangler d1 migrations apply pilotariak_lcapb --local
-wrangler d1 migrations apply pilotariak_lidfpb --local
+wrangler d1 migrations apply pilotariak_lcapb --local --persist-to ../.wrangler/state
+wrangler d1 migrations apply pilotariak_lidfpb --local --persist-to ../.wrangler/state
 ```
 
 ### Remote (production)
@@ -61,6 +63,70 @@ List applied and pending migrations for all databases:
 ```bash
 bun run migrate:list
 ```
+
+---
+
+## Querying the local database
+
+All wrangler commands (scheduler dev, migrations, queries) share a single local state directory
+at the project root: `.wrangler/state/`. This is controlled by:
+
+- `persist_to = "../../.wrangler/state"` in `workers/scheduler/wrangler.toml`
+- `--persist-to ../.wrangler/state` in every `database/` script
+
+This means data written by `wrangler dev` (the scheduler) is immediately visible when you
+query via `bun run db:lcapb:local`.
+
+Use `wrangler d1 execute` to run queries without opening the raw SQLite file.
+
+### From the project root
+
+```bash
+bun run db:lcapb:local "SELECT * FROM specialties"
+bun run db:lcapb:local "SELECT count(*) FROM results"
+bun run db:lcapb:local "SELECT * FROM clubs LIMIT 20"
+bun run db:lidfpb:local "SELECT * FROM specialties"
+```
+
+### From `database/` (convenience scripts)
+
+```bash
+cd database
+
+bun run db:lcapb:local "SELECT * FROM specialties"
+bun run db:lcapb:local "SELECT * FROM clubs LIMIT 20"
+bun run db:lcapb:local "SELECT count(*) FROM results"
+bun run db:lcapb:local "SELECT * FROM results LIMIT 5"
+
+bun run db:lidfpb:local "SELECT * FROM specialties"
+```
+
+### Useful queries
+
+```sql
+-- List all tables
+SELECT name FROM sqlite_master WHERE type = 'table';
+
+-- Row counts per table
+SELECT 'specialties' AS t, count(*) FROM specialties
+UNION ALL SELECT 'clubs',        count(*) FROM clubs
+UNION ALL SELECT 'competitions', count(*) FROM competitions
+UNION ALL SELECT 'categories',   count(*) FROM categories
+UNION ALL SELECT 'phases',       count(*) FROM phases
+UNION ALL SELECT 'results',      count(*) FROM results;
+
+-- Last 10 scraped results
+SELECT r.date_match, ca.name AS club_a, r.score_a, r.score_b, cb.name AS club_b
+FROM results r
+JOIN clubs ca ON ca.id = r.club_a_id
+JOIN clubs cb ON cb.id = r.club_b_id
+ORDER BY r.id DESC LIMIT 10;
+```
+
+> **Note:** All workers (scheduler and subgraphs) share a single local D1 state at the project
+> root: `.wrangler/state/v3/d1/`. This is enforced via `persist_to = "../../.wrangler/state"` in
+> every `wrangler.toml` and `--persist-to ../.wrangler/state` in all `database/` scripts.
+> Run `bun run migrate:local` once after cloning to apply all migrations before querying.
 
 ---
 

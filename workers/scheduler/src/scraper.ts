@@ -63,6 +63,16 @@ async function saveFormOptions(db: D1Database, options: FormOptions): Promise<vo
       .bind(p.sourceId, p.name)
       .run();
   }
+
+  for (const c of options.competitions) {
+    await db
+      .prepare(
+        `INSERT INTO competitions (source_id, name) VALUES (?, ?)
+         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+      )
+      .bind(c.sourceId, c.name)
+      .run();
+  }
 }
 
 export async function scrapeInfos(
@@ -127,18 +137,18 @@ async function saveResults(db: D1Database, results: ScrapedResult[]): Promise<nu
     }
 
     let competition = await db
-      .prepare("SELECT id FROM competitions WHERE year = ? AND name = ? AND level = ?")
-      .bind(res.year, res.competition, "Trinquet")
+      .prepare("SELECT id FROM competitions WHERE name = ?")
+      .bind(res.competition)
       .first<{ id: number }>();
 
     if (!competition) {
       await db
-        .prepare("INSERT INTO competitions (year, name, level) VALUES (?, ?, ?)")
-        .bind(res.year, res.competition, "Trinquet")
+        .prepare("INSERT INTO competitions (name) VALUES (?)")
+        .bind(res.competition)
         .run();
       competition = await db
-        .prepare("SELECT id FROM competitions WHERE year = ? AND name = ? AND level = ?")
-        .bind(res.year, res.competition, "Trinquet")
+        .prepare("SELECT id FROM competitions WHERE name = ?")
+        .bind(res.competition)
         .first<{ id: number }>();
     }
 
