@@ -1,7 +1,7 @@
 import type { Env, ScrapedResult } from "./types";
 import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
-import type { LeagueScraper, ScrapeOptions } from "./leagues/types";
+import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
 
 export interface ScraperOptions extends ScrapeOptions {
   league: string;
@@ -12,17 +12,81 @@ const scrapers: Record<string, LeagueScraper> = {
   lidfpb: new LidfpbScraper(),
 };
 
-export async function fetchData(options: ScraperOptions): Promise<ScrapedResult[]> {
-  const scraper = scrapers[options.league.toLowerCase()];
-  if (!scraper) {
-    throw new Error(`Unsupported league: ${options.league}`);
+function getDatabase(env: Env, league: string): D1Database {
+  const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
+  const db = env[key];
+  if (!db) {
+    throw new Error(`Database binding for league '${league}' not found.`);
   }
-  return scraper.fetchData(options);
+  return db;
 }
 
-export async function saveData(db: D1Database, results: ScrapedResult[]): Promise<number> {
+// ── /scrape_infos ─────────────────────────────────────────────────────────────
+
+async function saveFormOptions(db: D1Database, options: FormOptions): Promise<void> {
+  for (const s of options.specialties) {
+    await db
+      .prepare(
+        `INSERT INTO specialties (source_id, name) VALUES (?, ?)
+         ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
+      )
+      .bind(s.sourceId, s.name)
+      .run();
+  }
+
+  for (const c of options.clubs) {
+    await db
+      .prepare(
+        `INSERT INTO clubs (source_id, name) VALUES (?, ?)
+         ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
+      )
+      .bind(c.sourceId, c.name)
+      .run();
+  }
+
+  for (const c of options.categories) {
+    await db
+      .prepare(
+        `INSERT INTO categories (source_id, name) VALUES (?, ?)
+         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+      )
+      .bind(c.sourceId, c.name)
+      .run();
+  }
+
+  for (const p of options.phases) {
+    await db
+      .prepare(
+        `INSERT INTO phases (source_id, name) VALUES (?, ?)
+         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+      )
+      .bind(p.sourceId, p.name)
+      .run();
+  }
+}
+
+export async function scrapeInfos(
+  env: Env,
+  options: ScraperOptions,
+  dryRun: boolean
+): Promise<FormOptions> {
+  const scraper = scrapers[options.league.toLowerCase()];
+  if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
+
+  const { formOptions } = await scraper.fetchData(options, false);
+
+  if (!dryRun) {
+    const db = getDatabase(env, options.league);
+    await saveFormOptions(db, formOptions);
+  }
+
+  return formOptions;
+}
+
+// ── /scrape_results ───────────────────────────────────────────────────────────
+
+async function saveResults(db: D1Database, results: ScrapedResult[]): Promise<number> {
   for (const res of results) {
-    // 1. Ensure specialty exists
     let specialty = await db
       .prepare("SELECT id FROM specialties WHERE name = ?")
       .bind(res.specialty)
@@ -36,7 +100,6 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
         .first<{ id: number }>();
     }
 
-    // 2. Ensure clubs exist
     let clubA = await db
       .prepare("SELECT id FROM clubs WHERE name = ?")
       .bind(res.club_a)
@@ -63,7 +126,6 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
         .first<{ id: number }>();
     }
 
-    // 3. Ensure competition exists
     let competition = await db
       .prepare("SELECT id FROM competitions WHERE year = ? AND name = ? AND level = ?")
       .bind(res.year, res.competition, "Trinquet")
@@ -81,8 +143,7 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
     }
 
     if (specialty && clubA && clubB && competition) {
-      // 4. Insert result only if it doesn't already exist
-      const existingResult = await db
+      const existing = await db
         .prepare(
           `SELECT id FROM results
            WHERE competition_id = ? AND specialty_id = ? AND category = ?
@@ -91,7 +152,7 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
         .bind(competition.id, specialty.id, res.category, res.date_match, clubA.id, clubB.id, res.phase)
         .first<{ id: number }>();
 
-      if (!existingResult) {
+      if (!existing) {
         await db
           .prepare(
             `INSERT INTO results (
@@ -99,27 +160,15 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
               score_a, score_b, phase,
               club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
               club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .bind(
-            competition.id,
-            specialty.id,
-            res.category,
-            res.date_match,
-            clubA.id,
-            clubB.id,
-            res.score_a,
-            res.score_b,
-            res.phase,
-            res.club_a_player1_name ?? null,
-            res.club_a_player1_number ?? null,
-            res.club_a_player2_name ?? null,
-            res.club_a_player2_number ?? null,
-            res.club_b_player1_name ?? null,
-            res.club_b_player1_number ?? null,
-            res.club_b_player2_name ?? null,
-            res.club_b_player2_number ?? null
+            competition.id, specialty.id, res.category, res.date_match,
+            clubA.id, clubB.id, res.score_a, res.score_b, res.phase,
+            res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
+            res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
+            res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
+            res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
           )
           .run();
       }
@@ -129,30 +178,21 @@ export async function saveData(db: D1Database, results: ScrapedResult[]): Promis
   return results.length;
 }
 
-function getDatabase(env: Env, league: string): D1Database {
-  const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
-  const db = env[key];
-  if (!db) {
-    throw new Error(`Database binding for league '${league}' not found.`);
-  }
-  return db;
-}
-
-export async function scrapeAndSave(
+export async function scrapeResults(
   env: Env,
   options: ScraperOptions,
-  dryRun = false
-): Promise<number> {
-  const results = await fetchData(options);
+  dryRun: boolean
+): Promise<{ results: ScrapedResult[]; saved: number }> {
+  const scraper = scrapers[options.league.toLowerCase()];
+  if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
+
+  const { results } = await scraper.fetchData(options, true);
+
   if (dryRun) {
-    console.log(`[dry-run][${options.league}] Would save ${results.length} results:`);
-    for (const r of results) {
-      console.log(
-        `[dry-run]  ${r.date_match} | ${r.competition} | ${r.specialty} | ${r.category} | phase=${r.phase} | ${r.club_a} vs ${r.club_b} (${r.score_a ?? "?"}-${r.score_b ?? "?"})`
-      );
-    }
-    return results.length;
+    return { results, saved: 0 };
   }
+
   const db = getDatabase(env, options.league);
-  return saveData(db, results);
+  const saved = await saveResults(db, results);
+  return { results, saved };
 }

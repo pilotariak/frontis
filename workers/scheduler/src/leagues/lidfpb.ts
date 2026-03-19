@@ -1,40 +1,78 @@
 import * as cheerio from "cheerio";
 import type { ScrapedResult } from "../types";
-import type { LeagueScraper, ScrapeOptions } from "./types";
+import type { FormOption, FormOptions, LeagueScraper, ScrapeData, ScrapeOptions } from "./types";
 
 export class LidfpbScraper implements LeagueScraper {
   private baseUrl = "https://lidfpb.euskalpilota.fr/resultats.php";
   private leagueName = "LIDFPB";
 
-  async fetchData(options: ScrapeOptions): Promise<ScrapedResult[]> {
-    const formData = new URLSearchParams();
-    formData.append("InSel", "");
-    formData.append("InCompet", options.competition);
-    formData.append("InSpec", options.specialty);
-    formData.append("InVille", "");
-    formData.append("InClub", "");
-    formData.append("InDate", "");
-    formData.append("InDatef", "");
-    formData.append("InCat", options.category);
-    formData.append("InPhase", options.phase);
-    formData.append("InVoir", "Voir les résultats");
-
-    const response = await fetch(this.baseUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      },
-      body: formData.toString(),
+  async fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData> {
+    const body = new URLSearchParams({
+      InSel: "",
+      InCompet: options.competition,
+      InSpec: options.specialty,
+      InVille: "",
+      InClub: "",
+      InDate: "",
+      InDatef: "",
+      InCat: options.category,
+      InPhase: options.phase,
+      InVoir: "Voir les résultats",
     });
 
+    const response = extractResults
+      ? await fetch(this.baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+          },
+          body: body.toString(),
+        })
+      : await fetch(`${this.baseUrl}?${body.toString()}`, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+          },
+        });
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${this.leagueName} results: ${response.statusText}`);
+      throw new Error(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`);
     }
 
     const html = await response.text();
     const $ = cheerio.load(html);
+
+    const formOptions = this.parseFormOptions($);
+    const results = extractResults ? this.parseResults($) : [];
+
+    return { formOptions, results };
+  }
+
+  private parseFormOptions($: cheerio.CheerioAPI): FormOptions {
+    const parseSelect = (name: string): FormOption[] => {
+      const options: FormOption[] = [];
+      $(`select[name="${name}"] option`).each((_, el) => {
+        const value = $(el).attr("value") ?? "";
+        const label = $(el).text().trim();
+        if (value !== "" && value !== "0") {
+          options.push({ sourceId: value, name: label });
+        }
+      });
+      return options;
+    };
+
+    return {
+      competitions: parseSelect("InCompet"),
+      specialties: parseSelect("InSpec"),
+      clubs: parseSelect("InClub"),
+      categories: parseSelect("InCat"),
+      phases: parseSelect("InPhase"),
+    };
+  }
+
+  private parseResults($: cheerio.CheerioAPI): ScrapedResult[] {
     const results: ScrapedResult[] = [];
 
     $(".mBloc").each((_, table) => {
