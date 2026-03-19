@@ -74,15 +74,20 @@ function serviceBindingFetch(url: string, init?: RequestInit): Promise<Response>
   const hostname = new URL(url).hostname; // e.g. frontis-echo.nicolas-lamirault.workers.dev
   const workerName = hostname.split(".")[0]; // e.g. frontis-echo
   const binding = SERVICE_BINDING_MAP[workerName];
+  console.debug(`[gateway] serviceBindingFetch url=${url} workerName=${workerName} binding=${binding ?? "(none)"} hasEnv=${!!env}`);
   if (binding && env) {
     if (!env[binding]) {
+      console.error(`[gateway] Service binding '${binding}' missing in env for worker: ${workerName}`);
       throw new Error(`Service binding ${binding} missing in env for worker: ${workerName}`);
     }
+    const hasToken = !!env.INTERNAL_SERVICE_TOKEN;
+    console.debug(`[gateway] Forwarding to binding ${binding} hasInternalToken=${hasToken}`);
     const headers = new Headers((init?.headers as HeadersInit) ?? {});
     headers.set("x-internal-token", env.INTERNAL_SERVICE_TOKEN);
     return env[binding].fetch(new Request(url, { ...init, headers }));
   }
   // Not a known subgraph — fall through to global fetch (e.g. Hive CDN)
+  console.debug(`[gateway] No binding for ${workerName}, using globalThis.fetch`);
   return globalThis.fetch(url, init);
 }
 
@@ -122,7 +127,11 @@ export default {
       });
     }
 
+    console.debug(`[gateway] request method=${request.method} path=${url.pathname}`);
+    console.debug(`[gateway] env keys present: INTERNAL_SERVICE_TOKEN=${!!env.INTERNAL_SERVICE_TOKEN} HIVE_CDN_TOKEN=${!!env.HIVE_CDN_TOKEN} HIVE_CDN_ENDPOINT=${!!env.HIVE_CDN_ENDPOINT} ENVIRONMENT=${env.ENVIRONMENT ?? "(unset)"}`);
+
     if (!env.INTERNAL_SERVICE_TOKEN) {
+      console.error("[gateway] INTERNAL_SERVICE_TOKEN is not set — check .dev.vars or wrangler secret");
       return new Response("Gateway misconfigured: INTERNAL_SERVICE_TOKEN not set", { status: 500 });
     }
 
@@ -205,6 +214,7 @@ export default {
             context: { request?: Request };
           }) {
             const league = context?.request?.headers?.get("x-pilotariak-league");
+            console.debug(`[gateway] onFetch league=${league ?? "(not set)"} url=${(options as any).url ?? "(unknown)"}`);
             if (league) {
               setOptions({
                 ...options,

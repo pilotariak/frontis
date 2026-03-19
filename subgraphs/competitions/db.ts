@@ -12,9 +12,8 @@ export interface Context {
 
 export interface CompetitionRow {
   id: number;
-  year: number;
+  source_id: string | null;
   name: string;
-  level: string | null;
 }
 
 

@@ -20,25 +20,18 @@ const resolvers = {
       { db }: Context
     ): Promise<CompetitionRow | null> {
       return db
-        .prepare("SELECT id, year, name, level FROM competitions WHERE id = ?")
+        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
         .bind(Number(id))
         .first<CompetitionRow>();
     },
 
     async competitions(
       _: unknown,
-      { year }: { year?: number },
+      _args: unknown,
       { db }: Context
     ): Promise<CompetitionRow[]> {
-      if (year !== undefined) {
-        const { results } = await db
-          .prepare("SELECT id, year, name, level FROM competitions WHERE year = ?")
-          .bind(year)
-          .all<CompetitionRow>();
-        return results;
-      }
       const { results } = await db
-        .prepare("SELECT id, year, name, level FROM competitions")
+        .prepare("SELECT id, source_id, name FROM competitions")
         .all<CompetitionRow>();
       return results;
     },
@@ -50,7 +43,7 @@ const resolvers = {
       { db }: Context
     ): Promise<CompetitionRow | null> {
       return db
-        .prepare("SELECT id, year, name, level FROM competitions WHERE id = ?")
+        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
         .bind(Number(ref.id))
         .first<CompetitionRow>();
     },

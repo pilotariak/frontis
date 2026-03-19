@@ -122,9 +122,9 @@ type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__t
   """
   competition(id: ID!) : Competition @join__field(graph: COMPETITIONS)
   """
-  List competitions, optionally filtered by year.
+  List all competitions.
   """
-  competitions(year: Int) : [Competition!]! @join__field(graph: COMPETITIONS)
+  competitions: [Competition!]! @join__field(graph: COMPETITIONS)
   """
   Echo back the provided message. Useful for liveness checks.
   """
@@ -152,22 +152,18 @@ type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__t
 }
 
 """
-An annual competition grouping (e.g. Championnat de France 2025).
+A competition (e.g. Championnat LCAPB 2025-2026).
 """
 type Competition @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
   id: ID!
   """
-  Year of the competition.
+  External identifier used by the source league system.
   """
-  year: Int! @join__field(graph: COMPETITIONS)
+  source_id: String @join__field(graph: COMPETITIONS)
   """
-  Competition name (e.g. Championnat de France).
+  Competition name.
   """
   name: String! @join__field(graph: COMPETITIONS)
-  """
-  Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche).
-  """
-  level: String @join__field(graph: COMPETITIONS)
   """
   All match results recorded in this competition.
   """
