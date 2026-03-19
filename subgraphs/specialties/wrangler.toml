@@ -13,6 +13,7 @@ fallthrough = false
 
 [dev]
 inspector_port = 9234
+persist_to = "../../.wrangler/state"
 
 [[d1_databases]]
 binding = "DB_LEAGUE_LCAPB"

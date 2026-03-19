@@ -7,6 +7,24 @@ export interface ScrapeOptions {
   phase: string;
 }
 
+export interface FormOption {
+  sourceId: string;
+  name: string;
+}
+
+export interface FormOptions {
+  competitions: FormOption[];
+  specialties: FormOption[];
+  clubs: FormOption[];
+  categories: FormOption[];
+  phases: FormOption[];
+}
+
+export interface ScrapeData {
+  formOptions: FormOptions;
+  results: ScrapedResult[];
+}
+
 export interface LeagueScraper {
-  fetchData(options: ScrapeOptions): Promise<ScrapedResult[]>;
+  fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData>;
 }
