@@ -3,25 +3,25 @@
     schema
     @link(url: "https://specs.apollo.dev/link/v1.0")
     @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
   {
     query: Query
-    
-    
+
+
   }
 
-  
+
     directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
 
     directive @join__graph(name: String!, url: String!) on ENUM_VALUE
 
-    
+
       directive @join__field(
         graph: join__Graph
         requires: join__FieldSet
@@ -30,11 +30,11 @@
         external: Boolean
         override: String
         usedOverridden: Boolean
-        
-        
+
+
       ) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
-    
-    
+
+
 
     directive @join__implements(
       graph: join__Graph!
@@ -55,9 +55,9 @@
     ) repeatable on UNION
 
     scalar join__FieldSet
-    
-  
-  
+
+
+
   directive @link(
     url: String
     as: String
@@ -79,28 +79,22 @@
     EXECUTION
   }
 
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
 enum join__Graph {
-  CLUBS @join__graph(name: "clubs", url: "https://frontis-clubs.your-account.workers.dev/graphql") 
+  CLUBS @join__graph(name: "clubs", url: "https://frontis-clubs..workers.dev/graphql")
   COMPETITIONS @join__graph(
     name: "competitions"
-    url: "https://frontis-competitions.your-account.workers.dev/graphql"
+    url: "https://frontis-competitions..workers.dev/graphql"
   )
-  ECHO @join__graph(name: "echo", url: "https://frontis-echo.your-account.workers.dev/graphql") 
-  RESULTS @join__graph(
-    name: "results"
-    url: "https://frontis-results.your-account.workers.dev/graphql"
-  )
-  SPECIALTIES @join__graph(
-    name: "specialties"
-    url: "https://frontis-specialties.your-account.workers.dev/graphql"
-  )
+  ECHO @join__graph(name: "echo", url: "https://frontis-echo..workers.dev/graphql")
+  RESULTS @join__graph(name: "results", url: "https://frontis-results..workers.dev/graphql")
+  SPECIALTIES @join__graph(name: "specialties", url: "https://frontis-specialties..workers.dev/graphql")
 }
 
 """
@@ -111,50 +105,50 @@ type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RESULTS, key:
   """
   Official club name.
   """
-  name: String! @join__field(graph: CLUBS) 
+  name: String! @join__field(graph: CLUBS)
 }
 
 type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
   """
   Fetch a single club by its ID.
   """
-  club(id: ID!) : Club @join__field(graph: CLUBS) 
+  club(id: ID!) : Club @join__field(graph: CLUBS)
   """
   List all clubs.
   """
-  clubs: [Club!]! @join__field(graph: CLUBS) 
+  clubs: [Club!]! @join__field(graph: CLUBS)
   """
   Fetch a single competition by its ID.
   """
-  competition(id: ID!) : Competition @join__field(graph: COMPETITIONS) 
+  competition(id: ID!) : Competition @join__field(graph: COMPETITIONS)
   """
   List competitions, optionally filtered by year.
   """
-  competitions(year: Int) : [Competition!]! @join__field(graph: COMPETITIONS) 
+  competitions(year: Int) : [Competition!]! @join__field(graph: COMPETITIONS)
   """
   Echo back the provided message. Useful for liveness checks.
   """
-  echo(message: String!) : String! @join__field(graph: ECHO) 
+  echo(message: String!) : String! @join__field(graph: ECHO)
   """
   Return the current version of the Frontis project.
   """
-  version: String! @join__field(graph: ECHO) 
+  version: String! @join__field(graph: ECHO)
   """
   Fetch a single result by its ID.
   """
-  result(id: ID!) : Result @join__field(graph: RESULTS) 
+  result(id: ID!) : Result @join__field(graph: RESULTS)
   """
   List results with optional filters.
   """
-  results(competitionId: ID, specialtyId: ID, category: String, phase: String) : [Result!]! @join__field(graph: RESULTS) 
+  results(competitionId: ID, specialtyId: ID, category: String, phase: String) : [Result!]! @join__field(graph: RESULTS)
   """
   Fetch a single specialty by its ID.
   """
-  specialty(id: ID!) : Specialty @join__field(graph: SPECIALTIES) 
+  specialty(id: ID!) : Specialty @join__field(graph: SPECIALTIES)
   """
   List all specialties.
   """
-  specialties: [Specialty!]! @join__field(graph: SPECIALTIES) 
+  specialties: [Specialty!]! @join__field(graph: SPECIALTIES)
 }
 
 """
@@ -165,19 +159,19 @@ type Competition @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph:
   """
   Year of the competition.
   """
-  year: Int! @join__field(graph: COMPETITIONS) 
+  year: Int! @join__field(graph: COMPETITIONS)
   """
   Competition name (e.g. Championnat de France).
   """
-  name: String! @join__field(graph: COMPETITIONS) 
+  name: String! @join__field(graph: COMPETITIONS)
   """
   Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche).
   """
-  level: String @join__field(graph: COMPETITIONS) 
+  level: String @join__field(graph: COMPETITIONS)
   """
   All match results recorded in this competition.
   """
-  results: [Result!]! @join__field(graph: COMPETITIONS) 
+  results: [Result!]! @join__field(graph: COMPETITIONS)
 }
 
 """
@@ -188,47 +182,47 @@ type Result @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESU
   """
   Competition this result belongs to.
   """
-  competition: Competition! @join__field(graph: RESULTS) 
+  competition: Competition! @join__field(graph: RESULTS)
   """
   Pelota discipline played.
   """
-  specialty: Specialty! @join__field(graph: RESULTS) 
+  specialty: Specialty! @join__field(graph: RESULTS)
   """
   Age/skill category (e.g. Seniors Grande Semaine, Cadets).
   """
-  category: String @join__field(graph: RESULTS) 
+  category: String @join__field(graph: RESULTS)
   """
   Date of the match (ISO 8601).
   """
-  dateMatch: String @join__field(graph: RESULTS) 
+  dateMatch: String @join__field(graph: RESULTS)
   """
   Home club.
   """
-  clubA: Club! @join__field(graph: RESULTS) 
+  clubA: Club! @join__field(graph: RESULTS)
   """
   Away club.
   """
-  clubB: Club! @join__field(graph: RESULTS) 
+  clubB: Club! @join__field(graph: RESULTS)
   """
   Score of club A.
   """
-  scoreA: Int @join__field(graph: RESULTS) 
+  scoreA: Int @join__field(graph: RESULTS)
   """
   Score of club B.
   """
-  scoreB: Int @join__field(graph: RESULTS) 
+  scoreB: Int @join__field(graph: RESULTS)
   """
   Tournament phase (e.g. Finale, 1/2 Finale, Poule).
   """
-  phase: String @join__field(graph: RESULTS) 
+  phase: String @join__field(graph: RESULTS)
   """
   Players lineup for club A.
   """
-  clubALineup: ClubLineup @join__field(graph: RESULTS) 
+  clubALineup: ClubLineup @join__field(graph: RESULTS)
   """
   Players lineup for club B.
   """
-  clubBLineup: ClubLineup @join__field(graph: RESULTS) 
+  clubBLineup: ClubLineup @join__field(graph: RESULTS)
 }
 
 """
@@ -267,6 +261,5 @@ type Specialty @join__type(graph: RESULTS, key: "id")  @join__type(graph: SPECIA
   """
   Human-readable name of the discipline.
   """
-  name: String! @join__field(graph: SPECIALTIES) 
+  name: String! @join__field(graph: SPECIALTIES)
 }
-    
