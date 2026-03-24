@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+name = "frontis-categories"
+main = "index.ts"
+compatibility_date = "2026-03-13"
+compatibility_flags = ["nodejs_compat"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.graphql"]
+fallthrough = false
+
+[dev]
+inspector_port = 9236
+
+[[d1_databases]]
+binding = "DB_LEAGUE_LCAPB"
+database_name = "pilotariak-lcapb"
+database_id = "bbf41c91-1bfd-4c31-bbc1-a83b588dacc4"
+migrations_dir = "../../database/migrations"
+
+[[d1_databases]]
+binding = "DB_LEAGUE_LIDFPB"
+database_name = "pilotariak-lidfpb"
+database_id = "e5ebfb2b-6736-4662-8fd2-e078df3d9bee"
+migrations_dir = "../../database/migrations"
+
+[observability]
+enabled = true
+head_sampling_rate = 1

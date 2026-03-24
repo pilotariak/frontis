@@ -87,6 +87,7 @@
 
 
 enum join__Graph {
+  CATEGORIES @join__graph(name: "categories", url: "http://categories_subgraph:4006/graphql")
   CLUBS @join__graph(name: "clubs", url: "http://clubs_subgraph:4003/graphql")
   COMPETITIONS @join__graph(name: "competitions", url: "http://competitions_subgraph:4002/graphql")
   ECHO @join__graph(name: "echo", url: "http://echo_subgraph:4001/graphql")
@@ -95,17 +96,25 @@ enum join__Graph {
 }
 
 """
-A pelota club (e.g. Denek Bat, Noizbait, Bixintxo).
+A competition category (e.g. Seniors, Juniors, Vétérans).
 """
-type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
+type Category @join__type(graph: CATEGORIES, key: "id")  {
   id: ID!
   """
-  Official club name.
+  Human-readable name of the category.
   """
-  name: String! @join__field(graph: CLUBS)
+  name: String!
 }
 
-type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
+type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
+  """
+  Fetch a single category by its ID.
+  """
+  category(id: ID!) : Category @join__field(graph: CATEGORIES)
+  """
+  List all categories.
+  """
+  categories: [Category!]! @join__field(graph: CATEGORIES)
   """
   Fetch a single club by its ID.
   """
@@ -146,6 +155,17 @@ type Query @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__t
   List all specialties.
   """
   specialties: [Specialty!]! @join__field(graph: SPECIALTIES)
+}
+
+"""
+A pelota club (e.g. Denek Bat, Noizbait, Bixintxo).
+"""
+type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
+  id: ID!
+  """
+  Official club name.
+  """
+  name: String! @join__field(graph: CLUBS)
 }
 
 """

@@ -56,6 +56,13 @@ const subgraphs = [
     typeDefs: readSchema("competitions"),
   },
   {
+    name: "categories",
+    url: "http://localhost:4006/graphql",
+    dockerUrl: "http://categories_subgraph:4006/graphql",
+    workerUrl: `https://frontis-categories.${subdomain}.workers.dev/graphql`,
+    typeDefs: readSchema("categories"),
+  },
+  {
     name: "results",
     url: "http://localhost:4005/graphql",
     dockerUrl: "http://results_subgraph:4005/graphql",
