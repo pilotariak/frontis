@@ -51,19 +51,21 @@ check-%:
 clean: ## Clean project
 	@echo -e "$(INFO)$(INFO_COLOR)[Clean] Processing $(NO_COLOR)"
 
-##@ Cloudflare
+.PHONY: bun
+bun: ## Bun executions
+	@bun run
 
-ENV ?=
+##@ Cloudflare
 
 .PHONY: cloudflare-deploy
 cloudflare-deploy: guard-SERVICE ## Deploy service to Cloudflare workers (SERVICE=xxx [ENV=production])
 	@echo -e "$(INFO)$(INFO_COLOR)[Cloudflare] Deploy $(SERVICE)$(NO_COLOR)"
-	@pushd $(SERVICE) && bunx wrangler deploy --env="$(ENV)" && popd
+	@pushd $(SERVICE) && bunx wrangler deploy && popd
 
 ##@ Hive
 
 .PHONY: hive-check
-hive-check: guard-SERVICE guard-HIVE_ENV ## Check the GraphQL schema (SERVICE=xxx HIVE_ENV=xxx)
+hive-check: guard-SERVICE guard-HIVE_ORG guard-HIVE_PROJECT guard-HIVE_ENV ## Check the GraphQL schema (SERVICE=xxx HIVE_ENV=xxx)
 	@echo -e "$(INFO)$(INFO_COLOR)[Hive] Check the GraphQL schema for $(SERVICE)$(NO_COLOR)"
 	@bunx @graphql-hive/cli schema:check \
 		--registry.accessToken "$(HIVE_ACCESS_TOKEN)" \

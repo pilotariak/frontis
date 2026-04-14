@@ -3,6 +3,7 @@ import { createGatewayRuntime, useRateLimit } from "@graphql-hive/gateway";
 import CFWorkerKVCache from "@graphql-mesh/cache-cfw-kv";
 import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
+import localSupergraph from "./supergraph.graphql";
 import {
   createMaxDepthRule,
   createMaxTokensRule,
@@ -26,10 +27,12 @@ const DEMAND_CONTROL_COST_MAP: CostMap = {
   Query: {
     echo: 0,
     version: 0,
+    category: 2,
     club: 2,
     specialty: 2,
     competition: 5,
     result: 10,
+    categories: 15,
     clubs: 15,
     specialties: 15,
     competitions: 25,
@@ -56,6 +59,7 @@ const SERVICE_BINDING_MAP: Record<string, string> = {
   "frontis-specialties": "SPECIALTIES",
   "frontis-clubs": "CLUBS",
   "frontis-competitions": "COMPETITIONS",
+  "frontis-categories": "CATEGORIES",
   "frontis-results": "RESULTS",
 };
 
@@ -86,8 +90,14 @@ function serviceBindingFetch(url: string, init?: RequestInit): Promise<Response>
     headers.set("x-internal-token", env.INTERNAL_SERVICE_TOKEN);
     return env[binding].fetch(new Request(url, { ...init, headers }));
   }
-  // Not a known subgraph — fall through to global fetch (e.g. Hive CDN)
+  // Not a known service binding — fall through to global fetch (local dev subgraphs or Hive CDN).
+  // Still inject the internal token so local subgraphs (localhost:*) accept the request.
   console.debug(`[gateway] No binding for ${workerName}, using globalThis.fetch`);
+  if (env?.INTERNAL_SERVICE_TOKEN) {
+    const headers = new Headers((init?.headers as HeadersInit) ?? {});
+    headers.set("x-internal-token", env.INTERNAL_SERVICE_TOKEN);
+    return globalThis.fetch(url, { ...init, headers });
+  }
   return globalThis.fetch(url, init);
 }
 
@@ -153,11 +163,13 @@ export default {
 
     const rateLimitConfig = [
       // List queries — broader result sets, lower limit
+      { type: "Query", field: "categories",   max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "clubs",        max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "competitions", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "results",      max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "specialties",  max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       // Single-item queries — higher limit
+      { type: "Query", field: "category",     max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "club",         max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "competition",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "result",       max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
@@ -184,11 +196,13 @@ export default {
       fetchAPI: {
         fetch: serviceBindingFetch,
       },
-      supergraph: {
-        type: "hive",
-        endpoint: env.HIVE_CDN_ENDPOINT || "https://cdn.graphql-hive.com/artifacts/v1",
-        key: env.HIVE_CDN_TOKEN,
-      },
+      supergraph: env.HIVE_CDN_TOKEN
+        ? {
+            type: "hive" as const,
+            endpoint: env.HIVE_CDN_ENDPOINT || "https://cdn.graphql-hive.com/artifacts/v1",
+            key: env.HIVE_CDN_TOKEN,
+          }
+        : localSupergraph,
       cache: env.SUPERGRAPH_CACHE
         ? new CFWorkerKVCache({ namespace: env.SUPERGRAPH_CACHE })
         : undefined,

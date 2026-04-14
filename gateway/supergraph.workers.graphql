@@ -87,26 +87,35 @@
 
 
 enum join__Graph {
-  CATEGORIES @join__graph(name: "categories", url: "https://frontis-categories..workers.dev/graphql")
-  CLUBS @join__graph(name: "clubs", url: "https://frontis-clubs..workers.dev/graphql")
+  CATEGORIES @join__graph(
+    name: "categories"
+    url: "https://frontis-categories.your-account.workers.dev/graphql"
+  )
+  CLUBS @join__graph(name: "clubs", url: "https://frontis-clubs.your-account.workers.dev/graphql")
   COMPETITIONS @join__graph(
     name: "competitions"
-    url: "https://frontis-competitions..workers.dev/graphql"
+    url: "https://frontis-competitions.your-account.workers.dev/graphql"
   )
-  ECHO @join__graph(name: "echo", url: "https://frontis-echo..workers.dev/graphql")
-  RESULTS @join__graph(name: "results", url: "https://frontis-results..workers.dev/graphql")
-  SPECIALTIES @join__graph(name: "specialties", url: "https://frontis-specialties..workers.dev/graphql")
+  ECHO @join__graph(name: "echo", url: "https://frontis-echo.your-account.workers.dev/graphql")
+  RESULTS @join__graph(
+    name: "results"
+    url: "https://frontis-results.your-account.workers.dev/graphql"
+  )
+  SPECIALTIES @join__graph(
+    name: "specialties"
+    url: "https://frontis-specialties.your-account.workers.dev/graphql"
+  )
 }
 
 """
 A competition category (e.g. Seniors, Juniors, Vétérans).
 """
-type Category @join__type(graph: CATEGORIES, key: "id")  {
+type Category @join__type(graph: CATEGORIES, key: "id")  @join__type(graph: RESULTS, key: "id")  {
   id: ID!
   """
   Human-readable name of the category.
   """
-  name: String!
+  name: String! @join__field(graph: CATEGORIES)
 }
 
 type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
@@ -149,7 +158,7 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
   """
   List results with optional filters.
   """
-  results(competitionId: ID, specialtyId: ID, category: String, phase: String) : [Result!]! @join__field(graph: RESULTS)
+  results(competitionId: ID, specialtyId: ID, categoryId: ID, phase: String) : [Result!]! @join__field(graph: RESULTS)
   """
   Fetch a single specialty by its ID.
   """
@@ -204,9 +213,9 @@ type Result @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESU
   """
   specialty: Specialty! @join__field(graph: RESULTS)
   """
-  Age/skill category (e.g. Seniors Grande Semaine, Cadets).
+  Age/skill category.
   """
-  category: String @join__field(graph: RESULTS)
+  category: Category @join__field(graph: RESULTS)
   """
   Date of the match (ISO 8601).
   """

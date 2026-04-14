@@ -14,7 +14,7 @@ export interface ResultRow {
   id: number;
   competition_id: number;
   specialty_id: number;
-  category: string | null;
+  category_id: number | null;
   date_match: string | null;
   club_a_id: number;
   club_b_id: number;

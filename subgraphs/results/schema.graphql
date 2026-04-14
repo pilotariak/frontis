@@ -33,8 +33,8 @@ type Result @key(fields: "id") {
   competition: Competition!
   "Pelota discipline played."
   specialty: Specialty!
-  "Age/skill category (e.g. Seniors Grande Semaine, Cadets)."
-  category: String
+  "Age/skill category."
+  category: Category
   "Date of the match (ISO 8601)."
   dateMatch: String
   "Home club."
@@ -70,6 +70,11 @@ type Specialty @key(fields: "id") {
   id: ID!
 }
 
+"Reference to a Category entity owned by the categories subgraph."
+type Category @key(fields: "id") {
+  id: ID!
+}
+
 # --- Queries ---
 
 type Query {
@@ -79,7 +84,7 @@ type Query {
   results(
     competitionId: ID
     specialtyId: ID
-    category: String
+    categoryId: ID
     phase: String
   ): [Result!]!
 }
