@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 4002",
+    "dev": "wrangler dev --persist-to ../../.wrangler/state --port 4002",
     "deploy": "wrangler deploy"
   },
   "dependencies": {

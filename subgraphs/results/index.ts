@@ -30,12 +30,12 @@ const resolvers = {
       {
         competitionId,
         specialtyId,
-        category,
+        categoryId,
         phase,
       }: {
         competitionId?: string;
         specialtyId?: string;
-        category?: string;
+        categoryId?: string;
         phase?: string;
       },
       { db }: Context
@@ -51,9 +51,9 @@ const resolvers = {
         conditions.push("specialty_id = ?");
         bindings.push(Number(specialtyId));
       }
-      if (category) {
-        conditions.push("category = ?");
-        bindings.push(category);
+      if (categoryId) {
+        conditions.push("category_id = ?");
+        bindings.push(Number(categoryId));
       }
       if (phase) {
         conditions.push("phase = ?");
@@ -86,6 +86,7 @@ const resolvers = {
 
     competition: (row: ResultRow) => ({ __typename: "Competition", id: String(row.competition_id) }),
     specialty: (row: ResultRow) => ({ __typename: "Specialty", id: String(row.specialty_id) }),
+    category: (row: ResultRow) => row.category_id != null ? ({ __typename: "Category", id: String(row.category_id) }) : null,
     clubA: (row: ResultRow) => ({ __typename: "Club", id: String(row.club_a_id) }),
     clubB: (row: ResultRow) => ({ __typename: "Club", id: String(row.club_b_id) }),
 

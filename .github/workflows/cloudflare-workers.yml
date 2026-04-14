@@ -31,7 +31,9 @@ jobs:
           - competitions
           - results
           - specialties
+          - categories
       fail-fast: false
+
     steps:
       - name: 🚚 Checkout Code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -57,12 +59,68 @@ jobs:
           workingDirectory: "subgraphs/${{ matrix.subgraph }}"
           environment: production
 
+  publish-schemas:
+    name: Publish schemas to Hive Registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    needs: deploy-subgraphs
+    strategy:
+      matrix:
+        include:
+          - subgraph: echo
+            service: echo
+            worker: frontis-echo
+          - subgraph: clubs
+            service: clubs
+            worker: frontis-clubs
+          - subgraph: competitions
+            service: competitions
+            worker: frontis-competitions
+          - subgraph: results
+            service: results
+            worker: frontis-results
+          - subgraph: specialties
+            service: specialties
+            worker: frontis-specialties
+          - subgraph: categories
+            service: categories
+            worker: frontis-categories
+      fail-fast: false
+    steps:
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: 🎉 Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.2
+
+      - name: 📦️ Install dependencies
+        run: bun install
+
+      - name: 📡 Publish ${{ matrix.subgraph }} schema to Hive
+        env:
+          HIVE_TOKEN: ${{ secrets.HIVE_REGISTRY_TOKEN }}
+          WORKERS_SUBDOMAIN: ${{ secrets.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+          SERVICE: ${{ matrix.service }}
+          WORKER: ${{ matrix.worker }}
+          SUBGRAPH: ${{ matrix.subgraph }}
+        run: |
+          bunx @graphql-hive/cli schema:publish \
+            --registry.accessToken "$HIVE_TOKEN" \
+            --target pilotariak/frontis/production \
+            --service "$SERVICE" \
+            --url "https://${WORKER}.${WORKERS_SUBDOMAIN}.workers.dev/graphql" \
+            --author "github-actions" \
+            "subgraphs/${SUBGRAPH}/schema.graphql"
+
   deploy-gateway:
     name: Deploy Gateway
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: deploy-subgraphs
+    needs: publish-schemas
     steps:
       - name: 🚚 Checkout Code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1

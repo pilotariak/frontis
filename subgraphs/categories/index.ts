@@ -3,61 +3,45 @@ import { useOpenTelemetry } from "@envelop/opentelemetry";
 import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
-import type { CompetitionRow, Context, Env } from "./db.js";
+import type { Context, Env, CategoryRow } from "./db.js";
 import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
 
-setupTracing("frontis-competitions");
+setupTracing("frontis-categories");
 
 const typeDefs = parse(schema);
 
 const resolvers = {
   Query: {
-    async competition(
+    async category(
       _: unknown,
       { id }: { id: string },
       { db }: Context
-    ): Promise<CompetitionRow | null> {
+    ): Promise<CategoryRow | null> {
       return db
-        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
+        .prepare("SELECT id, name FROM categories WHERE id = ?")
         .bind(Number(id))
-        .first<CompetitionRow>();
+        .first<CategoryRow>();
     },
 
-    async competitions(
-      _: unknown,
-      _args: unknown,
-      { db }: Context
-    ): Promise<CompetitionRow[]> {
+    async categories(_: unknown, _args: unknown, { db }: Context): Promise<CategoryRow[]> {
       const { results } = await db
-        .prepare("SELECT id, source_id, name FROM competitions")
-        .all<CompetitionRow>();
+        .prepare("SELECT id, name FROM categories")
+        .all<CategoryRow>();
       return results;
     },
   },
 
-  Competition: {
+  Category: {
     async __resolveReference(
       ref: { id: string },
       { db }: Context
-    ): Promise<CompetitionRow | null> {
+    ): Promise<CategoryRow | null> {
       return db
-        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
+        .prepare("SELECT id, name FROM categories WHERE id = ?")
         .bind(Number(ref.id))
-        .first<CompetitionRow>();
-    },
-
-    async results(
-      competition: CompetitionRow | { id: string },
-      _args: unknown,
-      { db }: Context
-    ): Promise<{ __typename: string; id: string }[]> {
-      const { results } = await db
-        .prepare("SELECT id FROM results WHERE competition_id = ?")
-        .bind(Number(competition.id))
-        .all<{ id: number }>();
-      return results.map((r) => ({ __typename: "Result", id: String(r.id) }));
+        .first<CategoryRow>();
     },
   },
 };
@@ -67,7 +51,7 @@ const schema_ = buildSubgraphSchema({ typeDefs, resolvers });
 const yoga = createYoga({
   schema: schema_,
   graphqlEndpoint: "/graphql",
-  plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-competitions")],
+  plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-categories")],
   context: ({ request, env }: { request: Request; env: Env }) => {
     const league = request.headers.get("x-pilotariak-league");
     if (!league) {

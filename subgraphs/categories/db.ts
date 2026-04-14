@@ -10,12 +10,10 @@ export interface Context {
   db: D1Database;
 }
 
-export interface CompetitionRow {
+export interface CategoryRow {
   id: number;
-  source_id: string | null;
   name: string;
 }
-
 
 export function getDatabase(env: Env, league: string): D1Database {
   const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;

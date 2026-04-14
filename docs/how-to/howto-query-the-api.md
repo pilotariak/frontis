@@ -1,12 +1,12 @@
 # How to query the Frontis GraphQL API
 
 This guide shows how to query the Frontis federated gateway using `curl`. The gateway
-stitches together the `echo`, `specialties`, `clubs`, `competitions`, and `results`
+stitches together the `echo`, `specialties`, `clubs`, `competitions`, `results`, and `categories`
 subgraphs behind a single endpoint.
 
 **Gateway endpoint:** `http://localhost:4000/graphql`
 
-All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`)
+All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`)
 require an **`X-Pilotariak-League` header** identifying the target database.
 Supported values: `lcapb`, `lidfpb`.
 
@@ -115,6 +115,28 @@ curl -s -X POST http://localhost:4002/graphql \
 
 ---
 
+## Categories
+
+### List all categories
+
+```bash
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ categories { id name } }"}' | jq
+```
+
+### Fetch a single category by ID
+
+```bash
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ category(id: \"1\") { id name } }"}' | jq
+```
+
+---
+
 ## Specialties (disciplines)
 
 ### List all specialties
@@ -219,18 +241,23 @@ curl -s -X POST http://localhost:4000/graphql \
 ## Querying subgraphs directly
 
 During development you can bypass the gateway and hit subgraphs directly.
-The `X-Pilotariak-League` header is still required for D1-backed subgraphs.
 
-| Subgraph     | URL                             | League header required |
-| ------------ | ------------------------------- | ---------------------- |
-| echo         | `http://localhost:4001/graphql` | no                     |
-| specialties  | `http://localhost:4004/graphql` | yes                    |
-| clubs        | `http://localhost:4003/graphql` | yes                    |
-| competitions | `http://localhost:4002/graphql` | yes                    |
-| results      | `http://localhost:4005/graphql` | yes                    |
+All subgraphs (except `echo`) enforce two headers:
+
+- **`X-Pilotariak-League`** — identifies the target D1 database (`lcapb` or `lidfpb`)
+- **`x-internal-token`** — shared secret that protects the subgraph from unauthenticated access. In local development the value is `dev-secret` (set in each subgraph's `.dev.vars`).
+
+| Subgraph     | URL                             | League header | Internal token |
+| ------------ | ------------------------------- | ------------- | -------------- |
+| echo         | `http://localhost:4001/graphql` | no            | no             |
+| specialties  | `http://localhost:4004/graphql` | yes           | yes            |
+| clubs        | `http://localhost:4003/graphql` | yes           | yes            |
+| competitions | `http://localhost:4002/graphql` | yes           | yes            |
+| results      | `http://localhost:4005/graphql` | yes           | yes            |
+| categories   | `http://localhost:4006/graphql` | yes           | yes            |
 
 ```bash
-# echo subgraph directly (no X-Pilotariak-League needed)
+# echo subgraph directly (no headers needed)
 curl -s -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ echo(message: \"ping\") }"}' | jq
@@ -238,20 +265,30 @@ curl -s -X POST http://localhost:4001/graphql \
 # clubs subgraph directly
 curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq
 
 # competitions subgraph directly
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lidfpb" \
   -d '{"query": "{ competitions { id name year } }"}' | jq
 
 # results subgraph directly
 curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ results { id category phase scoreA scoreB } }"}' | jq
+
+# categories subgraph directly
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ categories { id name } }"}' | jq
 ```
 
 > **Note:** Cross-subgraph fields (e.g. `clubA.name` on a `Result`) are only

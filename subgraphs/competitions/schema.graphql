@@ -5,16 +5,14 @@ extend schema
   )
 
 """
-An annual competition grouping (e.g. Championnat de France 2025).
+A competition (e.g. Championnat LCAPB 2025-2026).
 """
 type Competition @key(fields: "id") {
   id: ID!
-  "Year of the competition."
-  year: Int!
-  "Competition name (e.g. Championnat de France)."
+  "External identifier used by the source league system."
+  source_id: String
+  "Competition name."
   name: String!
-  "Playing surface / level (e.g. Place Libre, Trinquet, Mur à Gauche)."
-  level: String
   "All match results recorded in this competition."
   results: [Result!]!
 }
@@ -31,6 +29,6 @@ type Result @key(fields: "id") {
 type Query {
   "Fetch a single competition by its ID."
   competition(id: ID!): Competition
-  "List competitions, optionally filtered by year."
-  competitions(year: Int): [Competition!]!
+  "List all competitions."
+  competitions: [Competition!]!
 }

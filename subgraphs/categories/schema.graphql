@@ -1,0 +1,21 @@
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key"]
+  )
+
+"""
+A competition category (e.g. Seniors, Juniors, Vétérans).
+"""
+type Category @key(fields: "id") {
+  id: ID!
+  "Human-readable name of the category."
+  name: String!
+}
+
+type Query {
+  "Fetch a single category by its ID."
+  category(id: ID!): Category
+  "List all categories."
+  categories: [Category!]!
+}

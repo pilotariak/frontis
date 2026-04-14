@@ -95,97 +95,105 @@ export async function scrapeInfos(
 
 // ── /scrape_results ───────────────────────────────────────────────────────────
 
-async function saveResults(db: D1Database, results: ScrapedResult[]): Promise<number> {
+async function saveResults(db: D1Database, options: ScraperOptions, results: ScrapedResult[]): Promise<number> {
+  const competition = await db
+    .prepare("SELECT id FROM competitions WHERE source_id = ?")
+    .bind(options.competition)
+    .first<{ id: number }>();
+
+  if (!competition) {
+    throw new Error(`Competition with source_id '${options.competition}' not found in database. Run /scrape_infos first.`);
+  }
+
+  // Look up specialty by source_id when a specific specialty was requested,
+  // since the scraped HTML text may differ from the stored dropdown label.
+  const sharedSpecialty = options.specialty && options.specialty !== "0"
+    ? await db
+        .prepare("SELECT id FROM specialties WHERE source_id = ?")
+        .bind(options.specialty)
+        .first<{ id: number }>()
+    : null;
+
+  if (options.specialty && options.specialty !== "0" && !sharedSpecialty) {
+    throw new Error(`Specialty with source_id '${options.specialty}' not found in database. Run /scrape_infos first.`);
+  }
+
+  // Club names in results carry a team-number suffix (e.g. "CA BEGLAIS 01")
+  // that is not present in the dropdown used by scrape_infos ("CA BEGLAIS").
+  // Strip the trailing numeric token before looking up.
+  const baseClubName = (name: string) => name.replace(/\s+\d+$/, "").trim();
+
+  let saved = 0;
+
   for (const res of results) {
-    let specialty = await db
+    const specialty = sharedSpecialty ?? await db
       .prepare("SELECT id FROM specialties WHERE name = ?")
       .bind(res.specialty)
       .first<{ id: number }>();
 
-    if (!specialty) {
-      await db.prepare("INSERT INTO specialties (name) VALUES (?)").bind(res.specialty).run();
-      specialty = await db
-        .prepare("SELECT id FROM specialties WHERE name = ?")
-        .bind(res.specialty)
-        .first<{ id: number }>();
-    }
-
-    let clubA = await db
+    const clubA = await db
       .prepare("SELECT id FROM clubs WHERE name = ?")
-      .bind(res.club_a)
+      .bind(baseClubName(res.club_a))
       .first<{ id: number }>();
 
-    if (!clubA) {
-      await db.prepare("INSERT INTO clubs (name) VALUES (?)").bind(res.club_a).run();
-      clubA = await db
-        .prepare("SELECT id FROM clubs WHERE name = ?")
-        .bind(res.club_a)
-        .first<{ id: number }>();
-    }
-
-    let clubB = await db
+    const clubB = await db
       .prepare("SELECT id FROM clubs WHERE name = ?")
-      .bind(res.club_b)
+      .bind(baseClubName(res.club_b))
       .first<{ id: number }>();
 
-    if (!clubB) {
-      await db.prepare("INSERT INTO clubs (name) VALUES (?)").bind(res.club_b).run();
-      clubB = await db
-        .prepare("SELECT id FROM clubs WHERE name = ?")
-        .bind(res.club_b)
-        .first<{ id: number }>();
+    if (!specialty || !clubA || !clubB) {
+      console.warn(`[saveResults] Skipping result: missing lookup for specialty='${res.specialty}' club_a='${res.club_a}' club_b='${res.club_b}'`);
+      continue;
     }
 
-    let competition = await db
-      .prepare("SELECT id FROM competitions WHERE name = ?")
-      .bind(res.competition)
+    // Resolve category name → id, creating the row if it does not exist yet.
+    await db
+      .prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`)
+      .bind(res.category)
+      .run();
+    const category = await db
+      .prepare("SELECT id FROM categories WHERE name = ?")
+      .bind(res.category)
       .first<{ id: number }>();
 
-    if (!competition) {
+    if (!category) {
+      console.warn(`[saveResults] Skipping result: could not resolve category='${res.category}'`);
+      continue;
+    }
+
+    const existing = await db
+      .prepare(
+        `SELECT id FROM results
+         WHERE competition_id = ? AND specialty_id = ? AND category_id = ?
+         AND date_match = ? AND club_a_id = ? AND club_b_id = ? AND phase = ?`
+      )
+      .bind(competition.id, specialty.id, category.id, res.date_match, clubA.id, clubB.id, res.phase)
+      .first<{ id: number }>();
+
+    if (!existing) {
       await db
-        .prepare("INSERT INTO competitions (name) VALUES (?)")
-        .bind(res.competition)
-        .run();
-      competition = await db
-        .prepare("SELECT id FROM competitions WHERE name = ?")
-        .bind(res.competition)
-        .first<{ id: number }>();
-    }
-
-    if (specialty && clubA && clubB && competition) {
-      const existing = await db
         .prepare(
-          `SELECT id FROM results
-           WHERE competition_id = ? AND specialty_id = ? AND category = ?
-           AND date_match = ? AND club_a_id = ? AND club_b_id = ? AND phase = ?`
+          `INSERT INTO results (
+            competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
+            score_a, score_b, phase,
+            club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
+            club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(competition.id, specialty.id, res.category, res.date_match, clubA.id, clubB.id, res.phase)
-        .first<{ id: number }>();
-
-      if (!existing) {
-        await db
-          .prepare(
-            `INSERT INTO results (
-              competition_id, specialty_id, category, date_match, club_a_id, club_b_id,
-              score_a, score_b, phase,
-              club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
-              club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
-            competition.id, specialty.id, res.category, res.date_match,
-            clubA.id, clubB.id, res.score_a, res.score_b, res.phase,
-            res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
-            res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
-            res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
-            res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
-          )
-          .run();
-      }
+        .bind(
+          competition.id, specialty.id, category.id, res.date_match,
+          clubA.id, clubB.id, res.score_a, res.score_b, res.phase,
+          res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
+          res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
+          res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
+          res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
+        )
+        .run();
+      saved++;
     }
   }
 
-  return results.length;
+  return saved;
 }
 
 export async function scrapeResults(
@@ -203,6 +211,6 @@ export async function scrapeResults(
   }
 
   const db = getDatabase(env, options.league);
-  const saved = await saveResults(db, results);
+  const saved = await saveResults(db, options, results);
   return { results, saved };
 }

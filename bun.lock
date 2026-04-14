@@ -27,6 +27,28 @@
         "graphql": "^16.9.0",
       },
     },
+    "subgraphs/categories": {
+      "name": "categories",
+      "dependencies": {
+        "@apollo/subgraph": "^2.9.0",
+        "@envelop/opentelemetry": "^9.1.0",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-metrics-otlp-grpc": "^0.57.0",
+        "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
+        "@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+        "@opentelemetry/resources": "^1.30.0",
+        "@opentelemetry/sdk-metrics": "^1.30.0",
+        "@opentelemetry/sdk-trace-base": "^1.30.0",
+        "@opentelemetry/sdk-trace-node": "^1.30.0",
+        "@opentelemetry/semantic-conventions": "^1.28.0",
+        "graphql": "^16.9.0",
+        "graphql-yoga": "^5.13.0",
+      },
+      "devDependencies": {
+        "wrangler": "^4.72.0",
+      },
+    },
     "subgraphs/clubs": {
       "name": "clubs",
       "dependencies": {
@@ -864,6 +886,8 @@
     "call-bound": ["call-bound@1.0.4", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "get-intrinsic": "^1.3.0" } }, "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001779", "", {}, "sha512-U5og2PN7V4DMgF50YPNtnZJGWVLFjjsN3zb6uMT5VGYIewieDj1upwfuVNXf4Kor+89c3iCRJnSzMD5LmTvsfA=="],
+
+    "categories": ["categories@workspace:subgraphs/categories"],
 
     "chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 

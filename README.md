@@ -33,11 +33,6 @@ Documentation follows the [Diátaxis](https://diataxis.fr/) framework — see [`
 | **Reference**     | [GraphQL schema](docs/reference/graphql-schema.md) · [Configuration](docs/reference/configuration.md) · [Ports](docs/reference/ports.md)                                                                                                            |
 | **Explanation**   | [Architecture](docs/explanation/architecture.md) · [Federation concepts](docs/explanation/federation-concepts.md)                                                                                                                                   |
 
-Federation v2.5 is used. Each subgraph owns its entities and declares stubs for
-entities owned by others via `@key` directives. The gateway stitches them at query
-time — e.g. `Result` references `Competition`, `Club`, and `Specialty` entities
-resolved from their respective subgraphs.
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

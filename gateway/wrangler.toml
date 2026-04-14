@@ -35,6 +35,10 @@ binding = "COMPETITIONS"
 service = "frontis-competitions"
 
 [[services]]
+binding = "CATEGORIES"
+service = "frontis-categories"
+
+[[services]]
 binding = "RESULTS"
 service = "frontis-results"
 

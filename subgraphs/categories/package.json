@@ -1,9 +1,9 @@
 {
-  "name": "specialties",
+  "name": "categories",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --persist-to ../../.wrangler/state --port 4004",
+    "dev": "wrangler dev --persist-to ../../.wrangler/state --port 4006",
     "deploy": "wrangler deploy"
   },
   "dependencies": {

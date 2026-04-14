@@ -95,6 +95,14 @@ bunx @graphql-hive/cli schema:publish \
 bunx @graphql-hive/cli schema:publish \
   --registry.accessToken $HIVE_TOKEN \
   --target $HIVE_TARGET \
+  --service categories \
+  --url https://frontis-categories.$WORKERS_SUBDOMAIN.workers.dev/graphql \
+  --author Pilotariak \
+  subgraphs/categories/schema.graphql
+
+bunx @graphql-hive/cli schema:publish \
+  --registry.accessToken $HIVE_TOKEN \
+  --target $HIVE_TARGET \
   --service results \
   --url https://results.$WORKERS_SUBDOMAIN.workers.dev/graphql \
   --author Pilotariak \
