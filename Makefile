@@ -80,7 +80,7 @@ hive-publish: guard-SERVICE guard-HIVE_ORG guard-HIVE_PROJECT guard-HIVE_ENV gua
 		--registry.accessToken "$(HIVE_ACCESS_TOKEN)" \
 		--target "$(HIVE_ORG)/$(HIVE_PROJECT)/$(HIVE_ENV)" \
 		--service "$(SERVICE)" \
-		--url $(HIVE_URL) \
+		--url http://frontis-$(SERVICE).$(HIVE_URL)/graphql \
 		--author "Pilotariak" \
 		subgraphs/$(SERVICE)/schema.graphql
 
