@@ -1,12 +1,12 @@
 # How to query the Frontis GraphQL API
 
 This guide shows how to query the Frontis federated gateway using `curl`. The gateway
-stitches together the `echo`, `specialties`, `clubs`, `competitions`, and `results`
+stitches together the `echo`, `specialties`, `clubs`, `competitions`, `results`, and `categories`
 subgraphs behind a single endpoint.
 
 **Gateway endpoint:** `http://localhost:4000/graphql`
 
-All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`)
+All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`)
 require an **`X-Pilotariak-League` header** identifying the target database.
 Supported values: `lcapb`, `lidfpb`.
 
@@ -111,6 +111,28 @@ curl -s -X POST http://localhost:4002/graphql \
   -d '{
     "query": "{ competition(id: \"1\") { id name year level results { id category phase scoreA scoreB } } }"
   }' | jq
+```
+
+---
+
+## Categories
+
+### List all categories
+
+```bash
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ categories { id name } }"}' | jq
+```
+
+### Fetch a single category by ID
+
+```bash
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ category(id: \"1\") { id name } }"}' | jq
 ```
 
 ---
@@ -228,6 +250,7 @@ The `X-Pilotariak-League` header is still required for D1-backed subgraphs.
 | clubs        | `http://localhost:4003/graphql` | yes                    |
 | competitions | `http://localhost:4002/graphql` | yes                    |
 | results      | `http://localhost:4005/graphql` | yes                    |
+| categories   | `http://localhost:4006/graphql` | yes                    |
 
 ```bash
 # echo subgraph directly (no X-Pilotariak-League needed)
@@ -252,6 +275,12 @@ curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ results { id category phase scoreA scoreB } }"}' | jq
+
+# categories subgraph directly
+curl -s -X POST http://localhost:4006/graphql \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ categories { id name } }"}' | jq
 ```
 
 > **Note:** Cross-subgraph fields (e.g. `clubA.name` on a `Result`) are only

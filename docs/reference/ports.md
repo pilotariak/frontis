@@ -12,6 +12,7 @@ All Workers use unique ports in local development to avoid conflicts when runnin
 | clubs        | 4003     | 9230           | http://localhost:4003/graphql      |
 | specialties  | 4004     | 9234           | http://localhost:4004/graphql      |
 | results      | 4005     | 9235           | http://localhost:4005/graphql      |
+| categories   | 4006     | 9236           | http://localhost:4006/graphql      |
 | scheduler    | 8787     | 9233           | http://localhost:8787 (no GraphQL) |
 
 ## Health check
