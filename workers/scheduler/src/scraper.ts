@@ -95,6 +95,58 @@ export async function scrapeInfos(
 
 // ── /scrape_results ───────────────────────────────────────────────────────────
 
+/**
+ * Resolve internal DB IDs to source_ids before passing options to the league
+ * scraper, which communicates with the external website using source_ids.
+ */
+async function resolveSourceIds(db: D1Database, options: ScraperOptions): Promise<ScraperOptions> {
+  const competition = await db
+    .prepare("SELECT source_id FROM competitions WHERE id = ?")
+    .bind(options.competition)
+    .first<{ source_id: string }>();
+
+  if (!competition?.source_id) {
+    throw new Error(`Competition with id '${options.competition}' not found in database. Run /scrape_infos first.`);
+  }
+
+  let specialty = options.specialty;
+  if (specialty && specialty !== "0") {
+    const row = await db
+      .prepare("SELECT source_id FROM specialties WHERE id = ?")
+      .bind(specialty)
+      .first<{ source_id: string }>();
+    if (!row?.source_id) {
+      throw new Error(`Specialty with id '${specialty}' not found in database. Run /scrape_infos first.`);
+    }
+    specialty = row.source_id;
+  }
+
+  let category = options.category;
+  if (category && category !== "0") {
+    const row = await db
+      .prepare("SELECT source_id FROM categories WHERE id = ?")
+      .bind(category)
+      .first<{ source_id: string | null }>();
+    if (row?.source_id) {
+      category = row.source_id;
+    }
+  }
+
+  let phase = options.phase;
+  if (phase && phase !== "0") {
+    const row = await db
+      .prepare("SELECT source_id FROM phases WHERE id = ?")
+      .bind(phase)
+      .first<{ source_id: string }>();
+    if (!row?.source_id) {
+      throw new Error(`Phase with id '${phase}' not found in database. Run /scrape_infos first.`);
+    }
+    phase = row.source_id;
+  }
+
+  return { ...options, competition: competition.source_id, specialty, category, phase };
+}
+
 async function saveResults(db: D1Database, options: ScraperOptions, results: ScrapedResult[]): Promise<number> {
   const competition = await db
     .prepare("SELECT id FROM competitions WHERE source_id = ?")
@@ -204,13 +256,16 @@ export async function scrapeResults(
   const scraper = scrapers[options.league.toLowerCase()];
   if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
 
-  const { results } = await scraper.fetchData(options, true);
+  // Always resolve DB IDs → source_ids before hitting the external website.
+  const db = getDatabase(env, options.league);
+  const resolved = await resolveSourceIds(db, options);
+
+  const { results } = await scraper.fetchData(resolved, true);
 
   if (dryRun) {
     return { results, saved: 0 };
   }
 
-  const db = getDatabase(env, options.league);
-  const saved = await saveResults(db, options, results);
+  const saved = await saveResults(db, resolved, results);
   return { results, saved };
 }
