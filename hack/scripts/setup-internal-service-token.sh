@@ -22,6 +22,7 @@ declare -A WORKER_DIRS=(
   ["frontis-specialties"]="subgraphs/specialties"
   ["frontis-clubs"]="subgraphs/clubs"
   ["frontis-competitions"]="subgraphs/competitions"
+  ["frontis-categories"]="subgraphs/categories"
   ["frontis-results"]="subgraphs/results"
 )
 
