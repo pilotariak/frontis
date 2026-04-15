@@ -3,39 +3,34 @@ import type { Env } from "./types";
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
 
-// ANSI colour helpers
-const c = {
-  reset:   "\x1b[0m",
-  bold:    "\x1b[1m",
-  dim:     "\x1b[2m",
-  cyan:    "\x1b[36m",
-  yellow:  "\x1b[33m",
-  green:   "\x1b[32m",
-  red:     "\x1b[31m",
-  magenta: "\x1b[35m",
-  gray:    "\x1b[90m",
-  white:   "\x1b[97m",
-};
-
-const bold    = (s: string) => `${c.bold}${s}${c.reset}`;
-const dim     = (s: string) => `${c.dim}${s}${c.reset}`;
-const cyan    = (s: string) => `${c.cyan}${s}${c.reset}`;
-const yellow  = (s: string) => `${c.yellow}${s}${c.reset}`;
-const green   = (s: string) => `${c.green}${s}${c.reset}`;
-const magenta = (s: string) => `${c.magenta}${s}${c.reset}`;
-const gray    = (s: string) => `${c.gray}${s}${c.reset}`;
-const white   = (s: string) => `${c.white}${s}${c.reset}`;
+// ANSI colour helpers — returns plain-text identity functions when noColor=true.
+function makeColors(noColor: boolean) {
+  const a = (code: string) => (s: string) => noColor ? s : `\x1b[${code}m${s}\x1b[0m`;
+  return {
+    bold:    a("1"),
+    dim:     a("2"),
+    cyan:    a("36"),
+    yellow:  a("33"),
+    green:   a("32"),
+    red:     a("31"),
+    magenta: a("35"),
+    gray:    a("90"),
+    white:   a("97"),
+  };
+}
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    const dryRun = url.searchParams.get("dry_run") === "true";
+    const dryRun  = url.searchParams.get("dry_run")  === "true";
+    const noColor = url.searchParams.get("no_color") === "true";
+    const { bold, dim, cyan, yellow, green, red, magenta, gray, white } = makeColors(noColor);
 
     // ── /scrape_infos ──────────────────────────────────────────────────────────
     if (url.pathname === "/scrape_infos") {
       const league = url.searchParams.get("league");
       if (!league) {
-        return new Response(`${c.red}Error: missing required parameter: league${c.reset}`, { status: 400, ...TEXT });
+        return new Response(`${red("Error: missing required parameter: league")}`, { status: 400, ...TEXT });
       }
 
       const competition = url.searchParams.get("competition") ?? "";
@@ -77,7 +72,7 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        return new Response(`${c.red}Error: ${msg}${c.reset}`, { status: 500, ...TEXT });
+        return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
       }
     }
 
@@ -91,7 +86,7 @@ export default {
 
       if (!league || !competition) {
         return new Response(
-          `${c.red}Error: missing required parameters: league, competition${c.reset}`,
+          `${red("Error: missing required parameters: league, competition")}`,
           { status: 400, ...TEXT }
         );
       }
@@ -145,7 +140,7 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        return new Response(`${c.red}Error: ${msg}${c.reset}`, { status: 500, ...TEXT });
+        return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
       }
     }
 
