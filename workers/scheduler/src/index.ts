@@ -158,9 +158,9 @@ ${bold("/scrape_infos")}   — fetch form options (competitions, specialties, cl
   ${gray(`${base}/scrape_infos?league=lcapb&competition=20260501`)}
   ${gray(`${base}/scrape_infos?league=lcapb&competition=20260501&dry_run=true`)}
 
-${bold("/scrape_results")} — fetch and display match results
-  ${gray(`${base}/scrape_results?league=lcapb&competition=20260501&specialty=2&category=1&phase=0`)}
-  ${gray(`${base}/scrape_results?league=lcapb&competition=20260501&specialty=2&category=1&phase=0&dry_run=true`)}
+${bold("/scrape_results")} — fetch and display match results (competition/specialty/category/phase are DB ids)
+  ${gray(`${base}/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0`)}
+  ${gray(`${base}/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0&dry_run=true`)}
 
 Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
 `,
