@@ -3,6 +3,7 @@
 
 import { scrapeFormOptions } from "./scraper";
 import type { Env, FormOption, League } from "./types";
+import { version } from "../../../package.json";
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -54,14 +55,21 @@ async function saveFormOptions(db: D1Database, options: ReturnType<typeof scrape
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url     = new URL(req.url);
-    const acronym             = req.headers.get("x-pilotariak-league");
+    const acronym             = req.headers.get("x-pilotariak-league") ?? url.searchParams.get("league");
     const competitionSourceId = url.searchParams.get("competition_source_id") ?? undefined;
     const dryRun              = url.searchParams.get("dry_run") !== "false";
     const noColor             = url.searchParams.get("no_color") === "true";
     const { bold, dim, cyan, yellow, green, gray } = makeColors(noColor);
 
+    // ── /version ───────────────────────────────────────────────────────────────
+    if (url.pathname === "/version") {
+      return new Response(JSON.stringify({ version }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     if (!acronym) {
-      return errorResponse("missing required header: X-Pilotariak-League", 400);
+      return errorResponse("missing required league: set X-Pilotariak-League header or ?league= parameter", 400);
     }
 
     let db: D1Database;

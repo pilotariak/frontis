@@ -41,11 +41,14 @@ real data. Always dry-run first.
 
 ### `GET /`
 
-**Required header**
+**Required league** — provide one of:
 
-| Header                 | Description         |
-| ---------------------- | ------------------- |
-| `X-Pilotariak-League`  | `lcapb` or `lidfpb` |
+| Method                       | Example                          |
+| ---------------------------- | -------------------------------- |
+| Header `X-Pilotariak-League` | `-H "X-Pilotariak-League: lcapb"` |
+| Query parameter `league`     | `?league=lcapb`                  |
+
+The header takes precedence if both are provided.
 
 **Optional query parameters**
 
