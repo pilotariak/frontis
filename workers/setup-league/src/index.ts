@@ -63,72 +63,121 @@ export default {
 
     // ── /version ───────────────────────────────────────────────────────────────
     if (url.pathname === "/version") {
-      return new Response(JSON.stringify({ version }), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ version }), { headers: JSON_HEADERS });
     }
 
-    if (!acronym) {
-      return errorResponse("missing required league: set X-Pilotariak-League header or ?league= parameter", 400);
-    }
+    // ── /init ──────────────────────────────────────────────────────────────────
+    if (url.pathname === "/init") {
+      const name       = url.searchParams.get("name");
+      const leagueUrl  = url.searchParams.get("url");
+      const leagueAcro = url.searchParams.get("acronym");
 
-    let db: D1Database;
-    try {
-      db = getDatabase(env, acronym);
-    } catch (err: unknown) {
-      return errorResponse(err instanceof Error ? err.message : String(err), 400);
-    }
-
-    // ── Look up league in database ────────────────────────────────────────────
-    const league = await db
-      .prepare("SELECT id, name, acronym, url FROM leagues WHERE acronym = ?")
-      .bind(acronym)
-      .first<League>();
-
-    if (!league) {
-      return errorResponse(`league '${acronym}' not found in database`, 404);
-    }
-
-    // ── Scrape form options from league URL ───────────────────────────────────
-    let options: Awaited<ReturnType<typeof scrapeFormOptions>>;
-    try {
-      options = await scrapeFormOptions(league.url, competitionSourceId);
-    } catch (err: unknown) {
-      return errorResponse(err instanceof Error ? err.message : String(err), 500);
-    }
-
-    const fmt = (items: FormOption[]) =>
-      items.length
-        ? items.map((o) => `  ${gray(`[${o.sourceId}]`)} ${o.name}`).join("\n")
-        : dim("  (none)");
-
-    const status = dryRun
-      ? yellow("dry-run — not saved")
-      : green("saved to database");
-
-    const lines = [
-      `${bold(cyan("League"))}      : ${bold(league.name)} ${dim(`(${league.acronym.toUpperCase()})`)}  ${dim(`[${status}]`)}`,
-      `${bold(cyan("URL"))}         : ${league.url}`,
-      `${bold(cyan("Competition"))} : ${competitionSourceId ? gray(competitionSourceId) : dim("(all)")}`,
-      "",
-      bold(yellow(`Competitions (${options.competitions.length})`)),
-      fmt(options.competitions),
-      "",
-      bold(yellow(`Specialties (${options.specialties.length})`)),
-      fmt(options.specialties),
-      "",
-      bold(yellow(`Categories (${options.categories.length})`)),
-      fmt(options.categories),
-    ];
-
-    if (!dryRun) {
-      try {
-        await saveFormOptions(db, options);
-      } catch (err: unknown) {
-        return errorResponse(`failed to save to database: ${err instanceof Error ? err.message : String(err)}`, 500);
+      if (!name || !leagueUrl || !leagueAcro) {
+        return errorResponse("missing required parameters: name, url, acronym", 400);
       }
+
+      let db: D1Database;
+      try {
+        db = getDatabase(env, leagueAcro);
+      } catch (err: unknown) {
+        return errorResponse(err instanceof Error ? err.message : String(err), 400);
+      }
+
+      try {
+        await db
+          .prepare(`INSERT INTO leagues (name, acronym, url) VALUES (?, ?, ?)
+                    ON CONFLICT(acronym) DO UPDATE SET name = excluded.name, url = excluded.url`)
+          .bind(name, leagueAcro, leagueUrl)
+          .run();
+      } catch (err: unknown) {
+        return errorResponse(`failed to insert league: ${err instanceof Error ? err.message : String(err)}`, 500);
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, league: { name, acronym: leagueAcro, url: leagueUrl } }),
+        { headers: JSON_HEADERS }
+      );
     }
 
-    return new Response(lines.join("\n") + "\n", TEXT);
+    // ── /bootstrap ─────────────────────────────────────────────────────────────
+    if (url.pathname === "/bootstrap") {
+      if (!acronym) {
+        return errorResponse("missing required league: set X-Pilotariak-League header or ?league= parameter", 400);
+      }
+
+      let db: D1Database;
+      try {
+        db = getDatabase(env, acronym);
+      } catch (err: unknown) {
+        return errorResponse(err instanceof Error ? err.message : String(err), 400);
+      }
+
+      const league = await db
+        .prepare("SELECT id, name, acronym, url FROM leagues WHERE acronym = ?")
+        .bind(acronym)
+        .first<League>();
+
+      if (!league) {
+        return errorResponse(`league '${acronym}' not found in database — run /init first`, 404);
+      }
+
+      let options: Awaited<ReturnType<typeof scrapeFormOptions>>;
+      try {
+        options = await scrapeFormOptions(league.url, competitionSourceId);
+      } catch (err: unknown) {
+        return errorResponse(err instanceof Error ? err.message : String(err), 500);
+      }
+
+      const fmt = (items: FormOption[]) =>
+        items.length
+          ? items.map((o) => `  ${gray(`[${o.sourceId}]`)} ${o.name}`).join("\n")
+          : dim("  (none)");
+
+      const status = dryRun
+        ? yellow("dry-run — not saved")
+        : green("saved to database");
+
+      const lines = [
+        `${bold(cyan("League"))}      : ${bold(league.name)} ${dim(`(${league.acronym.toUpperCase()})`)}  ${dim(`[${status}]`)}`,
+        `${bold(cyan("URL"))}         : ${league.url}`,
+        `${bold(cyan("Competition"))} : ${competitionSourceId ? gray(competitionSourceId) : dim("(all)")}`,
+        "",
+        bold(yellow(`Competitions (${options.competitions.length})`)),
+        fmt(options.competitions),
+        "",
+        bold(yellow(`Specialties (${options.specialties.length})`)),
+        fmt(options.specialties),
+        "",
+        bold(yellow(`Categories (${options.categories.length})`)),
+        fmt(options.categories),
+      ];
+
+      if (!dryRun) {
+        try {
+          await saveFormOptions(db, options);
+        } catch (err: unknown) {
+          return errorResponse(`failed to save to database: ${err instanceof Error ? err.message : String(err)}`, 500);
+        }
+      }
+
+      return new Response(lines.join("\n") + "\n", TEXT);
+    }
+
+    // ── help ───────────────────────────────────────────────────────────────────
+    const base = url.origin;
+    return new Response(
+      `${bold(cyan("Frontis Setup League"))}
+
+${bold("/version")}   — return worker version as JSON
+
+${bold("/init")}      — register a new league in the database
+  ${gray(`${base}/init?acronym=lcapb&name=Comité+Cote+d'Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php`)}
+
+${bold("/bootstrap")} — scrape and seed competitions, specialties, categories for a league
+  ${gray(`${base}/bootstrap?league=lcapb`)}
+  ${gray(`${base}/bootstrap?league=lcapb&competition_source_id=20260501&dry_run=false`)}
+`,
+      TEXT
+    );
   },
 } satisfies ExportedHandler<Env>;
