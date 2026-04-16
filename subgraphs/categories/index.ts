@@ -27,7 +27,8 @@ const resolvers = {
 
     async categories(_: unknown, _args: unknown, { db }: Context): Promise<CategoryRow[]> {
       const { results } = await db
-        .prepare("SELECT id, name FROM categories")
+        .prepare(`SELECT id, name FROM categories
+                  ORDER BY CASE WHEN name LIKE '%Série' THEN 0 ELSE 1 END, name`)
         .all<CategoryRow>();
       return results;
     },

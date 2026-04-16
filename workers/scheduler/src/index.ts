@@ -2,6 +2,17 @@ import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
 import { version } from "../../../package.json";
 
+function getDatabase(env: Env, league: string): D1Database | null {
+  const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
+  return (env[key] as D1Database) ?? null;
+}
+
+async function lookupName(db: D1Database, table: string, id: string): Promise<string | null> {
+  if (!id || id === "0") return null;
+  const row = await db.prepare(`SELECT name FROM ${table} WHERE id = ?`).bind(id).first<{ name: string }>();
+  return row?.name ?? null;
+}
+
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
 
 // ANSI colour helpers — returns plain-text identity functions when noColor=true.
@@ -88,21 +99,29 @@ export default {
     if (url.pathname === "/scrape_results") {
       const league      = url.searchParams.get("league");
       const competition = url.searchParams.get("competition");
-      const specialty   = url.searchParams.get("specialty")   ?? "0";
-      const category    = url.searchParams.get("category")    ?? "0";
+      const specialty   = url.searchParams.get("specialty");
+      const category    = url.searchParams.get("category");
       const phase       = url.searchParams.get("phase")       ?? "0";
 
-      if (!league || !competition) {
+      const JSON_HEADERS = { "Content-Type": "application/json" };
+      const missing = [
+        !league      && "league",
+        !competition && "competition",
+        !specialty   && "specialty",
+        !category    && "category",
+      ].filter(Boolean) as string[];
+
+      if (missing.length > 0) {
         return new Response(
-          `${red("Error: missing required parameters: league, competition")}`,
-          { status: 400, ...TEXT }
+          JSON.stringify({ error: `missing required parameters: ${missing.join(", ")}` }),
+          { status: 400, headers: JSON_HEADERS }
         );
       }
 
       try {
         const { results, saved } = await scrapeResults(
           env,
-          { league, competition, specialty, category, phase },
+          { league, competition: competition!, specialty: specialty!, category: category!, phase },
           dryRun
         );
 
@@ -110,10 +129,28 @@ export default {
           ? `${results.length} results found — ${yellow("not saved (dry-run)")}`
           : `${green(`${saved} results saved`)}`;
 
+        const db = getDatabase(env, league);
+        const [competitionName, specialtyName, categoryName] = db
+          ? await Promise.all([
+              lookupName(db, "competitions", competition!),
+              lookupName(db, "specialties", specialty!),
+              lookupName(db, "categories", category!),
+            ])
+          : [null, null, null];
+
+        const fmtId = (id: string, name: string | null) =>
+          name ? `${id} ${dim(`[${name}]`)}` : id;
+
+        const filterParts = [
+          `specialty=${fmtId(specialty!, specialtyName)}`,
+          `category=${fmtId(category!, categoryName)}`,
+          ...(phase !== "0" ? [`phase=${phase}`] : []),
+        ];
+
         const lines = [
-          `${bold(cyan("League     "))} : ${bold(league.toUpperCase())}`,
-          `${bold(cyan("Competition"))} : ${competition}`,
-          `${bold(cyan("Filters    "))} : specialty=${specialty}  category=${category}  phase=${phase}`,
+          `${bold(cyan("League     "))} : ${bold(league!.toUpperCase())}`,
+          `${bold(cyan("Competition"))} : ${fmtId(competition!, competitionName)}`,
+          `${bold(cyan("Filters    "))} : ${filterParts.join("  ")}`,
           `${bold(cyan("Status     "))} : ${statusLine}`,
           "",
         ];

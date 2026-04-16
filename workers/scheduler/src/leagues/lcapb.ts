@@ -91,12 +91,6 @@ export class LcapbScraper implements LeagueScraper {
         .trim();
 
       const categoryText = infoRow.find("span").eq(0).text().trim();
-      const phaseGroupText = infoRow
-        .find("span")
-        .eq(1)
-        .text()
-        .trim()
-        .replace(/\s+/g, " ");
 
       for (let i = 3; i < rows.length; i++) {
         const row = rows.eq(i);
@@ -105,7 +99,10 @@ export class LcapbScraper implements LeagueScraper {
         const cols = row.find("td");
         if (cols.length < 5) continue;
 
-        const matchId = cols.eq(0).text().trim().replace(/\s+/g, " ");
+        const phase = cols.eq(0).find("strong").text()
+          .replace(/\u00a0/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
         const date = cols.eq(1).text().trim().replace(/&nbsp;/g, "").trim();
         const clubACol = cols.eq(2);
         const clubBCol = cols.eq(3);
@@ -151,7 +148,7 @@ export class LcapbScraper implements LeagueScraper {
           competition: `Championnat ${this.leagueName}`,
           year: new Date().getFullYear(),
           category: categoryText,
-          phase: `${phaseGroupText} - ${matchId}`,
+          phase,
           date_match: date,
           club_a: clubAData.name,
           club_a_player1_name: clubAData.players[0]?.name,

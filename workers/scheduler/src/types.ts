@@ -39,4 +39,5 @@ export interface ScrapedResult {
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
   DB_LEAGUE_LIDFPB: D1Database;
+  DB_LEAGUE_CTPB: D1Database;
 }
