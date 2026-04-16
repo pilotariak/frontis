@@ -41,13 +41,13 @@ real data. Always dry-run first.
 
 ### `GET /`
 
-**Required parameters**
+**Required header**
 
-| Parameter | Description         |
-| --------- | ------------------- |
-| `acronym` | `lcapb` or `lidfpb` |
+| Header                 | Description         |
+| ---------------------- | ------------------- |
+| `X-Pilotariak-League`  | `lcapb` or `lidfpb` |
 
-**Optional parameters**
+**Optional query parameters**
 
 | Parameter              | Default | Description                                                        |
 | ---------------------- | ------- | ------------------------------------------------------------------ |
@@ -68,19 +68,24 @@ real data. Always dry-run first.
 
 ```bash
 # Preview all form options — does not write to the database
-curl "http://127.0.0.1:8788/?acronym=lcapb&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?no_color=true"
 
 # Scope to a specific competition (scoped dropdowns from upstream)
-curl "http://127.0.0.1:8788/?acronym=lcapb&competition_source_id=20260501&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&no_color=true"
 
 # Save competitions, specialties, and categories for LCAPB
-curl "http://127.0.0.1:8788/?acronym=lcapb&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?dry_run=false&no_color=true"
 
 # Save scoped to a specific competition
-curl "http://127.0.0.1:8788/?acronym=lcapb&competition_source_id=20260501&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
 
 # Same for LIDFPB
-curl "http://127.0.0.1:8788/?acronym=lidfpb&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lidfpb" \
+     "http://127.0.0.1:8788/?dry_run=false&no_color=true"
 ```
 
 Against the deployed worker (requires Cloudflare Access service token):
@@ -92,8 +97,9 @@ BASE="https://frontis-setup-league.nicolas-lamirault.workers.dev"
 
 curl -H "CF-Access-Client-Id: ${CF_CLIENT_ID}" \
      -H "CF-Access-Client-Secret: ${CF_CLIENT_SECRET}" \
+     -H "X-Pilotariak-League: lcapb" \
      -L \
-     "${BASE}/?acronym=lcapb&competition_source_id=20260501&dry_run=false&no_color=true"
+     "${BASE}/?competition_source_id=20260501&dry_run=false&no_color=true"
 ```
 
 **Sample output**
@@ -133,11 +139,14 @@ being populated.
 
 ```bash
 # Step 1 — dry-run to preview (scoped to the current season competition)
-curl "http://127.0.0.1:8788/?acronym=lcapb&competition_source_id=20260501&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&no_color=true"
 
 # Step 2 — write to database
-curl "http://127.0.0.1:8788/?acronym=lcapb&competition_source_id=20260501&dry_run=false&no_color=true"
-curl "http://127.0.0.1:8788/?acronym=lidfpb&competition_source_id=20260501&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lidfpb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
 
 # Step 3 — verify the data was saved
 bun wrangler d1 execute pilotariak-lcapb \
@@ -148,7 +157,8 @@ To reset and re-seed a league database:
 
 ```bash
 bun run db:reset:lcapb:local
-curl "http://127.0.0.1:8788/?acronym=lcapb&competition_source_id=20260501&dry_run=false&no_color=true"
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
 ```
 
 Then proceed to the scheduler to scrape match results — see

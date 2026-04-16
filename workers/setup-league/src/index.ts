@@ -5,6 +5,11 @@ import { scrapeFormOptions } from "./scraper";
 import type { Env, FormOption, League } from "./types";
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+function errorResponse(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), { status, headers: JSON_HEADERS });
+}
 
 function makeColors(noColor: boolean) {
   const a = (code: string) => (s: string) => noColor ? s : `\x1b[${code}m${s}\x1b[0m`;
@@ -14,7 +19,6 @@ function makeColors(noColor: boolean) {
     cyan:    a("36"),
     yellow:  a("33"),
     green:   a("32"),
-    red:     a("31"),
     gray:    a("90"),
   };
 }
@@ -50,21 +54,21 @@ async function saveFormOptions(db: D1Database, options: ReturnType<typeof scrape
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url     = new URL(req.url);
-    const acronym             = url.searchParams.get("acronym");
+    const acronym             = req.headers.get("x-pilotariak-league");
     const competitionSourceId = url.searchParams.get("competition_source_id") ?? undefined;
     const dryRun              = url.searchParams.get("dry_run") !== "false";
     const noColor             = url.searchParams.get("no_color") === "true";
-    const { bold, dim, cyan, yellow, green, red, gray } = makeColors(noColor);
+    const { bold, dim, cyan, yellow, green, gray } = makeColors(noColor);
 
     if (!acronym) {
-      return new Response(`${red("Error: missing required parameter: acronym")}`, { status: 400, ...TEXT });
+      return errorResponse("missing required header: X-Pilotariak-League", 400);
     }
 
     let db: D1Database;
     try {
       db = getDatabase(env, acronym);
     } catch (err: unknown) {
-      return new Response(`${red(`Error: ${err instanceof Error ? err.message : String(err)}`)}`, { status: 400, ...TEXT });
+      return errorResponse(err instanceof Error ? err.message : String(err), 400);
     }
 
     // ── Look up league in database ────────────────────────────────────────────
@@ -74,7 +78,7 @@ export default {
       .first<League>();
 
     if (!league) {
-      return new Response(`${red(`Error: league '${acronym}' not found in database.`)}`, { status: 404, ...TEXT });
+      return errorResponse(`league '${acronym}' not found in database`, 404);
     }
 
     // ── Scrape form options from league URL ───────────────────────────────────
@@ -82,7 +86,7 @@ export default {
     try {
       options = await scrapeFormOptions(league.url, competitionSourceId);
     } catch (err: unknown) {
-      return new Response(`${red(`Error: ${err instanceof Error ? err.message : String(err)}`)}`, { status: 500, ...TEXT });
+      return errorResponse(err instanceof Error ? err.message : String(err), 500);
     }
 
     const fmt = (items: FormOption[]) =>
@@ -113,7 +117,7 @@ export default {
       try {
         await saveFormOptions(db, options);
       } catch (err: unknown) {
-        return new Response(`${red(`Error saving to database: ${err instanceof Error ? err.message : String(err)}`)}`, { status: 500, ...TEXT });
+        return errorResponse(`failed to save to database: ${err instanceof Error ? err.message : String(err)}`, 500);
       }
     }
 
