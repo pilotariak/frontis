@@ -3,16 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "migrate:local": "wrangler d1 migrations apply pilotariak-lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations apply pilotariak-lidfpb --local --persist-to ../.wrangler/state",
-    "migrate:remote": "wrangler d1 migrations apply pilotariak-lcapb --remote && wrangler d1 migrations apply pilotariak-lidfpb --remote",
-    "migrate:list": "wrangler d1 migrations list pilotariak-lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations list pilotariak-lidfpb --local --persist-to ../.wrangler/state",
+    "migrate:local": "wrangler d1 migrations apply pilotariak-lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations apply pilotariak-lidfpb --local --persist-to ../.wrangler/state && wrangler d1 migrations apply pilotariak-ctpb --local --persist-to ../.wrangler/state",
+    "migrate:remote": "wrangler d1 migrations apply pilotariak-lcapb --remote && wrangler d1 migrations apply pilotariak-lidfpb --remote && wrangler d1 migrations apply pilotariak-ctpb --remote",
+    "migrate:list": "wrangler d1 migrations list pilotariak-lcapb --local --persist-to ../.wrangler/state && wrangler d1 migrations list pilotariak-lidfpb --local --persist-to ../.wrangler/state && wrangler d1 migrations list pilotariak-ctpb --local --persist-to ../.wrangler/state",
     "db:lcapb:local": "wrangler d1 execute pilotariak-lcapb --local --persist-to ../.wrangler/state --command",
     "db:lidfpb:local": "wrangler d1 execute pilotariak-lidfpb --local --persist-to ../.wrangler/state --command",
+    "db:ctpb:local": "wrangler d1 execute pilotariak-ctpb --local --persist-to ../.wrangler/state --command",
     "db:lcapb:remote": "wrangler d1 execute pilotariak-lcapb --remote --command",
     "db:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --command",
+    "db:ctpb:remote": "wrangler d1 execute pilotariak-ctpb --remote --command",
     "db:reset:lcapb:local": "wrangler d1 execute pilotariak-lcapb --local --persist-to ../.wrangler/state --file reset.sql",
     "db:reset:lcapb:remote": "wrangler d1 execute pilotariak-lcapb --remote --file reset.sql",
     "db:reset:lidfpb:local": "wrangler d1 execute pilotariak-lidfpb --local --persist-to ../.wrangler/state --file reset.sql",
-    "db:reset:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --file reset.sql"
+    "db:reset:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --file reset.sql",
+    "db:reset:ctpb:local": "wrangler d1 execute pilotariak-ctpb --local --persist-to ../.wrangler/state --file reset.sql",
+    "db:reset:ctpb:remote": "wrangler d1 execute pilotariak-ctpb --remote --file reset.sql"
   }
 }

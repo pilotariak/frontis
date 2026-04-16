@@ -10,8 +10,3 @@ CREATE TABLE IF NOT EXISTS leagues (
   acronym   TEXT    NOT NULL UNIQUE,
   url       TEXT    NOT NULL
 );
-
--- Seed known leagues.
-INSERT OR IGNORE INTO leagues (name, acronym, url) VALUES
-  ('Comité Cote d''Argent Pelote Basque', 'lcapb',  'https://lcapb.euskalpilota.fr/resultats.php'),
-  ('Ligue Ile-de-France de Pelote Basque', 'lidfpb', 'https://lidfpb.euskalpilota.fr/resultats.php');
