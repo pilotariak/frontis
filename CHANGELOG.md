@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.0](https://github.com/pilotariak/frontis/compare/frontis-v0.5.0...frontis-v0.6.0) (2026-04-16)
+
+
+### 🚀 Features
+
+* add setup-league worker and league database management ([#41](https://github.com/pilotariak/frontis/issues/41)) ([eb28ab2](https://github.com/pilotariak/frontis/commit/eb28ab2aa4b79cbca671c1a8131a86e03506f843))
+* bootstrap data with categories subgraph and competition schema ([#35](https://github.com/pilotariak/frontis/issues/35)) ([4f3ebac](https://github.com/pilotariak/frontis/commit/4f3ebacabe4221d5b7e0e5e765ce0eae6331424e))
+* **ctpb:** add ctpb league support ([#43](https://github.com/pilotariak/frontis/issues/43)) ([f3f8364](https://github.com/pilotariak/frontis/commit/f3f83643e7524eaa31ddfbb8165e5bd2daefe279)), closes [#39](https://github.com/pilotariak/frontis/issues/39)
+* **scheduler:** refactor scrape_results to use db ids and add no_color param ([#36](https://github.com/pilotariak/frontis/issues/36)) ([a4ea2d8](https://github.com/pilotariak/frontis/commit/a4ea2d80638a9dc3aaceb13aae6a10e244ddf18e))
+* **setup-league:** add /version, /init, and /bootstrap endpoints ([#42](https://github.com/pilotariak/frontis/issues/42)) ([8061c0a](https://github.com/pilotariak/frontis/commit/8061c0ac3938ae7ab843963bc72f4748236e2eff))
+* **workers:** add shared d1 state, scraper endpoints, and competitions schema ([#34](https://github.com/pilotariak/frontis/issues/34)) ([73378b0](https://github.com/pilotariak/frontis/commit/73378b09aaf13477479e63502b2d2ea62d06e776))
+
+
+### 🐛 Bug Fixes
+
+* **scheduler:** fix multi-set score parsing and refactor result output ([#45](https://github.com/pilotariak/frontis/issues/45)) ([f09193d](https://github.com/pilotariak/frontis/commit/f09193d1f10694a53b8b8cc2206bb638f1435912))
+* **setup-league:** prime php session before scraping form options ([#44](https://github.com/pilotariak/frontis/issues/44)) ([484c377](https://github.com/pilotariak/frontis/commit/484c3774b55222c57fc0f4436f173b0b9ef2f6d9)), closes [#39](https://github.com/pilotariak/frontis/issues/39)
+
+
+### 🚨 Maintenance
+
+* update changelog ([936a5bb](https://github.com/pilotariak/frontis/commit/936a5bb993cdfc146429c187ba595180483d4473))
+
+
+### 📚 Documentation
+
+* update api docs and supergraph for scores field rename ([#46](https://github.com/pilotariak/frontis/issues/46)) ([342511a](https://github.com/pilotariak/frontis/commit/342511ac858f013d5373fece2bb9292a7a656058))
+
 ## [0.5.0](https://github.com/pilotariak/frontis/compare/frontis-v0.4.0...frontis-v0.5.0) (2026-03-17)
 
 
