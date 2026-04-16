@@ -9,6 +9,10 @@
     "db:lcapb:local": "wrangler d1 execute pilotariak-lcapb --local --persist-to ../.wrangler/state --command",
     "db:lidfpb:local": "wrangler d1 execute pilotariak-lidfpb --local --persist-to ../.wrangler/state --command",
     "db:lcapb:remote": "wrangler d1 execute pilotariak-lcapb --remote --command",
-    "db:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --command"
+    "db:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --command",
+    "db:reset:lcapb:local": "wrangler d1 execute pilotariak-lcapb --local --persist-to ../.wrangler/state --file reset.sql",
+    "db:reset:lcapb:remote": "wrangler d1 execute pilotariak-lcapb --remote --file reset.sql",
+    "db:reset:lidfpb:local": "wrangler d1 execute pilotariak-lidfpb --local --persist-to ../.wrangler/state --file reset.sql",
+    "db:reset:lidfpb:remote": "wrangler d1 execute pilotariak-lidfpb --remote --file reset.sql"
   }
 }
