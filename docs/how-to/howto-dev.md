@@ -101,15 +101,58 @@ See [`howto-database.md`](howto-database.md) for full details.
 
 ## Deploy to Cloudflare Workers
 
+Full deployment order when releasing changes:
+
+### 1. Apply database migrations (if schema changed)
+
 ```bash
-# Compose supergraph with Workers URLs
-WORKERS_SUBDOMAIN=your-account bun run compose:workers
+bun run migrate:remote
+```
 
-# Deploy all Workers
-bun run deploy
+### 2. Publish changed subgraph schemas to Hive
 
-# Deploy the scheduler separately
+Run `hive-publish` for each subgraph whose `schema.graphql` changed.
+The gateway reads the composed supergraph from the Hive CDN, so Hive must be
+updated before deploying the gateway.
+
+```bash
+# Example: results subgraph changed
+make hive-publish SERVICE=results \
+  HIVE_ORG=pilotariak HIVE_PROJECT=frontis HIVE_ENV=production \
+  HIVE_URL=<your-workers-subdomain>.workers.dev \
+  HIVE_ACCESS_TOKEN=<your-token>
+```
+
+See [`howto-hive-registry.md`](howto-hive-registry.md) for publishing all subgraphs at once.
+
+### 3. Deploy all subgraphs and gateway
+
+```bash
+WORKERS_SUBDOMAIN=<your-workers-subdomain> bun run deploy
+```
+
+This runs `compose:workers` then deploys `echo`, `specialties`, `clubs`,
+`competitions`, `categories`, `results`, and `gateway` in order.
+
+### 4. Deploy the workers
+
+```bash
 bun run scheduler:deploy
+bun run setup-league:deploy
+```
+
+These are deployed separately because they are not part of the GraphQL
+federation graph.
+
+---
+
+### Deploy a single component
+
+```bash
+make cloudflare-deploy SERVICE=subgraphs/results
+make cloudflare-deploy SERVICE=workers/scheduler
+make cloudflare-deploy SERVICE=workers/setup-league
+make cloudflare-deploy SERVICE=gateway
 ```
 
 ---

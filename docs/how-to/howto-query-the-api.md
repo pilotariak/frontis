@@ -8,7 +8,7 @@ subgraphs behind a single endpoint.
 
 All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`)
 require an **`X-Pilotariak-League` header** identifying the target database.
-Supported values: `lcapb`, `lidfpb`.
+Supported values: `lcapb`, `lidfpb`, `ctpb`.
 
 ---
 
@@ -16,6 +16,20 @@ Supported values: `lcapb`, `lidfpb`.
 
 - The stack is running locally (see [README](../README.md) for startup instructions)
 - `curl` is available in your shell
+
+---
+
+## Keeping the gateway schema up to date
+
+The gateway validates queries against a **supergraph SDL** — a composed snapshot of all subgraph schemas. If you change any `schema.graphql` file in a subgraph, the gateway will reject queries that use the new fields until the supergraph is recomposed.
+
+```bash
+bun run compose
+```
+
+Then restart the gateway. Run this command **any time a subgraph schema changes** (added field, renamed field, new type, etc.).
+
+> **Example:** after renaming `scoreA`/`scoreB` to `scores` on the `Result` type, the gateway will return `Cannot query field "scores" on type "Result"` until `bun run compose` is run.
 
 ---
 
@@ -69,6 +83,7 @@ Expected response:
 ```bash
 curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ clubs { id name } }"}' | jq
 ```
@@ -78,6 +93,7 @@ curl -s -X POST http://localhost:4003/graphql \
 ```bash
 curl -s -X POST http://localhost:4003/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ club(id: \"1\") { id name } }"}' | jq
 ```
@@ -89,6 +105,7 @@ curl -s -X POST http://localhost:4003/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ competitions { id name year level } }"}' | jq
 ```
@@ -98,6 +115,7 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ competitions(year: 2025) { id name year level } }"}' | jq
 ```
@@ -107,9 +125,10 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{
-    "query": "{ competition(id: \"1\") { id name year level results { id category phase scoreA scoreB } } }"
+    "query": "{ competition(id: \"1\") { id name year level results { id phase scores } } }"
   }' | jq
 ```
 
@@ -122,6 +141,7 @@ curl -s -X POST http://localhost:4002/graphql \
 ```bash
 curl -s -X POST http://localhost:4006/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ categories { id name } }"}' | jq
 ```
@@ -131,6 +151,7 @@ curl -s -X POST http://localhost:4006/graphql \
 ```bash
 curl -s -X POST http://localhost:4006/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ category(id: \"1\") { id name } }"}' | jq
 ```
@@ -144,6 +165,7 @@ curl -s -X POST http://localhost:4006/graphql \
 ```bash
 curl -s -X POST http://localhost:4004/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ specialties { id name } }"}' | jq
 ```
@@ -153,6 +175,7 @@ curl -s -X POST http://localhost:4004/graphql \
 ```bash
 curl -s -X POST http://localhost:4004/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ specialty(id: \"1\") { id name } }"}' | jq
 ```
@@ -166,8 +189,9 @@ curl -s -X POST http://localhost:4004/graphql \
 ```bash
 curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
-  -d '{"query": "{ results { id category phase scoreA scoreB } }"}' | jq
+  -d '{"query": "{ results { id phase scores } }"}' | jq
 ```
 
 ### Filter results by competition
@@ -175,19 +199,23 @@ curl -s -X POST http://localhost:4005/graphql \
 ```bash
 curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
-  -d '{"query": "{ results(competitionId: \"1\") { id category phase scoreA scoreB } }"}' | jq
+  -d '{"query": "{ results(competitionId: \"1\") { id phase scores } }"}' | jq
 ```
 
-### Filter results by specialty, category
+### Filter results by specialty and category
+
+Use the numeric `categoryId` obtained from the `categories` query.
 
 ```bash
 curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{
-    "query": "{ results(specialtyId: \"1\", category: \"1ère Série\") { id scoreA scoreB clubALineup { player1 { name } player2 { name } } clubBLineup { player1 { name } player2 { name } } } }"
-  }'
+    "query": "{ results(specialtyId: \"1\", categoryId: \"3\") { id scores clubALineup { player1 { name } player2 { name } } clubBLineup { player1 { name } player2 { name } } } }"
+  }' | jq
 ```
 
 ### Filter results by specialty, category, and phase
@@ -195,9 +223,10 @@ curl -s -X POST http://localhost:4005/graphql \
 ```bash
 curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{
-    "query": "{ results(specialtyId: \"1\", category: \"1ère Série\", phase: \"GROUPE A Poule phase 1 - F 1\") { id scoreA scoreB clubALineup { player1 { name } player2 { name } } clubBLineup { player1 { name } player2 { name } } } }"
+    "query": "{ results(specialtyId: \"1\", categoryId: \"3\", phase: \"P 8\") { id scores clubALineup { player1 { name } player2 { name } } clubBLineup { player1 { name } player2 { name } } } }"
   }' | jq
 ```
 
@@ -215,7 +244,7 @@ curl -s -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{
-    "query": "query GetFinales($competitionId: ID!) { results(competitionId: $competitionId, phase: \"Finale\") { id category scoreA scoreB clubA { name } clubB { name } clubALineup { player1 { name number } player2 { name number } } clubBLineup { player1 { name number } player2 { name number } } } }",
+    "query": "query GetFinales($competitionId: ID!) { results(competitionId: $competitionId, phase: \"Finale\") { id scores category { name } clubA { name } clubB { name } clubALineup { player1 { name number } player2 { name number } } clubBLineup { player1 { name number } player2 { name number } } } }",
     "variables": { "competitionId": "1" }
   }' | jq
 ```
@@ -244,7 +273,7 @@ During development you can bypass the gateway and hit subgraphs directly.
 
 All subgraphs (except `echo`) enforce two headers:
 
-- **`X-Pilotariak-League`** — identifies the target D1 database (`lcapb` or `lidfpb`)
+- **`X-Pilotariak-League`** — identifies the target D1 database (`lcapb`, `lidfpb`, or `ctpb`)
 - **`x-internal-token`** — shared secret that protects the subgraph from unauthenticated access. In local development the value is `dev-secret` (set in each subgraph's `.dev.vars`).
 
 | Subgraph     | URL                             | League header | Internal token |
@@ -281,7 +310,7 @@ curl -s -X POST http://localhost:4005/graphql \
   -H "Content-Type: application/json" \
   -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
-  -d '{"query": "{ results { id category phase scoreA scoreB } }"}' | jq
+  -d '{"query": "{ results { id phase scores } }"}' | jq
 
 # categories subgraph directly
 curl -s -X POST http://localhost:4006/graphql \
