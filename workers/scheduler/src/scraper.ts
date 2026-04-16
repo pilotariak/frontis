@@ -236,7 +236,7 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
             scores, phase,
             club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
             club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           competition.id, specialty.id, category.id, res.date_match,
