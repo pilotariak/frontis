@@ -1,0 +1,17 @@
+{
+  "name": "setup-league",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --persist-to ../../.wrangler/state",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "wrangler": "^4.72.0"
+  }
+}

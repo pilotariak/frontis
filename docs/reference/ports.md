@@ -14,6 +14,7 @@ All Workers use unique ports in local development to avoid conflicts when runnin
 | results      | 4005     | 9235           | http://localhost:4005/graphql      |
 | categories   | 4006     | 9236           | http://localhost:4006/graphql      |
 | scheduler    | 8787     | 9233           | http://localhost:8787 (no GraphQL) |
+| setup-league | 8788     | 9237           | http://localhost:8788 (no GraphQL) |
 
 ## Health check
 
