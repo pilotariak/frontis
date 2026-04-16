@@ -1,5 +1,6 @@
 import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
+import { version } from "../../../package.json";
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
 
@@ -25,6 +26,13 @@ export default {
     const dryRun  = url.searchParams.get("dry_run")  === "true";
     const noColor = url.searchParams.get("no_color") === "true";
     const { bold, dim, cyan, yellow, green, red, magenta, gray, white } = makeColors(noColor);
+
+    // ── /version ───────────────────────────────────────────────────────────────
+    if (url.pathname === "/version") {
+      return new Response(JSON.stringify({ version }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     // ── /scrape_infos ──────────────────────────────────────────────────────────
     if (url.pathname === "/scrape_infos") {

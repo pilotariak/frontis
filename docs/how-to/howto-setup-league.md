@@ -4,8 +4,8 @@ The `setup-league` worker bootstraps the reference data for a league — competi
 specialties, and categories — by scraping the league website and writing the results into
 the league's D1 database.
 
-Run it once when a new season starts, or whenever you want to refresh the dropdown values
-from the upstream website.
+Run `/init` once when a new league is added, then run `/bootstrap` at the start of each
+season (or whenever you want to refresh the dropdown values from the upstream website).
 
 ---
 
@@ -37,23 +37,69 @@ real data. Always dry-run first.
 
 ---
 
-## Endpoint
+## Endpoints
 
-### `GET /`
+### `GET /version`
 
-**Required header**
+Returns the current Frontis version as JSON.
 
-| Header                 | Description         |
-| ---------------------- | ------------------- |
-| `X-Pilotariak-League`  | `lcapb` or `lidfpb` |
+```bash
+curl http://127.0.0.1:8788/version
+# {"version":"0.5.0"}
+```
+
+---
+
+### `GET /init`
+
+Registers a new league in the database. Call this once before running `/bootstrap`.
+
+**Required query parameters**
+
+| Parameter | Description                                  | Example                                        |
+| --------- | -------------------------------------------- | ---------------------------------------------- |
+| `acronym` | Short identifier (matches DB binding suffix) | `lcapb`                                        |
+| `name`    | Full display name of the league              | `Comité Cote d'Argent Pelote Basque`           |
+| `url`     | URL of the upstream results page             | `https://lcapb.euskalpilota.fr/resultats.php`  |
+
+**Response**
+
+```json
+{ "ok": true, "league": { "name": "...", "acronym": "lcapb", "url": "..." } }
+```
+
+**Example**
+
+```bash
+curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+```
+
+> The `acronym` must match an existing D1 database binding (`DB_LEAGUE_<ACRONYM>`).
+> If no binding exists the worker returns a 400 error.
+
+---
+
+### `GET /bootstrap`
+
+Scrapes competitions, specialties, and categories from the upstream league website and
+optionally writes them to the D1 database.
+
+**Required league** — provide one of:
+
+| Method                       | Example                           |
+| ---------------------------- | --------------------------------- |
+| Header `X-Pilotariak-League` | `-H "X-Pilotariak-League: lcapb"` |
+| Query parameter `league`     | `?league=lcapb`                   |
+
+The header takes precedence if both are provided.
 
 **Optional query parameters**
 
-| Parameter              | Default | Description                                                        |
-| ---------------------- | ------- | ------------------------------------------------------------------ |
-| `competition_source_id`| —       | Scope the scrape to a specific competition (passed as `&InCompet=` to the upstream site) |
-| `dry_run`              | `true`  | If `false`, write scraped data to the database                     |
-| `no_color`             | `false` | Strip ANSI escape codes — useful for browsers and scripts          |
+| Parameter               | Default | Description                                                                              |
+| ----------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `competition_source_id` | —       | Scope the scrape to a specific competition (passed as `&InCompet=` to the upstream site) |
+| `dry_run`               | `true`  | If `false`, write scraped data to the database                                           |
+| `no_color`              | `false` | Strip ANSI escape codes — useful for browsers and scripts                                |
 
 > **Note:** `dry_run` defaults to `true` in this worker (unlike the scheduler).
 > You must explicitly pass `dry_run=false` to write to the database.
@@ -62,30 +108,44 @@ real data. Always dry-run first.
 > Without it the upstream site returns a reduced set that may omit disciplines not
 > associated with any current competition.
 
+The league must already exist in the database (inserted via `/init`).
+
 ---
 
 ## Examples
 
+### Initialise leagues
+
+```bash
+# Register LCAPB
+curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+
+# Register LIDFPB
+curl "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
+```
+
+### Bootstrap reference data
+
 ```bash
 # Preview all form options — does not write to the database
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?no_color=true"
+     "http://127.0.0.1:8788/bootstrap?no_color=true"
 
 # Scope to a specific competition (scoped dropdowns from upstream)
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&no_color=true"
 
 # Save competitions, specialties, and categories for LCAPB
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?dry_run=false&no_color=true"
 
 # Save scoped to a specific competition
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 
 # Same for LIDFPB
 curl -H "X-Pilotariak-League: lidfpb" \
-     "http://127.0.0.1:8788/?dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?dry_run=false&no_color=true"
 ```
 
 Against the deployed worker (requires Cloudflare Access service token):
@@ -99,7 +159,7 @@ curl -H "CF-Access-Client-Id: ${CF_CLIENT_ID}" \
      -H "CF-Access-Client-Secret: ${CF_CLIENT_SECRET}" \
      -H "X-Pilotariak-League: lcapb" \
      -L \
-     "${BASE}/?competition_source_id=20260501&dry_run=false&no_color=true"
+     "${BASE}/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 ```
 
 **Sample output**
@@ -138,17 +198,21 @@ season. The scheduler depends on the `competitions`, `specialties`, and `categor
 being populated.
 
 ```bash
-# Step 1 — dry-run to preview (scoped to the current season competition)
-curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&no_color=true"
+# Step 1 — register leagues (once per deployment / new league)
+curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+curl "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
 
-# Step 2 — write to database
+# Step 2 — dry-run to preview (scoped to the current season competition)
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&no_color=true"
+
+# Step 3 — write to database
+curl -H "X-Pilotariak-League: lcapb" \
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 curl -H "X-Pilotariak-League: lidfpb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 
-# Step 3 — verify the data was saved
+# Step 4 — verify the data was saved
 bun wrangler d1 execute pilotariak-lcapb \
   --command "SELECT id, source_id, name FROM competitions ORDER BY source_id DESC LIMIT 5"
 ```
@@ -157,8 +221,9 @@ To reset and re-seed a league database:
 
 ```bash
 bun run db:reset:lcapb:local
+curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
 curl -H "X-Pilotariak-League: lcapb" \
-     "http://127.0.0.1:8788/?competition_source_id=20260501&dry_run=false&no_color=true"
+     "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 ```
 
 Then proceed to the scheduler to scrape match results — see
