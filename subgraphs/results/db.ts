@@ -19,8 +19,7 @@ export interface ResultRow {
   date_match: string | null;
   club_a_id: number;
   club_b_id: number;
-  score_a: number | null;
-  score_b: number | null;
+  scores: string | null;
   phase: string | null;
   club_a_player1_name: string | null;
   club_a_player1_number: string | null;

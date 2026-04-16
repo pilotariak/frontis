@@ -91,12 +91,6 @@ export class LcapbScraper implements LeagueScraper {
         .trim();
 
       const categoryText = infoRow.find("span").eq(0).text().trim();
-      const phaseGroupText = infoRow
-        .find("span")
-        .eq(1)
-        .text()
-        .trim()
-        .replace(/\s+/g, " ");
 
       for (let i = 3; i < rows.length; i++) {
         const row = rows.eq(i);
@@ -105,11 +99,15 @@ export class LcapbScraper implements LeagueScraper {
         const cols = row.find("td");
         if (cols.length < 5) continue;
 
-        const matchId = cols.eq(0).text().trim().replace(/\s+/g, " ");
+        const phase = cols.eq(0).find("strong").text()
+          .replace(/\u00a0/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
         const date = cols.eq(1).text().trim().replace(/&nbsp;/g, "").trim();
         const clubACol = cols.eq(2);
         const clubBCol = cols.eq(3);
-        const scoreRaw = cols.eq(4).text().trim().replace(/\s+/g, "");
+        const sets = cols.eq(4).text().replace(/[\s\u00a0]/g, "").match(/\d{1,2}\/\d{1,2}/g) ?? [];
+        const scores = sets.length > 0 ? sets.join(" ") : null;
 
         const extractClubData = (col: cheerio.Cheerio<cheerio.AnyNode>) => {
           const fullText = col.contents().first().text().trim();
@@ -134,16 +132,8 @@ export class LcapbScraper implements LeagueScraper {
         const clubAData = extractClubData(clubACol);
         const clubBData = extractClubData(clubBCol);
 
-        let scoreA: number | null = null;
-        let scoreB: number | null = null;
-        if (scoreRaw && scoreRaw.includes("/")) {
-          const scores = scoreRaw.split("/");
-          scoreA = parseInt(scores[0]);
-          scoreB = parseInt(scores[1]);
-        }
-
         console.log(
-          `[${this.leagueName}] ${categoryText} — ${clubAData.name} vs ${clubBData.name} (${scoreA}/${scoreB}) ${date}`
+          `[${this.leagueName}] ${categoryText} — ${clubAData.name} vs ${clubBData.name} ${scores ?? "-/-"} ${date}`
         );
 
         results.push({
@@ -151,7 +141,7 @@ export class LcapbScraper implements LeagueScraper {
           competition: `Championnat ${this.leagueName}`,
           year: new Date().getFullYear(),
           category: categoryText,
-          phase: `${phaseGroupText} - ${matchId}`,
+          phase,
           date_match: date,
           club_a: clubAData.name,
           club_a_player1_name: clubAData.players[0]?.name,
@@ -163,8 +153,7 @@ export class LcapbScraper implements LeagueScraper {
           club_b_player1_number: clubBData.players[0]?.number,
           club_b_player2_name: clubBData.players[1]?.name,
           club_b_player2_number: clubBData.players[1]?.number,
-          score_a: scoreA,
-          score_b: scoreB,
+          scores,
         });
       }
     });

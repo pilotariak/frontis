@@ -80,8 +80,6 @@ const resolvers = {
     },
 
     // snake_case DB columns → camelCase GraphQL fields
-    scoreA: (row: ResultRow) => row.score_a,
-    scoreB: (row: ResultRow) => row.score_b,
     dateMatch: (row: ResultRow) => row.date_match,
 
     competition: (row: ResultRow) => ({ __typename: "Competition", id: String(row.competition_id) }),

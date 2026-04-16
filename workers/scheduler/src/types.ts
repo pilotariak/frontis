@@ -32,11 +32,11 @@ export interface ScrapedResult {
   club_b_player1_number?: string;
   club_b_player2_name?: string;
   club_b_player2_number?: string;
-  score_a: number | null;
-  score_b: number | null;
+  scores: string | null;
 }
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
   DB_LEAGUE_LIDFPB: D1Database;
+  DB_LEAGUE_CTPB: D1Database;
 }
