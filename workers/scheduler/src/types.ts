@@ -32,8 +32,7 @@ export interface ScrapedResult {
   club_b_player1_number?: string;
   club_b_player2_name?: string;
   club_b_player2_number?: string;
-  score_a: number | null;
-  score_b: number | null;
+  scores: string | null;
 }
 
 export interface Env {

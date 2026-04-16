@@ -162,13 +162,11 @@ export default {
           lines.push(dim("  (no results)"));
         } else {
           for (const r of results) {
-            const score = r.score_a !== null && r.score_b !== null
-              ? green(`${r.score_a} / ${r.score_b}`)
-              : dim("- / -");
+            const score = r.scores ? green(r.scores) : dim("-/-");
 
             lines.push(
               "",
-              `  ${cyan(r.date_match ?? "??-??-??")}  ${bold(r.club_a.padEnd(32))} ${score.padStart(7)}  ${bold(r.club_b)}`,
+              `  ${cyan(r.date_match ?? "??-??-??")}  ${bold(r.club_a.padEnd(32))} ${score}  ${bold(r.club_b)}`,
               `  ${" ".repeat(12)}${dim(r.category)}  ${dim("—")}  ${magenta(r.phase)}`,
             );
 

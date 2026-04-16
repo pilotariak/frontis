@@ -41,10 +41,8 @@ type Result @key(fields: "id") {
   clubA: Club!
   "Away club."
   clubB: Club!
-  "Score of club A."
-  scoreA: Int
-  "Score of club B."
-  scoreB: Int
+  "Match scores as a space-separated list of sets (e.g. \"15/10 15/13\")."
+  scores: String
   "Tournament phase (e.g. Finale, 1/2 Finale, Poule)."
   phase: String
   "Players lineup for club A."

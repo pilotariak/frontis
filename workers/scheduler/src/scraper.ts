@@ -233,14 +233,14 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
         .prepare(
           `INSERT INTO results (
             competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
-            score_a, score_b, phase,
+            scores, phase,
             club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
             club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           competition.id, specialty.id, category.id, res.date_match,
-          clubA.id, clubB.id, res.score_a, res.score_b, res.phase,
+          clubA.id, clubB.id, res.scores ?? null, res.phase,
           res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
           res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
           res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
