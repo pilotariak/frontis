@@ -2,7 +2,7 @@
 
 This reference documents all types, queries, and fields available in the Frontis unified GraphQL API. All queries are available through the gateway at `/graphql`.
 
-Subgraphs that access D1 databases require the `X-Pilotariak-League` header on every request. Supported values: `lcapb`, `lidfpb`.
+Subgraphs that access D1 databases require the `X-Pilotariak-League` header on every request. Supported values: `lcapb`, `lidfpb`, `ctpb`.
 
 ---
 
@@ -50,6 +50,21 @@ A Basque pelota discipline (e.g. Place Libre, Trinquet, Mur à Gauche).
 
 ---
 
+### `Category`
+
+An age or skill category (e.g. 1ère Série, Seniors, Cadets).
+
+**Owned by**: `categories` subgraph
+
+| Field  | Type      | Description          |
+| ------ | --------- | -------------------- |
+| `id`   | `ID!`     | Unique category ID   |
+| `name` | `String!` | Category name        |
+
+> Categories are returned ordered: names ending in `Série` appear first, then all others alphabetically.
+
+---
+
 ### `Result`
 
 A single match result between two clubs.
@@ -58,18 +73,17 @@ A single match result between two clubs.
 
 | Field         | Type           | Description                                              |
 | ------------- | -------------- | -------------------------------------------------------- |
-| `id`          | `ID!`          | Unique result ID                                         |
-| `competition` | `Competition!` | Competition this result belongs to _(cross-subgraph)_    |
-| `specialty`   | `Specialty!`   | Pelota discipline played _(cross-subgraph)_              |
-| `category`    | `String`       | Age/skill category (e.g. Seniors Grande Semaine, Cadets) |
-| `dateMatch`   | `String`       | Date of the match (ISO 8601)                             |
-| `clubA`       | `Club!`        | Home club _(cross-subgraph)_                             |
-| `clubB`       | `Club!`        | Away club _(cross-subgraph)_                             |
-| `scoreA`      | `Int`          | Score of club A                                          |
-| `scoreB`      | `Int`          | Score of club B                                          |
-| `phase`       | `String`       | Tournament phase (e.g. Finale, 1/2 Finale, Poule)        |
-| `clubALineup` | `ClubLineup`   | Players lineup for club A                                |
-| `clubBLineup` | `ClubLineup`   | Players lineup for club B                                |
+| `id`          | `ID!`          | Unique result ID                                                              |
+| `competition` | `Competition!` | Competition this result belongs to _(cross-subgraph)_                         |
+| `specialty`   | `Specialty!`   | Pelota discipline played _(cross-subgraph)_                                   |
+| `category`    | `Category`     | Age/skill category _(cross-subgraph)_                                         |
+| `dateMatch`   | `String`       | Date of the match (ISO 8601)                                                  |
+| `clubA`       | `Club!`        | Home club _(cross-subgraph)_                                                  |
+| `clubB`       | `Club!`        | Away club _(cross-subgraph)_                                                  |
+| `scores`      | `String`       | Space-separated set scores (e.g. `"15/10 15/13"` or `"15/09 12/15 06/10"`)   |
+| `phase`       | `String`       | Tournament phase (e.g. `Finale`, `1/2 Finale`, `P 8`)                        |
+| `clubALineup` | `ClubLineup`   | Players lineup for club A                                                     |
+| `clubBLineup` | `ClubLineup`   | Players lineup for club B                                                     |
 
 Fields marked _(cross-subgraph)_ are resolved via entity federation — the gateway fetches them from their owning subgraphs.
 
@@ -195,25 +209,25 @@ Fetches a single result by its ID. Returns `null` if not found.
 results(
   competitionId: ID
   specialtyId: ID
-  category: String
+  categoryId: ID
   phase: String
 ): [Result!]!
 ```
 
 Lists results with optional filters. All filters are combinable.
 
-| Argument        | Type     | Description                                       |
-| --------------- | -------- | ------------------------------------------------- |
-| `competitionId` | `ID`     | Restrict to results belonging to this competition |
-| `specialtyId`   | `ID`     | Restrict to results for this discipline           |
-| `category`      | `String` | Exact match on category string                    |
-| `phase`         | `String` | Exact match on phase string                       |
+| Argument        | Type  | Description                                       |
+| --------------- | ----- | ------------------------------------------------- |
+| `competitionId` | `ID`  | Restrict to results belonging to this competition |
+| `specialtyId`   | `ID`  | Restrict to results for this discipline           |
+| `categoryId`    | `ID`  | Restrict to results for this category             |
+| `phase`         | `String` | Exact match on phase string (e.g. `P 8`)       |
 
 ---
 
 ## Required headers
 
-| Header                | Required by                                       | Values             |
-| --------------------- | ------------------------------------------------- | ------------------ |
-| `Content-Type`        | All requests                                      | `application/json` |
-| `X-Pilotariak-League` | `clubs`, `competitions`, `results`, `specialties` | `lcapb`, `lidfpb`  |
+| Header                | Required by                                                          | Values                     |
+| --------------------- | -------------------------------------------------------------------- | -------------------------- |
+| `Content-Type`        | All requests                                                         | `application/json`         |
+| `X-Pilotariak-League` | `clubs`, `competitions`, `results`, `specialties`, `categories`      | `lcapb`, `lidfpb`, `ctpb`  |

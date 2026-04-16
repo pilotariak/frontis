@@ -217,13 +217,9 @@ type Result @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESU
   """
   clubB: Club! @join__field(graph: RESULTS)
   """
-  Score of club A.
+  Match scores as a space-separated list of sets (e.g. "15/10 15/13").
   """
-  scoreA: Int @join__field(graph: RESULTS)
-  """
-  Score of club B.
-  """
-  scoreB: Int @join__field(graph: RESULTS)
+  scores: String @join__field(graph: RESULTS)
   """
   Tournament phase (e.g. Finale, 1/2 Finale, Poule).
   """
