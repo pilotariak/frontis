@@ -3,6 +3,7 @@ import { createGatewayRuntime, useRateLimit } from "@graphql-hive/gateway";
 import CFWorkerKVCache from "@graphql-mesh/cache-cfw-kv";
 import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
+import rootPkg from "../package.json" with { type: "json" };
 import localSupergraph from "./supergraph.graphql";
 import {
   createMaxDepthRule,
@@ -120,7 +121,8 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/") {
-      return new Response(landingPage, {
+      const html = (landingPage as string).replace("__FRONTIS_VERSION__", `v${rootPkg.version}`);
+      return new Response(html, {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
