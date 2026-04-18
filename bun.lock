@@ -9,11 +9,11 @@
         "cheerio": "^1.2.0",
       },
       "devDependencies": {
-        "@theguild/federation-composition": "^0.18.0",
-        "concurrently": "^9.0.0",
-        "graphql": "^16.9.0",
-        "typescript": "^5.7.0",
-        "wrangler": "^4.72.0",
+        "@theguild/federation-composition": "^0.18.5",
+        "concurrently": "^9.2.1",
+        "graphql": "^16.13.2",
+        "typescript": "^5.9.3",
+        "wrangler": "^4.83.0",
       },
     },
     "database": {
