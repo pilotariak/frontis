@@ -602,7 +602,7 @@
     <h1 class="hero-title">Pilotariak<br>GraphQL Gateway</h1>
     <p class="hero-subtitle">
       Federated GraphQL API for Basque pelota competition management.
-      Stitches specialties, clubs, competitions, and results behind a single endpoint.
+      Stitches categories, specialties, clubs, competitions, and results behind a single endpoint.
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="https://github.com/pilotariak/frontis/blob/main/docs/howto-query-the-api.md" target="_blank" rel="noopener">API Reference</a>
@@ -621,7 +621,7 @@
     <div class="section-header">
       <p class="section-eyebrow">Architecture</p>
       <h2 class="section-title">Subgraphs</h2>
-      <p class="section-subtitle">Five specialized GraphQL subgraphs federated into a single supergraph. Each subgraph owns its domain and extends others through Apollo Federation v2.</p>
+      <p class="section-subtitle">Six specialized GraphQL subgraphs federated into a single supergraph. Each subgraph owns its domain and extends others through Apollo Federation v2.</p>
     </div>
     <div class="card-grid">
 
@@ -636,6 +636,18 @@
           <span class="tag">version</span>
         </div>
         <div class="port-badge">:4001</div>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="card-icon" style="background: var(--amber-soft);">🏅</div>
+          <h3 class="card-title">categories</h3>
+        </div>
+        <p class="card-desc">Age and skill categories (Seniors, Juniors, Vétérans…) shared across competitions and results.</p>
+        <div class="tag-list">
+          <span class="tag">Category</span>
+        </div>
+        <div class="port-badge">:4006</div>
       </article>
 
       <article class="card">
