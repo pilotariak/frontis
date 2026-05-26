@@ -8,20 +8,6 @@
 
 **Frontis** is the GraphQL federation gateway for the Pilotariak platform — a Basque pelota competition management system.
 
-## Architecture
-
-```
-clients
-  │
-  ▼
-gateway (Hive Gateway, :4000)
-  ├─── echo (:4003)         — liveness, version
-  ├─── specialties (:4004)  — Specialty entities
-  ├─── clubs (:4001)        — Club entities
-  ├─── competitions (:4002) — Competition entities
-  └─── results (:4005)      — Result, Player entities
-```
-
 ## Documentation
 
 Documentation follows the [Diátaxis](https://diataxis.fr/) framework — see [`docs/`](docs/) for the full index.
