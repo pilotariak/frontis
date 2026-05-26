@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Scorecard
+name: Security / Scorecard
 
 on:
   workflow_dispatch:
@@ -13,8 +13,8 @@ on:
     # Weekly on Saturdays.
     - cron:  '30 1 * * 6'
 
-# Declare default permissions as read only.
-permissions: read-all
+# Deny all permissions at workflow level
+permissions: {}
 
 jobs:
   scorecard:

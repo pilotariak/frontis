@@ -14,8 +14,8 @@ on:
         required: true
         default: "dev"
 
-permissions:
-  contents: read
+# Deny all permissions at workflow level
+permissions: {}
 
 jobs:
   deploy-subgraphs:

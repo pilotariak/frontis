@@ -10,13 +10,15 @@ on:
     branches:
     - main
 
-permissions:
-  contents: write         # to push tags and changelog
-  pull-requests: write    # to create/modify the release PR
+# Deny all permissions at workflow level
+permissions: {}
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write         # to push tags and changelog
+      pull-requests: write    # to create/modify the release PR
 
     steps:
     - name: Harden Runner
