@@ -1,4 +1,5 @@
 ---
+name: "Agent / Dependabot Issue Bundler"
 description: Find all open Dependabot PRs and create bundle issues for each runtime + manifest file.
 
 on: weekly on monday
@@ -13,7 +14,7 @@ tools:
 
 safe-outputs:
   create-issue:
-    title-prefix: '[dependabot-bundler] '
+    title-prefix: "[dependabot-bundler] "
     max: 10
   update-issue:
     max: 10
