@@ -3,7 +3,7 @@ name: "Agent / PR Stale"
 timeout-minutes: 30
 strict: true
 on:
-  schedule: "0 10 * * 1"
+  schedule: weekly on monday
   workflow_dispatch:
 permissions:
   contents: read
