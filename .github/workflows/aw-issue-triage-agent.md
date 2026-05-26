@@ -1,147 +1,98 @@
+---
+name: "Agent / Issue Triage"
+timeout-minutes: 5
+strict: true
+on:
+  schedule: "0 14 * * 1-5"
+  workflow_dispatch:
+permissions:
+  issues: read
+tools:
+  github:
+    # lockdown mode: prevents prompt injection from untrusted issue authors
+    lockdown: true
+    toolsets: [issues, labels]
+safe-outputs:
+  add-labels:
+    allowed:
+      - kind/bug
+      - kind/feature
+      - kind/documentation
+      - kind/question
+      - kind/discussion
+      - kind/support
+      - kind/cleanup
+      - kind/deprecation
+      - status/available
+      - status/proposal
+  remove-labels:
+    allowed:
+      - needs/triage
+  add-comment: {}
+---
+
 # Issue Triage Agent
 
-Automates classification of new/unlabeled GitHub issues using the project label taxonomy from `settings.yml`.
+List open issues in ${{ github.repository }} that have the label `needs/triage` or no labels at all.
 
-## Label Taxonomy
+For each untriaged issue, analyze the title and body, then apply the following actions:
 
-### Kind labels — primary triage target
+## 1. Assign one `kind/*` label
 
-| Label                | When to apply                                 |
-| -------------------- | --------------------------------------------- |
-| `kind/bug`           | Problem, error, or unexpected behavior        |
-| `kind/feature`       | New capability or feature request             |
-| `kind/documentation` | Missing, wrong, or unclear docs               |
-| `kind/question`      | Asking for clarification or information       |
-| `kind/discussion`    | General feedback, RFC, or open-ended proposal |
-| `kind/support`       | User needs help operating the project         |
-| `kind/cleanup`       | Technical debt, refactoring, code quality     |
-| `kind/deprecation`   | Request to remove or mark deprecated          |
+Choose the single label that best fits the issue:
 
-Disambiguation:
+- `kind/bug` — the author is reporting a problem, error, crash, or incorrect behavior
+- `kind/feature` — the author is requesting a new capability or significant enhancement
+- `kind/documentation` — the issue is about missing, incorrect, outdated, or unclear documentation
+- `kind/question` — the author is asking how something works, seeking clarification, or requesting guidance
+- `kind/discussion` — open-ended feedback, RFC, design discussion, or community input that doesn't fit a specific action category
+- `kind/support` — the author needs help operating, configuring, or integrating the project
+- `kind/cleanup` — internal technical debt, refactoring, dead code removal, or code quality improvement
+- `kind/deprecation` — request to deprecate, remove, or mark a feature as end-of-life
 
-- `kind/support` vs `kind/question`: author hitting friction using the software → `kind/support`; asking about design intent → `kind/question`
-- `kind/feature` vs `kind/discussion`: concrete actionable request → `kind/feature`; exploratory/needs design → `kind/discussion`
+When in doubt between `kind/question` and `kind/support`: if the person is trying to use the software and hitting friction, it's `kind/support`; if they're asking about design intent or how something works, it's `kind/question`.
 
-### Needs labels — triage markers
+When in doubt between `kind/feature` and `kind/discussion`: if the request is concrete and actionable, it's `kind/feature`; if it's exploratory or needs more design work, it's `kind/discussion`.
 
-| Label            | Meaning                                                     |
-| ---------------- | ----------------------------------------------------------- |
-| `needs/triage`   | Not yet triaged — added on issue open, removed after triage |
-| `needs/priority` | No `priority/*` label assigned                              |
+## 2. Apply `status/available`
 
-### Status labels — set during triage
+Add `status/available` if:
+- The issue has no assignee, or is only assigned to bots
 
-| Label              | When to apply                     |
-| ------------------ | --------------------------------- |
-| `status/available` | Open, unclaimed, ready to pick up |
-| `status/proposal`  | Needs evaluation before action    |
+Skip `status/available` if a human maintainer is already assigned.
 
-## What Gets Generated
+## 3. Remove `needs/triage`
 
-File: `.github/workflows/issue-triage-agent.md`
-Template: `$CLAUDE_PLUGIN_ROOT/skills/agentic-workflows/assets/issue-triage-agent.md`
+After assigning a `kind/*` label, remove `needs/triage` to signal the issue has been processed.
 
-The template uses `name: "Agent / Issue Triage"` — see the naming convention in SKILL.md.
+## Skip conditions
 
-## Workflow
+Skip the issue entirely (do not label, do not comment) if:
+- It already has a `kind/*` label
+- It is assigned to a non-bot user
 
-### Step 1: Gather requirements
+## Comment template
 
-Ask the user:
-
-1. **Trigger** — scheduled batch (default: weekdays 14:00 UTC) or real-time on issue open?
-   - Scheduled: lower noise, processes backlog; use `on: schedule`
-   - Real-time: instant feedback; use `on: issues: [opened, reopened]` (extra caution needed — public users control issue content)
-2. **Priority labeling** — also assign a `priority/*` label? (default: no; keep scope narrow)
-3. **Comment on issues** — leave an explanation comment per issue? (default: yes)
-4. **Target directory** — path to the repository
-
-### Step 2: Generate the workflow file
-
-Copy `assets/issue-triage-agent.md` to `<target>/.github/workflows/issue-triage-agent.md`.
-
-Adapt based on user answers:
-
-| User choice         | Change                                                                                          |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| Real-time trigger   | Replace `on: schedule` with `on: issues: types: [opened, reopened]`                             |
-| Add priority labels | Append `priority/*` to `safe-outputs.add-labels.allowed`; extend agent instructions (see below) |
-| No comments         | Remove `add-comment: {}` from `safe-outputs` and the comment block from instructions            |
-
-**Priority labels extension** — add to `safe-outputs.add-labels.allowed`:
-
-```yaml
-- priority/critical
-- priority/high
-- priority/medium
-- priority/low
-- priority/backlog
-```
-
-And add to the agent instructions:
+After labeling an issue, leave a comment to make the classification transparent to the author:
 
 ```markdown
-3. Assign a `priority/*` label based on impact and urgency:
-   - `priority/critical` — data loss, security issue, or broken core functionality
-   - `priority/high` — significant pain point affecting many users
-   - `priority/medium` — notable issue but workaround exists
-   - `priority/low` — minor inconvenience or cosmetic problem
-   - `priority/backlog` — valid but no current support to act on it
+### 🏷️ Issue Triaged
+
+Hi @{author}! I've classified this issue as **{label_name}**.
+
+**Reasoning**: {1–2 sentences explaining which signals in the title/body drove this classification}
+
+<details>
+<summary>Triage details</summary>
+
+- **Detected signals**: {key terms or patterns that matched}
+- **Confidence**: {High / Medium / Low}
+
+{If confidence is Low, add: "If this label doesn't fit, please update it — more context in the issue body would help."}
+
+</details>
+
+> Triage run: [#{run_id}](https://github.com/${{ github.repository }}/actions/runs/{run_id})
 ```
 
-### Step 3: Verify gh-aw installation
-
-```bash
-gh extension list | grep gh-aw
-# if missing:
-gh extension install github/gh-aw
-gh aw validate .github/workflows/issue-triage-agent.md
-```
-
-### Step 4: Test
-
-```bash
-gh aw run .github/workflows/issue-triage-agent.md
-```
-
-Or push and trigger `workflow_dispatch` from the GitHub Actions UI.
-
-## Customization
-
-### Auto-apply `needs/triage` on issue open
-
-Separate standard GitHub Actions workflow — runs before the triage agent:
-
-```yaml
-# .github/workflows/label-new-issues.yml
-name: Label new issues
-on:
-  issues:
-    types: [opened]
-jobs:
-  label:
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: ['needs/triage', 'status/available']
-            })
-```
-
-Pipeline: new issue → `needs/triage` applied → triage agent runs → removes `needs/triage`, adds `kind/*`.
-
-### Shared imports
-
-For multi-workflow repositories, extract shared guidance into `shared/` and import:
-
-```yaml
-imports:
-  - shared/reporting.md
-```
+Keep the comment concise — use the `<details>` block to keep verbose analysis collapsed by default.

@@ -1,127 +1,139 @@
+---
+name: "Agent / PR Stale"
+timeout-minutes: 30
+strict: true
+on:
+  schedule: "0 10 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+tools:
+  github:
+    lockdown: true
+    toolsets: [pull_requests, labels]
+safe-outputs:
+  add-labels:
+    allowed:
+      - lifecycle/stale
+      - lifecycle/rotten
+      - status/abandoned
+  remove-labels:
+    allowed:
+      - lifecycle/stale
+      - lifecycle/rotten
+      - lifecycle/active
+      - lifecycle/waiting
+      - needs/triage
+  add-comment:
+    max: 30
+  close-pull-request:
+    target: "*"
+    max: 20
+---
+
 # PR Stale Agent
 
-Triages and closes pull requests stale for 30+ days using the project `lifecycle/*` and `status/*` label taxonomy.
+List all open pull requests in ${{ github.repository }} with `updatedAt` older than 30 days.
 
-## Label Taxonomy
+## Exemptions — skip immediately
 
-### Lifecycle labels — stale progression
-
-| Label              | Meaning                                             |
-| ------------------ | --------------------------------------------------- |
-| `lifecycle/active` | Actively being worked on — used as exemption signal |
-| `lifecycle/frozen` | Exempted from automated closure                     |
-| `lifecycle/stale`  | First warning: no activity for 30+ days             |
-| `lifecycle/rotten` | Second warning: stale 60+ days; will close next run |
-
-### Status labels — final state
-
-| Label              | When applied           |
-| ------------------ | ---------------------- |
-| `status/abandoned` | PR closed by the agent |
-
-### Exemption labels — skip entirely
-
-Any PR with one of these labels is skipped (no action, no comment):
-
+Skip any PR that carries one of these labels (do not label, comment, or close it):
 - `lifecycle/frozen`
 - `status/blocked`
 - `status/on_hold`
 
-## Three-Phase Lifecycle
+## Classification — evaluate A → B → C → D, stop at first match
 
+### Category A — Superseded
+
+Close if any of:
+- Another PR modifying at least one of the same files was merged into the base branch after this PR was created
+- Title/description contains "replaced by", "superseded by", or "closes #N" where issue #N is already closed
+- A PR with at least 70% overlapping title words was merged after this PR was opened
+
+**Action**: close + add `status/abandoned` + remove `lifecycle/stale` if present.
+
+**Comment**:
 ```
-Day 0      → PR opened
-Day 30     → lifecycle/stale applied  (Category D, first warning)
-Day 60     → lifecycle/rotten applied (Category D, rotten upgrade)
-Next run   → closed + status/abandoned (Category D, rotten close)
-```
+🔄 Closing this PR as it appears to be superseded by work that has already been merged.
 
-Categories A, B, C bypass the warning phases and close immediately.
+If this is incorrect and the work is still needed, please reopen or open a new PR referencing this one.
 
-## PR Categories
-
-| Category                    | Condition                                                              | Action                |
-| --------------------------- | ---------------------------------------------------------------------- | --------------------- |
-| **A — Superseded**          | Merged PR overlaps same files, or title/description says "replaced by" | Close immediately     |
-| **B — Inactive Draft**      | `isDraft = true` + 30+ days no activity                                | Close immediately     |
-| **C — Dependabot Conflict** | `author = dependabot[bot]` + conflict or newer PR for same dep         | Close immediately     |
-| **D — Long-Running**        | Human PR, not draft, 30+ days no activity                              | Warn → rotten → close |
-
-## What Gets Generated
-
-File: `.github/workflows/pr-stale-agent.md`
-Template: `$CLAUDE_PLUGIN_ROOT/skills/agentic-workflows/assets/pr-stale-agent.md`
-
-The template uses `name: "Agent / PR Stale"` — see the naming convention in SKILL.md.
-
-## Workflow
-
-### Step 1: Gather requirements
-
-Ask the user:
-
-1. **Staleness threshold** — default 30 days. Adjust if the team has longer review cycles.
-2. **Additional exemption labels** — any project-specific labels that should block automated closure?
-3. **Draft PR threshold** — same 30 days, or different for drafts?
-4. **Target directory** — path to the repository
-
-### Step 2: Generate the workflow file
-
-Copy `assets/pr-stale-agent.md` to `<target>/.github/workflows/pr-stale-agent.md`.
-
-Adapt based on user answers:
-
-| User choice              | Change                                                   |
-| ------------------------ | -------------------------------------------------------- |
-| Different threshold      | Update "30 days" references in the instructions body     |
-| Extra exemption labels   | Add them to the "Exemptions" section in the instructions |
-| `workflow_dispatch` only | Remove `schedule:` line                                  |
-
-### Step 3: Verify gh-aw installation
-
-```bash
-gh extension list | grep gh-aw
-# if missing:
-gh extension install github/gh-aw
-gh aw validate .github/workflows/pr-stale-agent.md
+*Automated by PR Stale workflow — Run ${{ github.run_id }}*
 ```
 
-### Step 4: Test (dry run)
+### Category B — Inactive Draft
 
-Run with `--dry-run` if supported, or trigger `workflow_dispatch` and review comments before the next scheduled run closes anything:
+Close if:
+- `isDraft` is `true`
+- `updatedAt` older than 30 days
 
-```bash
-gh aw run .github/workflows/pr-stale-agent.md
+**Action**: close + add `status/abandoned` + remove `lifecycle/stale` if present.
+
+**Comment**:
+```
+🧹 Closing this draft PR due to 30+ days of inactivity.
+
+This is not a rejection — feel free to reopen when work resumes, or add `lifecycle/frozen` to prevent future automated closure.
+
+*Automated by PR Stale workflow — Run ${{ github.run_id }}*
 ```
 
-## Differences from the gh-aw upstream
+### Category C — Dependabot Conflict
 
-The upstream `stale-pr-cleanup.md` uses ad-hoc labels (`keep-open`, `stale`, `stale-draft`, `stale-dependabot`, `superseded`).
+Close if:
+- Author is `dependabot[bot]`
+- `mergeable` is `CONFLICTING` OR a newer Dependabot PR for the same dependency is open or merged
 
-This version maps to the existing `settings.yml` taxonomy:
+**Action**: close + add `status/abandoned`.
 
-| Upstream label                     | This version                            |
-| ---------------------------------- | --------------------------------------- |
-| `keep-open`                        | `lifecycle/frozen`                      |
-| `stale`                            | `lifecycle/stale`                       |
-| `stale-draft` / `stale-dependabot` | `lifecycle/rotten` → `status/abandoned` |
-| `superseded`                       | `status/abandoned`                      |
+**Comment**:
+```
+🤖 Closing this Dependabot PR — it has a merge conflict or has been superseded by a newer update for the same dependency.
 
-The two-run warning cycle (`lifecycle/stale` → `lifecycle/rotten` → close) is made explicit as a three-phase lifecycle, matching the intent already encoded in `settings.yml`.
-
-## Customization
-
-### Pair with auto-labeler on PR open
-
-Apply `lifecycle/waiting` on new PRs to mark them as needing a contributor:
-
-```yaml
-# .github/workflows/label-new-prs.yml
-- labels: ["lifecycle/waiting", "needs/triage"]
+*Automated by PR Stale workflow — Run ${{ github.run_id }}*
 ```
 
-The stale agent will later transition `lifecycle/waiting` → `lifecycle/stale` when activity stops.
+### Category D — Long-Running Open PR (warn only, never close)
 
-### Adjust close-pull-request limits
+Warn if:
+- Does not match A, B, or C
+- Not a draft
+- No new commits, reviews, or comments in 30+ days
 
-The template allows up to 20 closures per run. For repositories with large backlogs, increase `max` in `safe-outputs.close-pull-request` and raise `timeout-minutes` proportionally.
+**If already has `lifecycle/rotten`**: close + add `status/abandoned` (it was warned twice — now close).
+
+**If already has `lifecycle/stale`**: upgrade to `lifecycle/rotten`, remove `lifecycle/stale`.
+
+**Comment on rotten upgrade**:
+```
+⚠️ This PR has now been stale for 60+ days with no activity and will be closed on the next scheduled run.
+
+To keep it open, add `lifecycle/frozen` or push a new commit.
+
+*Automated by PR Stale workflow — Run ${{ github.run_id }}*
+```
+
+**If no stale label yet**: add `lifecycle/stale`.
+
+**Comment on first warning**:
+```
+⏰ This PR has been open without activity for 30+ days.
+
+**To prevent future automated closure:**
+- Push a new commit or leave a comment to show work is continuing
+- Add `lifecycle/frozen` to exempt this PR from automated cleanup
+- Close it yourself if it is no longer relevant
+
+*Automated by PR Stale workflow — Run ${{ github.run_id }}*
+```
+
+**Do NOT close Category D on first or second warning — human review required.**
+
+## Processing order
+
+1. Process Categories A, B, C first (closures)
+2. Then Category D (warnings and rotten closures)
+3. Prioritize oldest `updatedAt` first if safe-output limits are reached
