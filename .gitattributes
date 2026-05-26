@@ -22,3 +22,5 @@ Makefile eol=lf
 *.eot binary
 *.ttf binary
 *.otf binary
+
+.github/workflows/*.lock.yml linguist-generated=true merge=ours
