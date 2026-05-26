@@ -13,8 +13,8 @@ on:
     # Weekly on Saturdays.
     - cron:  '30 1 * * 6'
 
-# Declare default permissions as read only.
-permissions: read-all
+# Deny all permissions at workflow level
+permissions: {}
 
 jobs:
   scorecard:
