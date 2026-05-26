@@ -1,7 +1,7 @@
 # frontis
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Pilotariak/frontis/blob/main/LICENSE)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Pilotariak/frontis/badge)](https://scorecard.dev/viewer/?uri=github.com/Pilotariak/frontis)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pilotariak/frontis/badge)](https://scorecard.dev/viewer/?uri=github.com/pilotariak/frontis)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/12205/badge)](https://bestpractices.coreinfrastructure.org/projects/12205)
 
 ## Overview
