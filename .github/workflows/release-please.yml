@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write         # to push tags and changelog
-  issues: write           # (optional) for any issue linkage
   pull-requests: write    # to create/modify the release PR
 
 jobs:
@@ -20,10 +19,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      with:
+        egress-policy: audit
+
     - name: Checkout Code
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Run Release Please Action
       uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
