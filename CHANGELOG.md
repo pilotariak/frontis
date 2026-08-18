@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.7.0](https://github.com/pilotariak/frontis/compare/frontis-v0.6.0...frontis-v0.7.0) (2026-08-18)
+
+
+### 🚀 Features
+
+* **agent-workflows:** remove repo assist ([#58](https://github.com/pilotariak/frontis/issues/58)) ([ca5e8a0](https://github.com/pilotariak/frontis/commit/ca5e8a0bce244cd772df04856494d3ea4d828768))
+* **agentic-workflows:** Naming ([#61](https://github.com/pilotariak/frontis/issues/61)) ([a79f171](https://github.com/pilotariak/frontis/commit/a79f17187310563dc5eae05f44696d3912234d29))
+* **ci:** harden github actions supply chain security ([#53](https://github.com/pilotariak/frontis/issues/53)) ([bc7a86c](https://github.com/pilotariak/frontis/commit/bc7a86cad631d4b4355f585ec9572a0fff695558)), closes [#32](https://github.com/pilotariak/frontis/issues/32)
+* **gateway:** add categories subgraph to landing page ([#48](https://github.com/pilotariak/frontis/issues/48)) ([a0022ab](https://github.com/pilotariak/frontis/commit/a0022ab27d4baad7d2587d56ec973a53c5ab8c74))
+
+
+### 🐛 Bug Fixes
+
+* **agent-workflows:** compile workflows ([#57](https://github.com/pilotariak/frontis/issues/57)) ([3c8cd39](https://github.com/pilotariak/frontis/commit/3c8cd39bcaa69d7b73b6a8dc8c4e92a2eb88a6b9))
+* **doc:** OpenSSF repository path ([#52](https://github.com/pilotariak/frontis/issues/52)) ([7f26ab1](https://github.com/pilotariak/frontis/commit/7f26ab104a3a9d0f3cf3098cf9553651a403e136))
+
+
+### 📚 Documentation
+
+* add AGENTS.md for AI agent context ([#64](https://github.com/pilotariak/frontis/issues/64)) ([5ac1f7c](https://github.com/pilotariak/frontis/commit/5ac1f7c32dbb22ef91bfcdc7cf249677a5fa012c))
+* **architecture:** add categories subgraph and update gateway config ([#50](https://github.com/pilotariak/frontis/issues/50)) ([beb9db8](https://github.com/pilotariak/frontis/commit/beb9db8dea638a2fac3182039201b10949bcd13d))
+* update CII Best Practices and Scorecards ([#51](https://github.com/pilotariak/frontis/issues/51)) ([a113fb7](https://github.com/pilotariak/frontis/commit/a113fb7985bf735b56873f333190b180ba8b061c))
+
 ## [0.6.0](https://github.com/pilotariak/frontis/compare/frontis-v0.5.0...frontis-v0.6.0) (2026-04-16)
 
 
