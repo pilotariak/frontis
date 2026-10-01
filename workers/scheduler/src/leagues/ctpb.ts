@@ -2,9 +2,32 @@ import * as cheerio from "cheerio";
 import type { ScrapedResult } from "../types";
 import type { FormOption, FormOptions, LeagueScraper, ScrapeData, ScrapeOptions } from "./types";
 
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent": USER_AGENT,
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"macOS"',
+};
+
 export class CtpbScraper implements LeagueScraper {
   private baseUrl = "https://ctpb.euskalpilota.fr/resultats.php";
   private leagueName = "CTPB";
+
+  // CTPB requires a warm-up GET to obtain a PHPSESSID cookie; without it the
+  // server redirects away from resultats.php and no form/results are returned.
+  private async primeSession(): Promise<string | null> {
+    const res = await fetch(this.baseUrl, { headers: BROWSER_HEADERS, redirect: "manual" });
+    const cookie = res.headers.get("set-cookie");
+    const match = cookie?.match(/PHPSESSID=([^;]+)/);
+    console.log(
+      `[${this.leagueName}] primeSession status=${res.status} cookie=${match ? "PHPSESSID acquired" : "none"}`
+    );
+    return match ? match[1] : null;
+  }
 
   async fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData> {
     const body = new URLSearchParams({
@@ -20,33 +43,43 @@ export class CtpbScraper implements LeagueScraper {
       InVoir: "Voir les résultats",
     });
 
+    const sessionId = await this.primeSession();
+    const headers: Record<string, string> = { ...BROWSER_HEADERS };
+    if (sessionId) {
+      headers["Cookie"] = `PHPSESSID=${sessionId}`;
+      headers["Referer"] = this.baseUrl;
+      headers["Origin"] = new URL(this.baseUrl).origin;
+    }
+
     // GET populates the SELECT dropdowns; POST submits the form and returns results.
     const response = extractResults
       ? await fetch(this.baseUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-          },
+          headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
           body: body.toString(),
         })
-      : await fetch(`${this.baseUrl}?${body.toString()}`, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-          },
-        });
+      : await fetch(`${this.baseUrl}?${body.toString()}`, { headers });
+
+    console.log(
+      `[${this.leagueName}] fetch ${extractResults ? "POST" : "GET"} ${this.baseUrl} -> status=${response.status} finalUrl=${response.url}`
+    );
 
     if (!response.ok) {
       throw new Error(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`);
     }
 
     const html = await response.text();
+    console.log(
+      `[${this.leagueName}] html length=${html.length}, select[name] count=${(html.match(/<select/gi) ?? []).length}`
+    );
     const $ = cheerio.load(html);
 
     const formOptions = this.parseFormOptions($);
+    console.log(
+      `[${this.leagueName}] parsed competitions=${formOptions.competitions.length} specialties=${formOptions.specialties.length} clubs=${formOptions.clubs.length} categories=${formOptions.categories.length} phases=${formOptions.phases.length}`
+    );
     const results = extractResults ? this.parseResults($) : [];
+    console.log(`[${this.leagueName}] parsed results=${results.length}`);
 
     return { formOptions, results };
   }
