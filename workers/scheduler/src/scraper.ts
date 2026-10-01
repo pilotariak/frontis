@@ -149,7 +149,23 @@ async function resolveSourceIds(db: D1Database, options: ScraperOptions): Promis
   return { ...options, competition: competition.source_id, specialty, category, phase };
 }
 
+/**
+ * Persist scraped results.
+ *
+ * Cloudflare Workers cap each invocation at a fixed number of subrequests
+ * (50 free / 1000 paid), and every D1 query counts as one. A per-row query
+ * loop therefore blows the limit on any sizeable result set. This function
+ * keeps the subrequest count flat and small:
+ *   1. one SELECT per lookup table to preload name → id maps,
+ *   2. one db.batch() to INSERT OR IGNORE any missing clubs/categories,
+ *   3. one db.batch() of INSERT OR IGNORE statements for the results.
+ * The results table carries a UNIQUE(competition_id, specialty_id,
+ * category_id, date_match, club_a_id, club_b_id, phase) constraint, so
+ * INSERT OR IGNORE replaces the former SELECT-then-INSERT existence check.
+ */
 async function saveResults(db: D1Database, options: ScraperOptions, results: ScrapedResult[]): Promise<number> {
+  if (results.length === 0) return 0;
+
   const competition = await db
     .prepare("SELECT id FROM competitions WHERE source_id = ?")
     .bind(options.competition)
@@ -177,83 +193,79 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   // Strip the trailing numeric token before looking up.
   const baseClubName = (name: string) => name.replace(/\s+\d+$/, "").trim();
 
-  let saved = 0;
-
+  // Insert any clubs/categories we have not seen yet in a single batch, so the
+  // subsequent map preload sees every name. INSERT OR IGNORE is a no-op for
+  // existing rows.
+  const clubNames = new Set<string>();
+  const categoryNames = new Set<string>();
   for (const res of results) {
-    const specialty = sharedSpecialty ?? await db
-      .prepare("SELECT id FROM specialties WHERE name = ?")
-      .bind(res.specialty)
-      .first<{ id: number }>();
-
-    const clubAName = baseClubName(res.club_a);
-    const clubBName = baseClubName(res.club_b);
-
-    await db.prepare(`INSERT OR IGNORE INTO clubs (name) VALUES (?)`).bind(clubAName).run();
-    await db.prepare(`INSERT OR IGNORE INTO clubs (name) VALUES (?)`).bind(clubBName).run();
-
-    const clubA = await db
-      .prepare("SELECT id FROM clubs WHERE name = ?")
-      .bind(clubAName)
-      .first<{ id: number }>();
-
-    const clubB = await db
-      .prepare("SELECT id FROM clubs WHERE name = ?")
-      .bind(clubBName)
-      .first<{ id: number }>();
-
-    if (!specialty || !clubA || !clubB) {
-      console.warn(`[saveResults] Skipping result: missing lookup for specialty='${res.specialty}' club_a='${res.club_a}' club_b='${res.club_b}'`);
-      continue;
-    }
-
-    // Resolve category name → id, creating the row if it does not exist yet.
-    await db
-      .prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`)
-      .bind(res.category)
-      .run();
-    const category = await db
-      .prepare("SELECT id FROM categories WHERE name = ?")
-      .bind(res.category)
-      .first<{ id: number }>();
-
-    if (!category) {
-      console.warn(`[saveResults] Skipping result: could not resolve category='${res.category}'`);
-      continue;
-    }
-
-    const existing = await db
-      .prepare(
-        `SELECT id FROM results
-         WHERE competition_id = ? AND specialty_id = ? AND category_id = ?
-         AND date_match = ? AND club_a_id = ? AND club_b_id = ? AND phase = ?`
-      )
-      .bind(competition.id, specialty.id, category.id, res.date_match, clubA.id, clubB.id, res.phase)
-      .first<{ id: number }>();
-
-    if (!existing) {
-      await db
-        .prepare(
-          `INSERT INTO results (
-            competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
-            scores, phase,
-            club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
-            club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          competition.id, specialty.id, category.id, res.date_match,
-          clubA.id, clubB.id, res.scores ?? null, res.phase,
-          res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
-          res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
-          res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
-          res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
-        )
-        .run();
-      saved++;
-    }
+    clubNames.add(baseClubName(res.club_a));
+    clubNames.add(baseClubName(res.club_b));
+    categoryNames.add(res.category);
   }
 
-  return saved;
+  const insertClub = db.prepare(`INSERT OR IGNORE INTO clubs (name) VALUES (?)`);
+  const insertCategory = db.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`);
+  const upserts = [
+    ...[...clubNames].map((name) => insertClub.bind(name)),
+    ...[...categoryNames].map((name) => insertCategory.bind(name)),
+  ];
+  if (upserts.length > 0) await db.batch(upserts);
+
+  // Preload name → id maps for every lookup table with one query each.
+  const buildMap = async (table: string): Promise<Map<string, number>> => {
+    const { results: rows } = await db
+      .prepare(`SELECT id, name FROM ${table}`)
+      .all<{ id: number; name: string }>();
+    return new Map(rows.map((r) => [r.name, r.id]));
+  };
+
+  const clubIds = await buildMap("clubs");
+  const categoryIds = await buildMap("categories");
+  // Only needed when no single specialty was requested; resolve per row by name.
+  const specialtyIds = sharedSpecialty ? null : await buildMap("specialties");
+
+  const insertResult = db.prepare(
+    `INSERT OR IGNORE INTO results (
+      competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
+      scores, phase,
+      club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
+      club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  const statements: D1PreparedStatement[] = [];
+  for (const res of results) {
+    const specialtyId = sharedSpecialty?.id ?? specialtyIds?.get(res.specialty);
+    const clubAId = clubIds.get(baseClubName(res.club_a));
+    const clubBId = clubIds.get(baseClubName(res.club_b));
+    const categoryId = categoryIds.get(res.category);
+
+    if (!specialtyId || !clubAId || !clubBId || !categoryId) {
+      console.warn(
+        `[saveResults] Skipping result: missing lookup for specialty='${res.specialty}' category='${res.category}' club_a='${res.club_a}' club_b='${res.club_b}'`
+      );
+      continue;
+    }
+
+    statements.push(
+      insertResult.bind(
+        competition.id, specialtyId, categoryId, res.date_match,
+        clubAId, clubBId, res.scores ?? null, res.phase,
+        res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
+        res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
+        res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
+        res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
+      )
+    );
+  }
+
+  if (statements.length === 0) return 0;
+
+  // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
+  // rows that already existed, so meta.changes sums to the newly inserted count.
+  const batchResults = await db.batch(statements);
+  return batchResults.reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
 }
 
 export async function scrapeResults(
