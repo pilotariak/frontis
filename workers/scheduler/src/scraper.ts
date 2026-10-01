@@ -1,4 +1,5 @@
 import type { Env, ScrapedResult } from "./types";
+import { CtpbScraper } from "./leagues/ctpb";
 import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
 import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
@@ -10,6 +11,7 @@ export interface ScraperOptions extends ScrapeOptions {
 const scrapers: Record<string, LeagueScraper> = {
   lcapb: new LcapbScraper(),
   lidfpb: new LidfpbScraper(),
+  ctpb: new CtpbScraper(),
 };
 
 function getDatabase(env: Env, league: string): D1Database {
