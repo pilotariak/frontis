@@ -119,26 +119,47 @@ jobs:
 
       - name: 📡 Publish ${{ matrix.subgraph }} schema to Hive
         env:
-          HIVE_TOKEN: ${{ secrets.HIVE_REGISTRY_TOKEN }}
-          WORKERS_SUBDOMAIN: ${{ secrets.CLOUDFLARE_WORKERS_SUBDOMAIN }}
           SERVICE: ${{ matrix.service }}
           WORKER: ${{ matrix.worker }}
           SUBGRAPH: ${{ matrix.subgraph }}
         run: |
           bunx @graphql-hive/cli schema:publish \
-            --registry.accessToken "$HIVE_TOKEN" \
-            --target pilotariak/frontis/production \
-            --service "$SERVICE" \
-            --url "https://${WORKER}.${WORKERS_SUBDOMAIN}.workers.dev/graphql" \
+            --registry.accessToken "${{ secrets.HIVE_ACCESS_TOKEN }}" \
+            --target "${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ secrets.HIVE_ENV }}" \
+            --service "${SERVICE}" \
+            --url http://frontis-${SUBGRAPH}.${{ secrets.HIVE_URL }}/graphql \
             --author "github-actions" \
             "subgraphs/${SUBGRAPH}/schema.graphql"
+
+  verify-supergraph:
+    name: Verify Supergraph on Hive CDN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    needs: publish-schemas
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🔍 Fetch composed supergraph from Hive CDN
+        env:
+          HIVE_CDN_ACCESS_TOKEN: ${{ secrets.HIVE_CDN_ACCESS_TOKEN }}
+          HIVE_CDN_ENDPOINT: ${{ secrets.HIVE_CDN_ENDPOINT }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "X-Hive-CDN-Key: ${HIVE_CDN_ACCESS_TOKEN}" \
+            "${HIVE_CDN_ENDPOINT}/supergraph" > /dev/null
 
   deploy-gateway:
     name: Deploy Gateway
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: publish-schemas
+    needs: verify-supergraph
     permissions:
       contents: read
     steps:
