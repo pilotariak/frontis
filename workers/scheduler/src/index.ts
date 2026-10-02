@@ -125,6 +125,46 @@ export default {
           dryRun
         );
 
+        // Tab-separated output for rendering client-side (the script draws the
+        // table) or piping into `column -t` / spreadsheets. Always plain (no ANSI).
+        if (url.searchParams.get("format") === "tsv") {
+          const status = dryRun ? `${results.length} found (dry-run)` : `${saved} saved`;
+          const header = `# ${league!.toUpperCase()}  competition=${competition} specialty=${specialty} category=${category}  —  ${status}`;
+
+          if (results.length === 0) {
+            return new Response(`${header}\n  (no results)\n`, TEXT);
+          }
+
+          // A club cell stacks the club name then one line per player. Sub-lines
+          // are joined with US (\x1f); the renderer splits them back into rows.
+          const US = "\x1f";
+          const player = (name?: string, num?: string) =>
+            name ? `(${num ?? "-"}) ${name}` : null;
+          const clubCell = (
+            club: string,
+            p1n?: string, p1num?: string,
+            p2n?: string, p2num?: string
+          ) =>
+            [club, player(p1n, p1num), player(p2n, p2num)]
+              .filter(Boolean)
+              .join(US);
+
+          const rows = [
+            ["DATE", "CLUB 1", "CLUB 2", "SCORE", "COMMENTAIRE"].join("\t"),
+            ...results.map((r: (typeof results)[number]) =>
+              [
+                r.date_match ?? "??-??-??",
+                clubCell(r.club_a, r.club_a_player1_name, r.club_a_player1_number, r.club_a_player2_name, r.club_a_player2_number),
+                clubCell(r.club_b, r.club_b_player1_name, r.club_b_player1_number, r.club_b_player2_name, r.club_b_player2_number),
+                r.scores ?? "-/-",
+                "",
+              ].join("\t")
+            ),
+          ];
+
+          return new Response(`${header}\n${rows.join("\n")}\n`, TEXT);
+        }
+
         const statusLine = dryRun
           ? `${results.length} results found — ${yellow("not saved (dry-run)")}`
           : `${green(`${saved} results saved`)}`;
