@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/pilotariak/frontis/compare/v0.7.0...v0.8.0) (2026-10-02)
+
+
+### 🚀 Features
+
+* **deploy:** add supergraph verification and parametrize Hive secrets ([#76](https://github.com/pilotariak/frontis/issues/76)) ([5265a24](https://github.com/pilotariak/frontis/commit/5265a2433d052b58b177ca2a63652983e0b49d7a))
+* **scheduler:** enable competition when results are saved ([#74](https://github.com/pilotariak/frontis/issues/74)) ([6f16943](https://github.com/pilotariak/frontis/commit/6f169435e461455a5463782c976cc37ffbb23a21))
+
 ## [0.7.0](https://github.com/pilotariak/frontis/compare/frontis-v0.6.0...frontis-v0.7.0) (2026-10-02)
 
 
