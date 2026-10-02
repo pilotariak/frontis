@@ -12,6 +12,34 @@ Supported values: `lcapb`, `lidfpb`, `ctpb`.
 
 ---
 
+## Endpoints
+
+### Production
+
+The gateway is the only public entry point. Subgraphs are not meant to be called
+directly in production — the gateway reads the composed supergraph from the
+GraphQL Hive CDN and routes to each subgraph internally.
+
+| Service | Endpoint                                          |
+| ------- | ------------------------------------------------- |
+| gateway | `https://frontis-gateway.pilotariak.com/graphql`  |
+
+### Local development
+
+Started by `bun run dev` (see [howto-dev](howto-dev.md)). Each worker runs on a fixed port:
+
+| Service      | Worker                | URL                             |
+| ------------ | --------------------- | ------------------------------- |
+| gateway      | `frontis-gateway`     | `http://localhost:4000/graphql` |
+| echo         | `frontis-echo`        | `http://localhost:4001/graphql` |
+| competitions | `frontis-competitions`| `http://localhost:4002/graphql` |
+| clubs        | `frontis-clubs`       | `http://localhost:4003/graphql` |
+| specialties  | `frontis-specialties` | `http://localhost:4004/graphql` |
+| results      | `frontis-results`     | `http://localhost:4005/graphql` |
+| categories   | `frontis-categories`  | `http://localhost:4006/graphql` |
+
+---
+
 ## Prerequisites
 
 - The stack is running locally (see [README](../README.md) for startup instructions)
