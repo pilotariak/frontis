@@ -20,7 +20,7 @@ const resolvers = {
       { db }: Context
     ): Promise<CompetitionRow | null> {
       return db
-        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
+        .prepare("SELECT id, source_id, name, enabled FROM competitions WHERE id = ?")
         .bind(Number(id))
         .first<CompetitionRow>();
     },
@@ -31,19 +31,24 @@ const resolvers = {
       { db }: Context
     ): Promise<CompetitionRow[]> {
       const { results } = await db
-        .prepare("SELECT id, source_id, name FROM competitions")
+        .prepare("SELECT id, source_id, name, enabled FROM competitions")
         .all<CompetitionRow>();
       return results;
     },
   },
 
   Competition: {
+    // Column is INTEGER 0/1; expose it as a GraphQL Boolean.
+    enabled(competition: CompetitionRow): boolean {
+      return Boolean(competition.enabled);
+    },
+
     async __resolveReference(
       ref: { id: string },
       { db }: Context
     ): Promise<CompetitionRow | null> {
       return db
-        .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
+        .prepare("SELECT id, source_id, name, enabled FROM competitions WHERE id = ?")
         .bind(Number(ref.id))
         .first<CompetitionRow>();
     },

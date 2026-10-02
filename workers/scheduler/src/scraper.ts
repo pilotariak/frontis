@@ -280,7 +280,15 @@ export async function scrapeResults(
   const db = getDatabase(env, options.league);
   const resolved = await resolveSourceIds(db, options);
 
-  const { results } = await scraper.fetchData(resolved, true);
+  const { results: scraped } = await scraper.fetchData(resolved, true);
+
+  // The upstream site filters results by competition only — it ignores the
+  // posted specialty/category and returns the competition's default block.
+  // Keep only rows whose own (parsed) specialty and category match the ones
+  // that were requested, so an unrelated block does not get mislabelled and
+  // stored under the wrong specialty/category. Comparison is accent- and
+  // punctuation-insensitive to tolerate small label differences.
+  const results = await filterByRequested(db, options, scraped);
 
   if (dryRun) {
     return { results, saved: 0 };
@@ -288,4 +296,44 @@ export async function scrapeResults(
 
   const saved = await saveResults(db, resolved, results);
   return { results, saved };
+}
+
+/** Normalise a label for loose matching: lowercase, strip accents and any
+ *  non-alphanumeric characters. */
+function normaliseLabel(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Drop scraped rows whose specialty/category do not match the requested ones.
+ *  Filtering is skipped for a dimension when it was not specified ("0"). */
+async function filterByRequested(
+  db: D1Database,
+  options: ScraperOptions,
+  results: ScrapedResult[]
+): Promise<ScrapedResult[]> {
+  const nameOf = async (table: string, id: string): Promise<string | null> => {
+    if (!id || id === "0") return null;
+    const row = await db
+      .prepare(`SELECT name FROM ${table} WHERE id = ?`)
+      .bind(id)
+      .first<{ name: string }>();
+    return row?.name ?? null;
+  };
+
+  const specName = await nameOf("specialties", options.specialty);
+  const catName = await nameOf("categories", options.category);
+  if (!specName && !catName) return results;
+
+  const wantSpec = specName ? normaliseLabel(specName) : null;
+  const wantCat = catName ? normaliseLabel(catName) : null;
+
+  return results.filter(
+    (r) =>
+      (!wantSpec || normaliseLabel(r.specialty) === wantSpec) &&
+      (!wantCat || normaliseLabel(r.category) === wantCat)
+  );
 }

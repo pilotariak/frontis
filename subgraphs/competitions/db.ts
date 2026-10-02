@@ -15,6 +15,8 @@ export interface CompetitionRow {
   id: number;
   source_id: string | null;
   name: string;
+  // Stored as INTEGER 0/1; the GraphQL Boolean scalar coerces it.
+  enabled: number;
 }
 
 

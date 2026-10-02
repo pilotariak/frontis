@@ -129,7 +129,24 @@ export default {
         // table) or piping into `column -t` / spreadsheets. Always plain (no ANSI).
         if (url.searchParams.get("format") === "tsv") {
           const status = dryRun ? `${results.length} found (dry-run)` : `${saved} saved`;
-          const header = `# ${league!.toUpperCase()}  competition=${competition} specialty=${specialty} category=${category}  —  ${status}`;
+
+          // Resolve the id → name for each filter so the header is readable.
+          const tdb = getDatabase(env, league!);
+          const [cName, sName, catName] = tdb
+            ? await Promise.all([
+                lookupName(tdb, "competitions", competition!),
+                lookupName(tdb, "specialties", specialty!),
+                lookupName(tdb, "categories", category!),
+              ])
+            : [null, null, null];
+          const idName = (id: string, name: string | null) =>
+            name ? `${id} [${name}]` : id;
+
+          const header =
+            `# ${league!.toUpperCase()}  ` +
+            `competition=${idName(competition!, cName)}  ` +
+            `specialty=${idName(specialty!, sName)}  ` +
+            `category=${idName(category!, catName)}  —  ${status}`;
 
           if (results.length === 0) {
             return new Response(`${header}\n  (no results)\n`, TEXT);
