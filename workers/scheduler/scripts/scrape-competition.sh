@@ -11,7 +11,10 @@
 #   4. preview results (dry run), then confirm to persist into D1
 #
 # Usage:
-#   ./scrape-competition.sh <league> [--phase N]
+#   ./scrape-competition.sh <league> [--phase N] [--all] [--save]
+#
+# --save skips every interactive confirmation and persists results straight into
+# D1 (non-interactive / CI-friendly). Without it, each save is confirmed.
 #
 # Requires: wrangler, jq, curl. Run from a dir where the D1 binding resolves
 # (e.g. database/ or workers/scheduler/).
@@ -31,7 +34,7 @@ else
   NOCOLOR="&no_color=true"   # ask the worker for plain output
 fi
 
-LEAGUE="${1:?usage: scrape-competition.sh <league> [--phase N]}"
+LEAGUE="${1:?usage: scrape-competition.sh <league> [--phase N] [--all] [--save]}"
 shift || true
 
 BASE="${SCHEDULER_BASE:-https://frontis-scheduler.pilotariak.com}"
@@ -44,12 +47,14 @@ D1_TARGET=(--remote)
 WRANGLER=(bunx wrangler)
 
 ALL=0   # --all: skip specialty/category menus, loop every combo and save.
+SAVE=0  # --save: skip every confirmation prompt and persist automatically.
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --phase) PHASE="$2"; shift ;;
     --local) D1_TARGET=(--local --persist-to ../.wrangler/state) ;;
     --all)   ALL=1 ;;
+    --save)  SAVE=1 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
@@ -155,10 +160,13 @@ if [ "$ALL" -eq 1 ]; then
   mapfile -t CATS  < <(rows categories  | cut -f1)
   echo ""
   echo "${CYAN}Looping ${BOLD}${#SPECS[@]}${RESET}${CYAN} specialties x ${BOLD}${#CATS[@]}${RESET}${CYAN} categories for competition=${COMPETITION} (saving each).${RESET}"
-  read -rp "${BOLD}Proceed? [y/N]${RESET} > " go
-  case "$go" in y|Y|yes|YES) ;; *) echo "${YELLOW}aborted.${RESET}"; exit 0 ;; esac
+  if [ "$SAVE" -eq 0 ]; then
+    read -rp "${BOLD}Proceed? [y/N]${RESET} > " go
+    case "$go" in y|Y|yes|YES) ;; *) echo "${YELLOW}aborted.${RESET}"; exit 0 ;; esac
+  fi
 
-  n=0 saved=0 skipped=0 auto=0
+  # --save: auto-persist every combo, no per-result prompt.
+  n=0 saved=0 skipped=0 auto="$SAVE"
   for spec in "${SPECS[@]}"; do
     for cat in "${CATS[@]}"; do
       n=$((n + 1))
@@ -216,7 +224,11 @@ echo "${BOLD}${BLUE}── Preview (dry run) ───────────�
 render_table "$(curl -fsS "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
 echo ""
 
-read -rp "${BOLD}Save these results into D1? [y/N]${RESET} > " answer
+if [ "$SAVE" -eq 1 ]; then
+  answer="y"
+else
+  read -rp "${BOLD}Save these results into D1? [y/N]${RESET} > " answer
+fi
 case "$answer" in
   y|Y|yes|YES)
     echo "${BOLD}${BLUE}── Saving ────────────────────────────────────────────────────${RESET}"
