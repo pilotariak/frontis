@@ -112,6 +112,11 @@ Fetches match results from the league website and saves them to the D1 database.
 Categories are upserted automatically — if a category name scraped from the HTML is not
 yet in the `categories` table it is created on the fly.
 
+Saving results also sets the competition's `enabled` flag to `true`. The flag is opt-in
+(it defaults to `false` when `/scrape_infos` or `setup-league` creates the competition),
+so a competition becomes visible as enabled as soon as it has at least one result saved.
+A `dry_run=true` call never touches the flag.
+
 Filter parameters (`competition`, `specialty`, `category`, `phase`) are **internal
 database IDs** (the `id` primary key column), not `source_id` values.
 The worker resolves them to `source_id`s internally before hitting the upstream website.

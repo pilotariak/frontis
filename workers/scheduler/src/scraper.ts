@@ -262,10 +262,21 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
 
   if (statements.length === 0) return 0;
 
+  // Saving results for a competition marks it as enabled: the `enabled` flag is
+  // opt-in (defaults to 0) and a competition that has results is, by
+  // definition, one we want exposed. Runs in the same batch (same transaction)
+  // as the inserts so the flag never flips without the rows landing too.
+  const enableCompetition = db
+    .prepare("UPDATE competitions SET enabled = 1 WHERE id = ? AND enabled = 0")
+    .bind(competition.id);
+
   // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
   // rows that already existed, so meta.changes sums to the newly inserted count.
-  const batchResults = await db.batch(statements);
-  return batchResults.reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
+  // The UPDATE is the last statement and excluded from that sum.
+  const batchResults = await db.batch([...statements, enableCompetition]);
+  return batchResults
+    .slice(0, statements.length)
+    .reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
 }
 
 export async function scrapeResults(
