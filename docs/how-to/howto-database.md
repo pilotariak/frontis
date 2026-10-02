@@ -32,7 +32,8 @@ database/
     ├── 0004_category_id.sql         ← results.category text → category_id FK; add categories table
     ├── 0005_leagues.sql             ← add leagues seed table
     ├── 0006_clean_phases.sql        ← phases cleanup
-    └── 0007_scores.sql              ← replace score_a/score_b ints with a single scores TEXT column
+    ├── 0007_scores.sql              ← replace score_a/score_b ints with a single scores TEXT column
+    └── 0008_competitions_enabled.sql ← add enabled flag (INTEGER 0/1, default 0) to competitions
 ```
 
 ---

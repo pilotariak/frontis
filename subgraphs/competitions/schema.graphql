@@ -13,6 +13,8 @@ type Competition @key(fields: "id") {
   source_id: String
   "Competition name."
   name: String!
+  "Whether this competition is enabled (opt-in; defaults to false)."
+  enabled: Boolean!
   "All match results recorded in this competition."
   results: [Result!]!
 }
