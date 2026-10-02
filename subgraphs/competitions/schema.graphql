@@ -31,6 +31,9 @@ type Result @key(fields: "id") {
 type Query {
   "Fetch a single competition by its ID."
   competition(id: ID!): Competition
-  "List all competitions."
-  competitions: [Competition!]!
+  """
+  List competitions. Pass `enabled: true` to get only competitions that are
+  opted in (results are being scraped); omit the argument to get all of them.
+  """
+  competitions(enabled: Boolean): [Competition!]!
 }

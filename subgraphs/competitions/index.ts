@@ -27,12 +27,15 @@ const resolvers = {
 
     async competitions(
       _: unknown,
-      _args: unknown,
+      { enabled }: { enabled?: boolean | null },
       { db }: Context
     ): Promise<CompetitionRow[]> {
-      const { results } = await db
-        .prepare("SELECT id, source_id, name, enabled FROM competitions")
-        .all<CompetitionRow>();
+      const base = "SELECT id, source_id, name, enabled FROM competitions";
+      const stmt =
+        enabled == null
+          ? db.prepare(`${base} ORDER BY id`)
+          : db.prepare(`${base} WHERE enabled = ? ORDER BY id`).bind(enabled ? 1 : 0);
+      const { results } = await stmt.all<CompetitionRow>();
       return results;
     },
   },

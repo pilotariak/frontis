@@ -25,6 +25,16 @@ type ClubLineup {
 }
 
 """
+The score of a single set, as parsed from the raw `scores` string.
+"""
+type SetScore {
+  "Points scored by club A in this set."
+  a: Int!
+  "Points scored by club B in this set."
+  b: Int!
+}
+
+"""
 A single match result between two clubs.
 """
 type Result @key(fields: "id") {
@@ -35,7 +45,7 @@ type Result @key(fields: "id") {
   specialty: Specialty!
   "Age/skill category."
   category: Category
-  "Date of the match (ISO 8601)."
+  "Date of the match as stored by the source league system (DD/MM/YYYY)."
   dateMatch: String
   "Home club."
   clubA: Club!
@@ -43,6 +53,16 @@ type Result @key(fields: "id") {
   clubB: Club!
   "Match scores as a space-separated list of sets (e.g. \"15/10 15/13\")."
   scores: String
+  """
+  Per-set scores parsed from `scores`. Empty when `scores` is null or
+  contains no well-formed `a/b` pair.
+  """
+  sets: [SetScore!]!
+  """
+  Club that won the most sets. Null when there is no score, when the set
+  count is tied, or when the match has not been played.
+  """
+  winner: Club
   "Tournament phase (e.g. Finale, 1/2 Finale, Poule)."
   phase: String
   "Players lineup for club A."
@@ -51,7 +71,11 @@ type Result @key(fields: "id") {
   clubBLineup: ClubLineup
 }
 
-# --- Entity stubs ---
+# --- Entity stubs + reverse edges ---
+#
+# The entities below are owned by other subgraphs. This subgraph contributes
+# a `results` field to each of them so clients can navigate from a club,
+# specialty or category straight to its matches.
 
 "Reference to a Competition entity owned by the competitions subgraph."
 type Competition @key(fields: "id") {
@@ -61,16 +85,22 @@ type Competition @key(fields: "id") {
 "Reference to a Club entity owned by the clubs subgraph."
 type Club @key(fields: "id") {
   id: ID!
+  "Results where this club played as club A or club B, oldest first."
+  results(limit: Int = 100, offset: Int = 0): [Result!]!
 }
 
 "Reference to a Specialty entity owned by the specialties subgraph."
 type Specialty @key(fields: "id") {
   id: ID!
+  "Results played in this discipline, oldest first."
+  results(limit: Int = 100, offset: Int = 0): [Result!]!
 }
 
 "Reference to a Category entity owned by the categories subgraph."
 type Category @key(fields: "id") {
   id: ID!
+  "Results played in this category, oldest first."
+  results(limit: Int = 100, offset: Int = 0): [Result!]!
 }
 
 # --- Queries ---
@@ -78,11 +108,17 @@ type Category @key(fields: "id") {
 type Query {
   "Fetch a single result by its ID."
   result(id: ID!): Result
-  "List results with optional filters."
+  """
+  List results with optional filters, ordered by id (insertion order).
+  `limit` is clamped to 1..500.
+  """
   results(
     competitionId: ID
     specialtyId: ID
     categoryId: ID
+    clubId: ID
     phase: String
+    limit: Int = 100
+    offset: Int = 0
   ): [Result!]!
 }
