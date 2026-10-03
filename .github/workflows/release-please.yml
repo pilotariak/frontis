@@ -19,6 +19,9 @@ jobs:
     permissions:
       contents: write         # to push tags and changelog
       pull-requests: write    # to create/modify the release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
 
     steps:
     - name: Harden Runner
@@ -39,3 +42,16 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         target-branch: ${{ github.ref_name }}
         config-file: .github/release-please-config.json
+
+  # Tags created by release-please with GITHUB_TOKEN do not trigger
+  # `on: push: tags` workflows, so publish the Hive schemas from here.
+  publish-hive:
+    name: Publish Hive schemas
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/hive.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit
