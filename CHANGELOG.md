@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/pilotariak/frontis/compare/v0.8.0...v0.9.0) (2026-10-03)
+
+
+### 🚀 Features
+
+* **schema:** add enabled filter, reverse edges, pagination and parsed scores ([#77](https://github.com/pilotariak/frontis/issues/77)) ([fb12d67](https://github.com/pilotariak/frontis/commit/fb12d674f2d215fe824e920f9b2997d632a7e197))
+
 ## [0.8.0](https://github.com/pilotariak/frontis/compare/v0.7.0...v0.8.0) (2026-10-02)
 
 
