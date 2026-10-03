@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+---
+name: Check / Hive
+
+# Pull-request counterpart of "Deploy / Hive" (hive.yml):
+#   1. schema:check every subgraph against the production target, so breaking
+#      changes and composition errors surface as a failed check on the PR;
+#   2. schema:publish every subgraph to the staging target, so the PR's
+#      supergraph can be inspected in Hive before it is released.
+# The production target is never written to from here.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Deny all permissions at workflow level
+permissions: {}
+
+env:
+  # Hive target (environment) that receives pull-request previews.
+  HIVE_PREVIEW_ENV: staging
+
+jobs:
+  check-schemas:
+    name: Check ${{ matrix.subgraph }} schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Forks do not receive the Hive secrets.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        subgraph:
+          - echo
+          - clubs
+          - competitions
+          - results
+          - specialties
+          - categories
+      fail-fast: false
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🎉 Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.2
+
+      - name: 📦️ Install dependencies
+        run: bun install
+
+      - name: 🔍 Check ${{ matrix.subgraph }} schema against production
+        env:
+          SUBGRAPH: ${{ matrix.subgraph }}
+          HIVE_ACCESS_TOKEN: ${{ secrets.HIVE_ACCESS_TOKEN }}
+          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ secrets.HIVE_ENV }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.actor }}
+          CONTEXT_ID: pr-${{ github.event.pull_request.number }}
+        run: |
+          bunx @graphql-hive/cli schema:check \
+            --registry.accessToken "${HIVE_ACCESS_TOKEN}" \
+            --target "${HIVE_TARGET}" \
+            --service "${SUBGRAPH}" \
+            --commit "${COMMIT}" \
+            --author "${AUTHOR}" \
+            --contextId "${CONTEXT_ID}" \
+            "subgraphs/${SUBGRAPH}/schema.graphql"
+
+  publish-preview:
+    name: Publish ${{ matrix.subgraph }} schema to preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: check-schemas
+    permissions:
+      contents: read
+    # Serialise publishes of the same subgraph across PRs (last push wins).
+    concurrency:
+      group: hive-preview-${{ matrix.subgraph }}
+      cancel-in-progress: false
+    strategy:
+      matrix:
+        subgraph:
+          - echo
+          - clubs
+          - competitions
+          - results
+          - specialties
+          - categories
+      fail-fast: false
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🎉 Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.2
+
+      - name: 📦️ Install dependencies
+        run: bun install
+
+      - name: 📡 Publish ${{ matrix.subgraph }} schema to preview target
+        env:
+          SUBGRAPH: ${{ matrix.subgraph }}
+          HIVE_ACCESS_TOKEN: ${{ secrets.HIVE_ACCESS_TOKEN }}
+          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ env.HIVE_PREVIEW_ENV }}
+          HIVE_URL: ${{ secrets.HIVE_URL }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.actor }}
+        run: |
+          bunx @graphql-hive/cli schema:publish \
+            --registry.accessToken "${HIVE_ACCESS_TOKEN}" \
+            --target "${HIVE_TARGET}" \
+            --service "${SUBGRAPH}" \
+            --url "http://frontis-${SUBGRAPH}.${HIVE_URL}/graphql" \
+            --commit "${COMMIT}" \
+            --author "${AUTHOR}" \
+            "subgraphs/${SUBGRAPH}/schema.graphql"
