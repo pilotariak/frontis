@@ -47,13 +47,13 @@ const resolvers = {
   },
 };
 
-const schema_ = buildSubgraphSchema({ typeDefs, resolvers });
+const schema_ = buildSubgraphSchema([{ typeDefs, resolvers }]);
 
-const yoga = createYoga({
+const yoga = createYoga<{ env: Env } & ExecutionContext>({
   schema: schema_,
   graphqlEndpoint: "/graphql",
   plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-categories")],
-  context: ({ request, env }: { request: Request; env: Env }) => {
+  context: ({ request, env }) => {
     const league = request.headers.get("x-pilotariak-league");
     if (!league) {
       throw new GraphQLError("Missing X-Pilotariak-League header", {
