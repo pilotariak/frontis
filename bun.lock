@@ -25,7 +25,7 @@
         "@graphql-hive/gateway": "^1.7.3",
         "@graphql-mesh/cache-cfw-kv": "^0.105.25",
         "@graphql-mesh/transport-http": "^0.7.3",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
       },
     },
     "subgraphs/categories": {
@@ -43,7 +43,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -65,7 +65,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -87,7 +87,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -109,7 +109,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -131,7 +131,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -153,7 +153,7 @@
         "@opentelemetry/sdk-trace-base": "^1.30.0",
         "@opentelemetry/sdk-trace-node": "^1.30.0",
         "@opentelemetry/semantic-conventions": "^1.28.0",
-        "graphql": "^16.9.0",
+        "graphql": "^16.13.2",
         "graphql-yoga": "^5.13.0",
       },
       "devDependencies": {
@@ -180,6 +180,9 @@
         "wrangler": "^4.72.0",
       },
     },
+  },
+  "overrides": {
+    "graphql": "^16.13.2",
   },
   "packages": {
     "@apollo/cache-control-types": ["@apollo/cache-control-types@1.0.3", "", { "peerDependencies": { "graphql": "14.x || 15.x || 16.x" } }, "sha512-F17/vCp7QVwom9eG7ToauIKdAxpSoadsJnqIfyryLFSkLSOEqu+eC5Z3N8OXcUVStuOMcNHlyraRsA6rRICu4g=="],
@@ -1486,14 +1489,6 @@
 
     "@envelop/response-cache/lru-cache": ["lru-cache@11.2.6", "", {}, "sha512-ESL2CrkS/2wTPfuend7Zhkzo2u0daGJ/A2VucJOgQ/C48S/zB8MMeMHSGKYpXhIjbPxfuezITkaBH1wqv00DDQ=="],
 
-    "@escape.tech/graphql-armor-block-field-suggestions/graphql": ["graphql@16.13.1", "", {}, "sha512-gGgrVCoDKlIZ8fIqXBBb0pPKqDgki0Z/FSKNiQzSGj2uEYHr1tq5wmBegGwJx6QB5S5cM0khSBpi/JFHMCvsmQ=="],
-
-    "@escape.tech/graphql-armor-max-depth/graphql": ["graphql@16.13.1", "", {}, "sha512-gGgrVCoDKlIZ8fIqXBBb0pPKqDgki0Z/FSKNiQzSGj2uEYHr1tq5wmBegGwJx6QB5S5cM0khSBpi/JFHMCvsmQ=="],
-
-    "@escape.tech/graphql-armor-max-tokens/graphql": ["graphql@16.13.1", "", {}, "sha512-gGgrVCoDKlIZ8fIqXBBb0pPKqDgki0Z/FSKNiQzSGj2uEYHr1tq5wmBegGwJx6QB5S5cM0khSBpi/JFHMCvsmQ=="],
-
-    "@escape.tech/graphql-armor-types/graphql": ["graphql@16.13.1", "", {}, "sha512-gGgrVCoDKlIZ8fIqXBBb0pPKqDgki0Z/FSKNiQzSGj2uEYHr1tq5wmBegGwJx6QB5S5cM0khSBpi/JFHMCvsmQ=="],
-
     "@graphql-hive/core/tiny-lru": ["tiny-lru@8.0.2", "", {}, "sha512-ApGvZ6vVvTNdsmt676grvCkUCGwzG9IqXma5Z07xJgiC5L7akUMof5U8G2JTI9Rz/ovtVhJBlY6mNhEvtjzOIg=="],
 
     "@graphql-hive/yoga/@graphql-hive/core": ["@graphql-hive/core@0.14.0", "", { "dependencies": { "@graphql-tools/utils": "^10.0.0", "@whatwg-node/fetch": "^0.10.6", "async-retry": "^1.3.3", "js-md5": "0.8.3", "lodash.sortby": "^4.7.0", "tiny-lru": "^8.0.2" }, "peerDependencies": { "graphql": "^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0" } }, "sha512-Mu4cqRZNqNhrM39KDYZP6DpVx4J/KB1mAUaS4h7sa9tnFyEcybERXfF6GN+88Ksb9ccFH5LV/13JblDPgUrl5g=="],
@@ -1509,8 +1504,6 @@
     "@graphql-mesh/plugin-rate-limit/@graphql-mesh/string-interpolation": ["@graphql-mesh/string-interpolation@0.5.8", "", { "dependencies": { "dayjs": "1.11.13", "json-pointer": "0.6.2", "lodash.get": "4.4.2", "tslib": "^2.4.0" }, "peerDependencies": { "graphql": "*" } }, "sha512-6u/62K4phhWQ0qsDldM0XYla0Imqk+3A6Vz2VSvOltn/cGCZv58oNM0M4IaC5+uZn3M+jZPV0uqkiXJ7oafh/Q=="],
 
     "@graphql-mesh/plugin-response-cache/@graphql-tools/utils": ["@graphql-tools/utils@11.0.0", "", { "dependencies": { "@graphql-typed-document-node/core": "^3.1.1", "@whatwg-node/promise-helpers": "^1.0.0", "cross-inspect": "1.0.1", "tslib": "^2.4.0" }, "peerDependencies": { "graphql": "^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0" } }, "sha512-bM1HeZdXA2C3LSIeLOnH/bcqSgbQgKEDrjxODjqi3y58xai2TkNrtYcQSoWzGbt9VMN1dORGjR7Vem8SPnUFQA=="],
-
-    "@graphql-mesh/transport-http/graphql": ["graphql@16.13.1", "", {}, "sha512-gGgrVCoDKlIZ8fIqXBBb0pPKqDgki0Z/FSKNiQzSGj2uEYHr1tq5wmBegGwJx6QB5S5cM0khSBpi/JFHMCvsmQ=="],
 
     "@graphql-mesh/types/@graphql-hive/pubsub": ["@graphql-hive/pubsub@2.1.1", "", { "dependencies": { "@repeaterjs/repeater": "^3.0.6", "@whatwg-node/disposablestack": "^0.0.6", "@whatwg-node/promise-helpers": "^1.3.2" }, "peerDependencies": { "@nats-io/nats-core": "^3", "ioredis": "^5" }, "optionalPeers": ["@nats-io/nats-core", "ioredis"] }, "sha512-00Hqz3eA/EZZgwU38bAjFA5FUzD5GRfJqMux/gzrExLemJOJjX6CoFFhZQ3a0JDAJZUryIKvMA9PQNtMKrLUGw=="],
 

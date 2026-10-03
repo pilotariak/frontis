@@ -26,13 +26,15 @@ const resolvers = {
   },
 };
 
-const yoga = createYoga({
-  schema: buildSubgraphSchema({ typeDefs, resolvers }),
+const yoga = createYoga<Env & ExecutionContext>({
+  schema: buildSubgraphSchema([{ typeDefs, resolvers }]),
   graphqlEndpoint: "/graphql",
   plugins: [useOpenTelemetry({}), useSubgraphMetrics("frontis-echo")],
 });
 
-const yogaFetch = withHttpMetrics(yoga.fetch.bind(yoga));
+const yogaFetch = withHttpMetrics((request: Request, env: Env, ctx: ExecutionContext) =>
+  yoga.fetch(request, env, ctx)
+);
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

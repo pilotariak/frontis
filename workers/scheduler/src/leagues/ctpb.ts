@@ -142,7 +142,7 @@ export class CtpbScraper implements LeagueScraper {
         const sets = cols.eq(4).text().replace(/[\s ]/g, "").match(/\d{1,2}\/\d{1,2}/g) ?? [];
         const scores = sets.length > 0 ? sets.join(" ") : null;
 
-        const extractClubData = (col: cheerio.Cheerio<cheerio.AnyNode>) => {
+        const extractClubData = (col: typeof clubACol) => {
           const fullText = col.contents().first().text().trim();
           const teamNumber = col
             .find("span.small")

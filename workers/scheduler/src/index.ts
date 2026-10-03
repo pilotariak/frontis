@@ -121,7 +121,7 @@ export default {
       try {
         const { results, saved } = await scrapeResults(
           env,
-          { league, competition: competition!, specialty: specialty!, category: category!, phase },
+          { league: league!, competition: competition!, specialty: specialty!, category: category!, phase },
           dryRun
         );
 
@@ -186,7 +186,7 @@ export default {
           ? `${results.length} results found — ${yellow("not saved (dry-run)")}`
           : `${green(`${saved} results saved`)}`;
 
-        const db = getDatabase(env, league);
+        const db = getDatabase(env, league!);
         const [competitionName, specialtyName, categoryName] = db
           ? await Promise.all([
               lookupName(db, "competitions", competition!),
@@ -263,7 +263,7 @@ Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
     );
   },
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`[scheduler] Cron triggered at ${event.cron}`);
 
     const leagues = ["lcapb", "lidfpb"];

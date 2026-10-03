@@ -16,9 +16,11 @@ export interface CategoryRow {
   name: string;
 }
 
+type LeagueDbKey = Extract<keyof Env, `DB_LEAGUE_${string}`>;
+
 export function getDatabase(env: Env, league: string): D1Database {
-  const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
-  const db = env[key];
+  const key = `DB_LEAGUE_${league.toUpperCase()}` as LeagueDbKey;
+  const db: D1Database | undefined = env[key];
   if (!db) {
     throw new GraphQLError(`Unknown league: ${league}`, {
       extensions: { code: "BAD_USER_INPUT" },
