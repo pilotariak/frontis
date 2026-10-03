@@ -140,13 +140,18 @@ gh workflow run hive.yml --ref main -f ref=v0.9.0
 
 The preview publish is skipped until a target is configured:
 
-1. In Hive, make sure the target exists (e.g. `pilotariak/frontis/staging`) and that the access token stored in the
-   `HIVE_ACCESS_TOKEN` secret may publish to it (`schemaVersion:publish`). Otherwise the CLI fails with error `124`.
-2. Set the repository variable `HIVE_PREVIEW_ENV` to the target name:
+1. In Hive, open the preview target (e.g. `pilotariak/frontis/development`) and create a registry access token with
+   schema publish rights for it. Registry tokens are bound to one target: the production token in `HIVE_ACCESS_TOKEN`
+   cannot publish elsewhere and fails with error `124` ("missing the `schemaVersion:publish` permission, or the target
+   does not exist").
+2. Store that token and name the target:
 
    ```bash
-   gh variable set HIVE_PREVIEW_ENV --body staging
+   gh secret set HIVE_PREVIEW_ACCESS_TOKEN
+   gh variable set HIVE_PREVIEW_ENV --body development
    ```
+
+   When `HIVE_PREVIEW_ACCESS_TOKEN` is absent the workflow falls back to `HIVE_ACCESS_TOKEN`.
 
 The preview target is overwritten by whichever pull request published last; it is a preview, not a long-lived environment.
 
