@@ -125,10 +125,10 @@ bunx @graphql-hive/cli schema:publish \
 
 Two GitHub Actions workflows publish schemas without any manual step:
 
-| Workflow                       | Trigger                           | What it does                                                                                                                                                                           |
-| ------------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Check / Hive` (`hive-pr.yml`) | Pull request opened or updated    | `schema:check` of every subgraph against **production** (breaking changes fail the check, grouped per PR with `--contextId pr-<n>`), then `schema:publish` to **staging** as a preview |
-| `Deploy / Hive` (`hive.yml`)   | Release created by release-please | `schema:publish` of every subgraph to **production**, then fetches the composed supergraph from the Hive CDN                                                                           |
+| Workflow                       | Trigger                           | What it does                                                                                                                                                                                    |
+| ------------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Check / Hive` (`hive-pr.yml`) | Pull request opened or updated    | `schema:check` of every subgraph against **production** (breaking changes fail the check, grouped per PR with `--contextId pr-<n>`), then, if enabled, `schema:publish` to a **preview** target |
+| `Deploy / Hive` (`hive.yml`)   | Release created by release-please | `schema:publish` of every subgraph to **production**, then fetches the composed supergraph from the Hive CDN                                                                                    |
 
 `Deploy / Hive` can also be run by hand for a given tag:
 
@@ -136,7 +136,19 @@ Two GitHub Actions workflows publish schemas without any manual step:
 gh workflow run hive.yml --ref main -f ref=v0.9.0
 ```
 
-The staging target is overwritten by whichever pull request published last; it is a preview, not a long-lived environment.
+### Enabling pull-request previews
+
+The preview publish is skipped until a target is configured:
+
+1. In Hive, make sure the target exists (e.g. `pilotariak/frontis/staging`) and that the access token stored in the
+   `HIVE_ACCESS_TOKEN` secret may publish to it (`schemaVersion:publish`). Otherwise the CLI fails with error `124`.
+2. Set the repository variable `HIVE_PREVIEW_ENV` to the target name:
+
+   ```bash
+   gh variable set HIVE_PREVIEW_ENV --body staging
+   ```
+
+The preview target is overwritten by whichever pull request published last; it is a preview, not a long-lived environment.
 
 ---
 

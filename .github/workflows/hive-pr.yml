@@ -7,8 +7,10 @@ name: Check / Hive
 # Pull-request counterpart of "Deploy / Hive" (hive.yml):
 #   1. schema:check every subgraph against the production target, so breaking
 #      changes and composition errors surface as a failed check on the PR;
-#   2. schema:publish every subgraph to the staging target, so the PR's
-#      supergraph can be inspected in Hive before it is released.
+#   2. schema:publish every subgraph to a preview target, so the PR's
+#      supergraph can be inspected in Hive before it is released. Opt-in:
+#      set the repository variable HIVE_PREVIEW_ENV to the target name
+#      (e.g. "staging"); HIVE_ACCESS_TOKEN must be allowed to publish to it.
 # The production target is never written to from here.
 on:
   pull_request:
@@ -16,10 +18,6 @@ on:
 
 # Deny all permissions at workflow level
 permissions: {}
-
-env:
-  # Hive target (environment) that receives pull-request previews.
-  HIVE_PREVIEW_ENV: staging
 
 jobs:
   check-schemas:
@@ -82,6 +80,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: check-schemas
+    # Skipped until a preview target is configured (see header comment).
+    if: ${{ vars.HIVE_PREVIEW_ENV != '' }}
     permissions:
       contents: read
     # Serialise publishes of the same subgraph across PRs (last push wins).
@@ -121,7 +121,7 @@ jobs:
         env:
           SUBGRAPH: ${{ matrix.subgraph }}
           HIVE_ACCESS_TOKEN: ${{ secrets.HIVE_ACCESS_TOKEN }}
-          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ env.HIVE_PREVIEW_ENV }}
+          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ vars.HIVE_PREVIEW_ENV }}
           HIVE_URL: ${{ secrets.HIVE_URL }}
           COMMIT: ${{ github.event.pull_request.head.sha }}
           AUTHOR: ${{ github.actor }}
