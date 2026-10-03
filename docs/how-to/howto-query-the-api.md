@@ -206,6 +206,19 @@ curl -s -X POST "$FRONTIS_GW" \
   -d '{"query": "{ competitions { id source_id name } }"}' | jq
 ```
 
+### List only enabled competitions
+
+A competition is `enabled` once the scheduler has saved results for it. Pass
+`enabled: true` to skip the ones that are still empty (or `enabled: false` to see
+what has not been scraped yet):
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ competitions(enabled: true) { id source_id name } }"}' | jq
+```
+
 ### Fetch a single competition with its results
 
 ```bash
@@ -265,8 +278,9 @@ curl -s -X POST "$FRONTIS_GW" \
 
 ## Results
 
-`results` accepts four optional filters: `competitionId`, `specialtyId`, `categoryId`,
-and `phase`. Without filters it returns every result in the league database.
+`results` accepts five optional filters: `competitionId`, `specialtyId`, `categoryId`,
+`clubId` (matches either side of the match) and `phase`. Results are ordered by `id` and
+paginated with `limit` (default 100, max 500) and `offset` (default 0).
 
 ### About `phase` values
 
@@ -325,6 +339,46 @@ curl -s -X POST "$FRONTIS_GW" \
     "query": "{ results(specialtyId: \"81\", categoryId: \"1435\", phase: \"P 8\") { id scores clubALineup { player1 { name } player2 { name } } clubBLineup { player1 { name } player2 { name } } } }"
   }' | jq
 ```
+
+### Paginate results
+
+Page through a large competition 50 results at a time:
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ results(competitionId: \"322\", limit: 50, offset: 50) { id phase scores } }"}' | jq
+```
+
+### Parsed sets and winner
+
+`scores` is the raw string from the league site. `sets` parses it into per-set
+integers, and `winner` is the club that took the most sets (`null` on a tie or when
+no score is recorded):
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{
+    "query": "{ results(competitionId: \"322\", phase: \"F 1\") { scores sets { a b } winner { name } clubA { name } clubB { name } } }"
+  }' | jq
+```
+
+### All results of a club
+
+Either filter with `clubId`, or start from the club and walk the reverse edge. Both
+return the matches where the club played as `clubA` or `clubB`:
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ club(id: \"417\") { name results(limit: 20) { dateMatch phase scores winner { name } } } }"}' | jq
+```
+
+`Specialty.results` and `Category.results` work the same way.
 
 ---
 
