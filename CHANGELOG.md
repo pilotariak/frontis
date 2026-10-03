@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/pilotariak/frontis/compare/v0.9.0...v0.10.0) (2026-10-03)
+
+
+### 🚀 Features
+
+* **release:** publish Hive schemas and verify supergraph on release ([#79](https://github.com/pilotariak/frontis/issues/79)) ([99125b7](https://github.com/pilotariak/frontis/commit/99125b7742e02d086d8b0f8e7fe340573e9ad644))
+
 ## [0.9.0](https://github.com/pilotariak/frontis/compare/v0.8.0...v0.9.0) (2026-10-03)
 
 
