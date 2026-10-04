@@ -11,11 +11,16 @@ type Specialty @key(fields: "id") {
   id: ID!
   "Human-readable name of the discipline."
   name: String!
+  "Whether this specialty is enabled (opt-in; defaults to false)."
+  enabled: Boolean!
 }
 
 type Query {
   "Fetch a single specialty by its ID."
   specialty(id: ID!): Specialty
-  "List all specialties."
-  specialties: [Specialty!]!
+  """
+  List specialties. Pass `enabled: true` to get only specialties that are
+  opted in; omit the argument to get all of them.
+  """
+  specialties(enabled: Boolean): [Specialty!]!
 }

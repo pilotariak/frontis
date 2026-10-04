@@ -105,6 +105,10 @@ type Category @join__type(graph: CATEGORIES, key: "id")  @join__type(graph: RESU
   """
   name: String! @join__field(graph: CATEGORIES) 
   """
+  Whether this category is enabled (opt-in; defaults to false).
+  """
+  enabled: Boolean! @join__field(graph: CATEGORIES) 
+  """
   Results played in this category, oldest first.
   """
   results(limit: Int = 100, offset: Int = 0) : [Result!]! @join__field(graph: RESULTS) 
@@ -116,9 +120,10 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
   """
   category(id: ID!) : Category @join__field(graph: CATEGORIES) 
   """
-  List all categories.
+  List categories. Pass `enabled: true` to get only categories that are
+  opted in; omit the argument to get all of them.
   """
-  categories: [Category!]! @join__field(graph: CATEGORIES) 
+  categories(enabled: Boolean) : [Category!]! @join__field(graph: CATEGORIES) 
   """
   Fetch a single club by its ID.
   """
@@ -166,9 +171,10 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
   """
   specialty(id: ID!) : Specialty @join__field(graph: SPECIALTIES) 
   """
-  List all specialties.
+  List specialties. Pass `enabled: true` to get only specialties that are
+  opted in; omit the argument to get all of them.
   """
-  specialties: [Specialty!]! @join__field(graph: SPECIALTIES) 
+  specialties(enabled: Boolean) : [Specialty!]! @join__field(graph: SPECIALTIES) 
 }
 
 """
@@ -321,5 +327,9 @@ type Specialty @join__type(graph: RESULTS, key: "id")  @join__type(graph: SPECIA
   Human-readable name of the discipline.
   """
   name: String! @join__field(graph: SPECIALTIES) 
+  """
+  Whether this specialty is enabled (opt-in; defaults to false).
+  """
+  enabled: Boolean! @join__field(graph: SPECIALTIES) 
 }
     

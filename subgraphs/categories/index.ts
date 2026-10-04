@@ -20,27 +20,38 @@ const resolvers = {
       { db }: Context
     ): Promise<CategoryRow | null> {
       return db
-        .prepare("SELECT id, name FROM categories WHERE id = ?")
+        .prepare("SELECT id, name, enabled FROM categories WHERE id = ?")
         .bind(Number(id))
         .first<CategoryRow>();
     },
 
-    async categories(_: unknown, _args: unknown, { db }: Context): Promise<CategoryRow[]> {
-      const { results } = await db
-        .prepare(`SELECT id, name FROM categories
-                  ORDER BY CASE WHEN name LIKE '%Série' THEN 0 ELSE 1 END, name`)
-        .all<CategoryRow>();
+    async categories(
+      _: unknown,
+      { enabled }: { enabled?: boolean | null },
+      { db }: Context
+    ): Promise<CategoryRow[]> {
+      const base = "SELECT id, name, enabled FROM categories";
+      const order = "ORDER BY CASE WHEN name LIKE '%Série' THEN 0 ELSE 1 END, name";
+      const stmt =
+        enabled == null
+          ? db.prepare(`${base} ${order}`)
+          : db.prepare(`${base} WHERE enabled = ? ${order}`).bind(enabled ? 1 : 0);
+      const { results } = await stmt.all<CategoryRow>();
       return results;
     },
   },
 
   Category: {
+    enabled(category: CategoryRow): boolean {
+      return Boolean(category.enabled);
+    },
+
     async __resolveReference(
       ref: { id: string },
       { db }: Context
     ): Promise<CategoryRow | null> {
       return db
-        .prepare("SELECT id, name FROM categories WHERE id = ?")
+        .prepare("SELECT id, name, enabled FROM categories WHERE id = ?")
         .bind(Number(ref.id))
         .first<CategoryRow>();
     },

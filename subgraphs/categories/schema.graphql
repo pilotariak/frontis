@@ -11,11 +11,16 @@ type Category @key(fields: "id") {
   id: ID!
   "Human-readable name of the category."
   name: String!
+  "Whether this category is enabled (opt-in; defaults to false)."
+  enabled: Boolean!
 }
 
 type Query {
   "Fetch a single category by its ID."
   category(id: ID!): Category
-  "List all categories."
-  categories: [Category!]!
+  """
+  List categories. Pass `enabled: true` to get only categories that are
+  opted in; omit the argument to get all of them.
+  """
+  categories(enabled: Boolean): [Category!]!
 }

@@ -14,6 +14,8 @@ export interface Context {
 export interface CategoryRow {
   id: number;
   name: string;
+  /** SQLite has no boolean: 0 = disabled, 1 = enabled. */
+  enabled: number;
 }
 
 type LeagueDbKey = Extract<keyof Env, `DB_LEAGUE_${string}`>;
