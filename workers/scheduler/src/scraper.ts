@@ -158,7 +158,9 @@ async function resolveSourceIds(db: D1Database, options: ScraperOptions): Promis
  * keeps the subrequest count flat and small:
  *   1. one SELECT per lookup table to preload name → id maps,
  *   2. one db.batch() to INSERT OR IGNORE any missing clubs/categories,
- *   3. one db.batch() of INSERT OR IGNORE statements for the results.
+ *   3. one db.batch() of INSERT OR IGNORE statements for the results, plus
+ *      the UPDATEs flipping `enabled` on the competition, specialties and
+ *      categories those results belong to.
  * The results table carries a UNIQUE(competition_id, specialty_id,
  * category_id, date_match, club_a_id, club_b_id, phase) constraint, so
  * INSERT OR IGNORE replaces the former SELECT-then-INSERT existence check.
@@ -235,6 +237,10 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   );
 
   const statements: D1PreparedStatement[] = [];
+  // Distinct specialties/categories that actually receive a result row, so the
+  // matching `enabled` flags can be flipped in the same batch below.
+  const usedSpecialtyIds = new Set<number>();
+  const usedCategoryIds = new Set<number>();
   for (const res of results) {
     const specialtyId = sharedSpecialty?.id ?? specialtyIds?.get(res.specialty);
     const clubAId = clubIds.get(baseClubName(res.club_a));
@@ -248,6 +254,8 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
       continue;
     }
 
+    usedSpecialtyIds.add(specialtyId);
+    usedCategoryIds.add(categoryId);
     statements.push(
       insertResult.bind(
         competition.id, specialtyId, categoryId, res.date_match,
@@ -262,18 +270,30 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
 
   if (statements.length === 0) return 0;
 
-  // Saving results for a competition marks it as enabled: the `enabled` flag is
-  // opt-in (defaults to 0) and a competition that has results is, by
-  // definition, one we want exposed. Runs in the same batch (same transaction)
-  // as the inserts so the flag never flips without the rows landing too.
+  // Saving results marks the competition, and every specialty and category
+  // that received a row, as enabled: the `enabled` flags are opt-in (default 0)
+  // and a lookup row that has results is, by definition, one we want exposed.
+  // Runs in the same batch (same transaction) as the inserts so no flag flips
+  // without the rows landing too.
   const enableCompetition = db
     .prepare("UPDATE competitions SET enabled = 1 WHERE id = ? AND enabled = 0")
     .bind(competition.id);
+  const enableWhereIdIn = (table: string, ids: Set<number>): D1PreparedStatement => {
+    const placeholders = [...ids].map(() => "?").join(", ");
+    return db
+      .prepare(`UPDATE ${table} SET enabled = 1 WHERE id IN (${placeholders}) AND enabled = 0`)
+      .bind(...ids);
+  };
+  const enableFlags = [
+    enableCompetition,
+    enableWhereIdIn("specialties", usedSpecialtyIds),
+    enableWhereIdIn("categories", usedCategoryIds),
+  ];
 
   // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
   // rows that already existed, so meta.changes sums to the newly inserted count.
-  // The UPDATE is the last statement and excluded from that sum.
-  const batchResults = await db.batch([...statements, enableCompetition]);
+  // The trailing UPDATEs are excluded from that sum.
+  const batchResults = await db.batch([...statements, ...enableFlags]);
   return batchResults
     .slice(0, statements.length)
     .reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
