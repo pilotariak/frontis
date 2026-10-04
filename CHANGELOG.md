@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/pilotariak/frontis/compare/v0.10.0...v0.11.0) (2026-10-04)
+
+
+### 🚀 Features
+
+* **hive:** check and preview-publish schemas on pull requests ([#82](https://github.com/pilotariak/frontis/issues/82)) ([10137cc](https://github.com/pilotariak/frontis/commit/10137cc786bed4318d1959ad6ed3989c3c6c7912))
+
+
+### 🐛 Bug Fixes
+
+* **types:** make `tsc --noEmit` pass across the workspace ([#81](https://github.com/pilotariak/frontis/issues/81)) ([c40b326](https://github.com/pilotariak/frontis/commit/c40b3264d41245027141b2128b043bea847e4566))
+
 ## [0.10.0](https://github.com/pilotariak/frontis/compare/v0.9.0...v0.10.0) (2026-10-03)
 
 
