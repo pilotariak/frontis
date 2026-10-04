@@ -1,0 +1,157 @@
+# SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+---
+name: Check / Hive
+
+# Pull-request counterpart of "Deploy / Hive" (hive.yml):
+#   1. schema:check every subgraph against the production target, so breaking
+#      changes and composition errors surface as a failed check on the PR;
+#   2. schema:publish every subgraph to the preview target (HIVE_ENV_PREVIEW,
+#      e.g. "development") and verify its composed supergraph on the Hive
+#      CDN, so the PR's supergraph can be inspected before it is released.
+#      Hive registry tokens are bound to one target, hence the *_PREVIEW
+#      secrets next to the production ones used by hive.yml.
+# The production target is never written to from here.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Deny all permissions at workflow level
+permissions: {}
+
+jobs:
+  check-schemas:
+    name: Check ${{ matrix.subgraph }} schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Forks do not receive the Hive secrets.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        subgraph:
+          - echo
+          - clubs
+          - competitions
+          - results
+          - specialties
+          - categories
+      fail-fast: false
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🎉 Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.2
+
+      - name: 📦️ Install dependencies
+        run: bun install
+
+      - name: 🔍 Check ${{ matrix.subgraph }} schema against production
+        env:
+          SUBGRAPH: ${{ matrix.subgraph }}
+          HIVE_ACCESS_TOKEN: ${{ secrets.HIVE_ACCESS_TOKEN }}
+          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ secrets.HIVE_ENV }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.actor }}
+          CONTEXT_ID: pr-${{ github.event.pull_request.number }}
+        run: |
+          bunx @graphql-hive/cli schema:check \
+            --registry.accessToken "${HIVE_ACCESS_TOKEN}" \
+            --target "${HIVE_TARGET}" \
+            --service "${SUBGRAPH}" \
+            --commit "${COMMIT}" \
+            --author "${AUTHOR}" \
+            --contextId "${CONTEXT_ID}" \
+            "subgraphs/${SUBGRAPH}/schema.graphql"
+
+  publish-preview:
+    name: Publish ${{ matrix.subgraph }} schema to preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: check-schemas
+    permissions:
+      contents: read
+    # Serialise publishes of the same subgraph across PRs (last push wins).
+    concurrency:
+      group: hive-preview-${{ matrix.subgraph }}
+      cancel-in-progress: false
+    strategy:
+      matrix:
+        subgraph:
+          - echo
+          - clubs
+          - competitions
+          - results
+          - specialties
+          - categories
+      fail-fast: false
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🎉 Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.2
+
+      - name: 📦️ Install dependencies
+        run: bun install
+
+      - name: 📡 Publish ${{ matrix.subgraph }} schema to preview target
+        env:
+          SUBGRAPH: ${{ matrix.subgraph }}
+          HIVE_ACCESS_TOKEN: ${{ secrets.HIVE_ACCESS_TOKEN_PREVIEW }}
+          HIVE_TARGET: ${{ secrets.HIVE_ORG }}/${{ secrets.HIVE_PROJECT }}/${{ secrets.HIVE_ENV_PREVIEW }}
+          HIVE_URL: ${{ secrets.HIVE_URL_PREVIEW }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.actor }}
+        run: |
+          bunx @graphql-hive/cli schema:publish \
+            --registry.accessToken "${HIVE_ACCESS_TOKEN}" \
+            --target "${HIVE_TARGET}" \
+            --service "${SUBGRAPH}" \
+            --url "http://frontis-${SUBGRAPH}.${HIVE_URL}/graphql" \
+            --commit "${COMMIT}" \
+            --author "${AUTHOR}" \
+            "subgraphs/${SUBGRAPH}/schema.graphql"
+
+  verify-preview-supergraph:
+    name: Verify preview supergraph on Hive CDN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: publish-preview
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: 🔍 Fetch composed preview supergraph from Hive CDN
+        env:
+          HIVE_CDN_ACCESS_TOKEN: ${{ secrets.HIVE_CDN_ACCESS_TOKEN_PREVIEW }}
+          HIVE_CDN_ENDPOINT: ${{ secrets.HIVE_CDN_ENDPOINT_PREVIEW }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "X-Hive-CDN-Key: ${HIVE_CDN_ACCESS_TOKEN}" \
+            "${HIVE_CDN_ENDPOINT}/supergraph" > /dev/null

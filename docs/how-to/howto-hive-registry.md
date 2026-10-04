@@ -121,6 +121,39 @@ bunx @graphql-hive/cli schema:publish \
 
 ---
 
+## CI automation
+
+Two GitHub Actions workflows publish schemas without any manual step:
+
+| Workflow                       | Trigger                           | What it does                                                                                                                                                                                                                             |
+| ------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Check / Hive` (`hive-pr.yml`) | Pull request opened or updated    | `schema:check` of every subgraph against **production** (breaking changes fail the check, grouped per PR with `--contextId pr-<n>`), then `schema:publish` to the **preview** target and fetch its composed supergraph from the Hive CDN |
+| `Deploy / Hive` (`hive.yml`)   | Release created by release-please | `schema:publish` of every subgraph to **production**, then fetches the composed supergraph from the Hive CDN                                                                                                                             |
+
+`Deploy / Hive` can also be run by hand for a given tag:
+
+```bash
+gh workflow run hive.yml --ref main -f ref=v0.9.0
+```
+
+### Secrets
+
+Hive registry tokens and CDN keys are bound to one target, so each workflow has its own set of repository secrets:
+
+| Production (`hive.yml`) | Preview (`hive-pr.yml`)         | Content                                            |
+| ----------------------- | ------------------------------- | -------------------------------------------------- |
+| `HIVE_ENV`              | `HIVE_ENV_PREVIEW`              | Target name (`production` / `development`)         |
+| `HIVE_ACCESS_TOKEN`     | `HIVE_ACCESS_TOKEN_PREVIEW`     | Registry access token with schema publish rights   |
+| `HIVE_CDN_ENDPOINT`     | `HIVE_CDN_ENDPOINT_PREVIEW`     | CDN endpoint of the target (`…/artifacts/v1/<id>`) |
+| `HIVE_CDN_ACCESS_TOKEN` | `HIVE_CDN_ACCESS_TOKEN_PREVIEW` | CDN access key of the target                       |
+
+`HIVE_ORG`, `HIVE_PROJECT` and `HIVE_URL` are shared. Publishing with a token from another target fails with Hive
+error `124` ("missing the `schemaVersion:publish` permission, or the target does not exist").
+
+The preview target is overwritten by whichever pull request published last; it is a preview, not a long-lived environment.
+
+---
+
 ## Checking the published schema
 
 After publishing, verify the schema was accepted in the Hive dashboard:
