@@ -20,26 +20,37 @@ const resolvers = {
       { db }: Context
     ): Promise<SpecialtyRow | null> {
       return db
-        .prepare("SELECT id, name FROM specialties WHERE id = ?")
+        .prepare("SELECT id, name, enabled FROM specialties WHERE id = ?")
         .bind(Number(id))
         .first<SpecialtyRow>();
     },
 
-    async specialties(_: unknown, _args: unknown, { db }: Context): Promise<SpecialtyRow[]> {
-      const { results } = await db
-        .prepare("SELECT id, name FROM specialties")
-        .all<SpecialtyRow>();
+    async specialties(
+      _: unknown,
+      { enabled }: { enabled?: boolean | null },
+      { db }: Context
+    ): Promise<SpecialtyRow[]> {
+      const base = "SELECT id, name, enabled FROM specialties";
+      const stmt =
+        enabled == null
+          ? db.prepare(`${base} ORDER BY id`)
+          : db.prepare(`${base} WHERE enabled = ? ORDER BY id`).bind(enabled ? 1 : 0);
+      const { results } = await stmt.all<SpecialtyRow>();
       return results;
     },
   },
 
   Specialty: {
+    enabled(specialty: SpecialtyRow): boolean {
+      return Boolean(specialty.enabled);
+    },
+
     async __resolveReference(
       ref: { id: string },
       { db }: Context
     ): Promise<SpecialtyRow | null> {
       return db
-        .prepare("SELECT id, name FROM specialties WHERE id = ?")
+        .prepare("SELECT id, name, enabled FROM specialties WHERE id = ?")
         .bind(Number(ref.id))
         .first<SpecialtyRow>();
     },
