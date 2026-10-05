@@ -39,4 +39,7 @@ export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
   DB_LEAGUE_LIDFPB: D1Database;
   DB_LEAGUE_CTPB: D1Database;
+  /** Service binding to this very worker; the nightly cron uses it to run each
+   *  competition scrape as its own invocation with its own CPU budget. */
+  SELF: Fetcher;
 }

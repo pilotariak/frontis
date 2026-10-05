@@ -125,6 +125,16 @@ export default {
           dryRun
         );
 
+        // Compact machine-readable summary. Used by the nightly cron (through the
+        // SELF service binding) so the callee spends no CPU on rendering rows or
+        // resolving display names.
+        if (url.searchParams.get("format") === "json") {
+          return new Response(
+            JSON.stringify({ league, competition, found: results.length, saved, dry_run: dryRun }),
+            { headers: JSON_HEADERS }
+          );
+        }
+
         // Tab-separated output for rendering client-side (the script draws the
         // table) or piping into `column -t` / spreadsheets. Always plain (no ANSI).
         if (url.searchParams.get("format") === "tsv") {
@@ -240,6 +250,9 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (url.searchParams.get("format") === "json") {
+          return new Response(JSON.stringify({ error: msg }), { status: 500, headers: JSON_HEADERS });
+        }
         return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
       }
     }
@@ -284,9 +297,18 @@ const CRON_LEAGUES = ["lcapb", "lidfpb"];
  * once by hand is what enrols it in the nightly refresh. The full list produced
  * by `/scrape_infos` reaches back to 2013 and must not be re-scraped every night.
  *
- * Competitions run sequentially: each costs several subrequests (one upstream
- * fetch plus D1 queries) and a Workers invocation is capped at 50 on the free
- * plan, so fanning out in parallel would only hit that ceiling sooner.
+ * Each competition is scraped by calling our own `/scrape_results` endpoint
+ * through the SELF service binding rather than by calling `scrapeResults`
+ * directly. A service-binding call is a separate Worker invocation with its own
+ * CPU time limit (10 ms on the Free plan), so the parsing cost of one
+ * competition's page is no longer summed with every other competition in the
+ * cron invocation, and a competition that blows the limit does not take the
+ * rest of the night's run down with it. The cron invocation itself only runs
+ * two small D1 queries and reads tiny JSON summaries.
+ *
+ * Competitions run sequentially: each self-call is one subrequest (50 per
+ * invocation on the Free plan, 32 Worker invocations per request chain), and
+ * going parallel would only hammer the upstream site.
  */
 async function runNightlyScrape(env: Env): Promise<void> {
   for (const league of CRON_LEAGUES) {
@@ -315,22 +337,51 @@ async function runNightlyScrape(env: Env): Promise<void> {
     }
 
     let total = 0;
+    let failed = 0;
     for (const competition of competitions) {
       const label = `${competition.name} (#${competition.id})`;
       try {
-        const { saved } = await scrapeResults(
-          env,
-          { league, competition: String(competition.id), specialty: "0", category: "0", phase: "0" },
-          false
-        );
+        const { saved, found } = await scrapeViaSelf(env, league, competition.id);
         total += saved;
-        console.log(`[scheduler][${league}] ${label}: saved ${saved} results`);
+        console.log(`[scheduler][${league}] ${label}: found ${found}, saved ${saved} results`);
       } catch (err: unknown) {
+        failed++;
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[scheduler][${league}] ${label}: ${message}`);
       }
     }
 
-    console.log(`[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions`);
+    console.log(
+      `[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions (${failed} failed)`
+    );
   }
+}
+
+/**
+ * Scrape one competition in a fresh invocation of this worker via the SELF
+ * service binding. The hostname is irrelevant for a service binding; only the
+ * path and query are routed.
+ */
+async function scrapeViaSelf(
+  env: Env,
+  league: string,
+  competitionId: number
+): Promise<{ found: number; saved: number }> {
+  const params = new URLSearchParams({
+    league,
+    competition: String(competitionId),
+    specialty: "0",
+    category: "0",
+    phase: "0",
+    format: "json",
+  });
+  const res = await env.SELF.fetch(`https://frontis-scheduler.internal/scrape_results?${params}`);
+  const body = (await res.json().catch(() => null)) as
+    | { found?: number; saved?: number; error?: string }
+    | null;
+
+  if (!res.ok || !body || typeof body.saved !== "number") {
+    throw new Error(body?.error ?? `self-call failed with HTTP ${res.status}`);
+  }
+  return { found: body.found ?? 0, saved: body.saved };
 }

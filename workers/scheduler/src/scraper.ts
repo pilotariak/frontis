@@ -14,9 +14,11 @@ const scrapers: Record<string, LeagueScraper> = {
   ctpb: new CtpbScraper(),
 };
 
+type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;
+
 function getDatabase(env: Env, league: string): D1Database {
-  const key = `DB_LEAGUE_${league.toUpperCase()}` as keyof Env;
-  const db = env[key];
+  const key = `DB_LEAGUE_${league.toUpperCase()}` as DatabaseBinding;
+  const db: D1Database | undefined = env[key];
   if (!db) {
     throw new Error(`Database binding for league '${league}' not found.`);
   }
