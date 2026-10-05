@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
 // SPDX-License-Identifier: Apache-2.0
 
+import { requireInternalToken } from "./auth";
 import { scrapeFormOptions } from "./scraper";
 import type { Env, FormOption, League } from "./types";
 import { version } from "../../../package.json";
@@ -24,9 +25,11 @@ function makeColors(noColor: boolean) {
   };
 }
 
+type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;
+
 function getDatabase(env: Env, acronym: string): D1Database {
-  const key = `DB_LEAGUE_${acronym.toUpperCase()}` as keyof Env;
-  const db = env[key];
+  const key = `DB_LEAGUE_${acronym.toUpperCase()}` as DatabaseBinding;
+  const db: D1Database | undefined = env[key];
   if (!db) throw new Error(`No database binding for league '${acronym}'.`);
   return db;
 }
@@ -62,9 +65,15 @@ export default {
     const { bold, dim, cyan, yellow, green, gray } = makeColors(noColor);
 
     // ── /version ───────────────────────────────────────────────────────────────
+    // The only unauthenticated endpoint: it reveals nothing beyond the release
+    // number and lets monitoring confirm the deployed version.
     if (url.pathname === "/version") {
       return new Response(JSON.stringify({ version }), { headers: JSON_HEADERS });
     }
+
+    // Everything below scrapes upstream sites and/or writes to D1.
+    const denied = requireInternalToken(req, env.INTERNAL_SERVICE_TOKEN);
+    if (denied) return denied;
 
     // ── /init ──────────────────────────────────────────────────────────────────
     if (url.pathname === "/init") {
@@ -176,6 +185,9 @@ ${bold("/init")}      — register a new league in the database
 ${bold("/bootstrap")} — scrape and seed competitions, specialties, categories for a league
   ${gray(`${base}/bootstrap?league=lcapb`)}
   ${gray(`${base}/bootstrap?league=lcapb&competition_source_id=20260501&dry_run=false`)}
+
+Authentication: every endpoint except ${bold("/version")} requires the header
+  ${gray("x-internal-token: <INTERNAL_SERVICE_TOKEN>")}
 `,
       TEXT
     );

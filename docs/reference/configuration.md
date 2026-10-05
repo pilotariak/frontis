@@ -113,9 +113,22 @@ Runs daily at 03:00 UTC.
 
 ### Secrets
 
-| Secret            | Description                                                                                              |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| (league-specific) | The scheduler may require API keys or session tokens for league websites. Set via `wrangler secret put`. |
+| Secret                   | Required | Description                                                                                                                                                       |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERNAL_SERVICE_TOKEN` | yes      | Shared secret required in the `x-internal-token` header of every HTTP endpoint except `/version`. Same value as the gateway and subgraphs. Missing → all requests fail with `500`. |
+| (league-specific)        | no       | The scheduler may require API keys or session tokens for league websites. Set via `wrangler secret put`.                                                          |
+
+---
+
+## Setup-league (`workers/setup-league/wrangler.toml`)
+
+Utility Worker that seeds league reference data (`/init`, `/bootstrap`). Holds the same D1 bindings as the scheduler.
+
+### Secrets
+
+| Secret                   | Required | Description                                                                                                                                 |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERNAL_SERVICE_TOKEN` | yes      | Shared secret required in the `x-internal-token` header of every HTTP endpoint except `/version`. Missing → all requests fail with `500`. |
 
 ---
 

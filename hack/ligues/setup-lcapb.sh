@@ -9,6 +9,10 @@ LEAGUE="lcapb"
 SLEEP_SECONDS="${SLEEP_SECONDS:-2}"
 OPEN_BROWSER="${OPEN_BROWSER:-false}"
 
+# Required: the scheduler rejects every request without the shared secret in
+# the x-internal-token header (same value as the gateway/subgraphs).
+INTERNAL_SERVICE_TOKEN="${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN (the scheduler's x-internal-token secret)}"
+
 # Optional Cloudflare Access service-token headers.
 # Set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET in the environment
 # when targeting a Cloudflare-protected deployment.
@@ -19,9 +23,10 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
-# Build a curl args array, appending CF Access headers only when both vars are set.
+# Build a curl args array: internal token always, CF Access headers only when both vars are set.
 curl_args() {
   local args=(--fail --silent --show-error --location)
+  args+=(-H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}")
   if [[ -n "${CF_ACCESS_CLIENT_ID}" && -n "${CF_ACCESS_CLIENT_SECRET}" ]]; then
     args+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}")
     args+=(-H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")

@@ -47,12 +47,13 @@ Started by `bun run dev` (see [howto-dev](howto-dev.md)). Each worker runs on a 
 | categories   | `frontis-categories`   | `http://localhost:4006/graphql` |
 
 Every subgraph, including `echo`, checks the `x-internal-token` header against its
-`INTERNAL_SERVICE_TOKEN` variable. Locally this comes from a `.dev.vars` file in each
-subgraph directory (gitignored). Make sure all seven exist with the same value:
+`INTERNAL_SERVICE_TOKEN` variable. The auxiliary workers (`scheduler`, `setup-league`)
+require the same header on their HTTP endpoints. Locally this comes from a `.dev.vars` file
+in each worker directory (gitignored). Make sure they all exist with the same value:
 
 ```bash
-for s in echo specialties clubs competitions categories results; do
-  printf 'INTERNAL_SERVICE_TOKEN=dev-secret\n' > subgraphs/$s/.dev.vars
+for d in subgraphs/{echo,specialties,clubs,competitions,categories,results} workers/{scheduler,setup-league}; do
+  printf 'INTERNAL_SERVICE_TOKEN=dev-secret\n' > $d/.dev.vars
 done
 ```
 

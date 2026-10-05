@@ -9,6 +9,36 @@ It exposes two HTTP endpoints for on-demand scraping and runs automatically on a
 
 ---
 
+## Authentication
+
+Every endpoint except `/version` writes to the production D1 databases and hits the upstream
+league websites, so the worker rejects any request that does not carry the shared secret:
+
+```
+x-internal-token: <INTERNAL_SERVICE_TOKEN>
+```
+
+It is the same `INTERNAL_SERVICE_TOKEN` the gateway presents to the subgraphs. A request
+without it (or with a wrong value) gets `403 Forbidden`; a worker deployed without the secret
+answers `500` to everything (fail closed). The nightly cron is not an HTTP request and is not
+affected; its self-calls through the `SELF` binding forward the token.
+
+- **Production:** `hack/scripts/setup-internal-service-token.sh` sets the secret on every
+  worker, scheduler included. For one worker only:
+  `wrangler secret put INTERNAL_SERVICE_TOKEN --name frontis-scheduler`.
+- **Local:** create `workers/scheduler/.dev.vars` (gitignored) with
+  `INTERNAL_SERVICE_TOKEN=dev-secret`, or run the setup script with `--dev-vars`.
+
+The examples below assume the token is exported in your shell:
+
+```bash
+export INTERNAL_SERVICE_TOKEN=dev-secret
+```
+
+The helper scripts in `workers/scheduler/scripts/` read the same variable.
+
+---
+
 ## Running locally
 
 ```bash
@@ -56,16 +86,16 @@ Run this first to discover the IDs you need for `/scrape_results`.
 
 ```bash
 # List all available form options for LCAPB
-curl "http://127.0.0.1:8787/scrape_infos?league=lcapb"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lcapb"
 
 # Scope to a specific competition
-curl "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501"
 
 # Dry-run: fetch but do not write to the database
-curl "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501&dry_run=true"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501&dry_run=true"
 
 # LIDFPB league
-curl "http://127.0.0.1:8787/scrape_infos?league=lidfpb"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lidfpb"
 ```
 
 **Sample output**
@@ -147,19 +177,19 @@ npx wrangler d1 execute DB_LEAGUE_LCAPB --command \
   "SELECT id, source_id, name FROM competitions"
 
 # All results for competition id=2
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2"
 
 # Filter by specialty id=10 and category id=1
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0"
 
 # Dry-run: preview what would be saved without writing to the database
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&dry_run=true"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&dry_run=true"
 
 # Plain-text output (no ANSI colours) — suitable for browser or piping
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&no_color=true"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&specialty=10&category=1&no_color=true"
 
 # LIDFPB league, all results for competition id=1
-curl "http://127.0.0.1:8787/scrape_results?league=lidfpb&competition=1"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lidfpb&competition=1"
 ```
 
 **Sample output**
@@ -187,8 +217,8 @@ that `/scrape_results` depends on for its lookups.
 
 ```bash
 # Step 1 — seed reference data (uses competition source_id for the form fetch)
-curl "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501"
-curl "http://127.0.0.1:8787/scrape_infos?league=lidfpb&competition=20260501"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lcapb&competition=20260501"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_infos?league=lidfpb&competition=20260501"
 
 # Step 2 — look up the internal DB ids assigned to the seeded rows
 npx wrangler d1 execute DB_LEAGUE_LCAPB --command \
@@ -204,11 +234,11 @@ npx wrangler d1 execute DB_LEAGUE_LCAPB --command \
 # e.g. id=1 → source_id=1 → "1ère Série"
 
 # Step 3 — scrape results using DB ids (dry-run first to verify)
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&dry_run=true"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2&dry_run=true"
 
 # Step 4 — save for real
-curl "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2"
-curl "http://127.0.0.1:8787/scrape_results?league=lidfpb&competition=1"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lcapb&competition=2"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/scrape_results?league=lidfpb&competition=1"
 ```
 
 ---
@@ -219,7 +249,7 @@ In local development the daily cron (`0 3 * * *`) can be triggered without waiti
 the Wrangler test endpoint:
 
 ```bash
-curl "http://127.0.0.1:8787/__scheduled?cron=0+3+*+*+*"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8787/__scheduled?cron=0+3+*+*+*"
 ```
 
 This runs the same logic as the automatic nightly job. For each of `lcapb` and `lidfpb` it

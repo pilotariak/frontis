@@ -24,6 +24,9 @@ declare -A WORKER_DIRS=(
   ["frontis-competitions"]="subgraphs/competitions"
   ["frontis-categories"]="subgraphs/categories"
   ["frontis-results"]="subgraphs/results"
+  # Auxiliary workers: their HTTP endpoints write to D1 and require the same token.
+  ["frontis-scheduler"]="workers/scheduler"
+  ["frontis-setup-league"]="workers/setup-league"
 )
 
 SECRET="$(openssl rand -hex 32)"

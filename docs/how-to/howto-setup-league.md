@@ -9,6 +9,33 @@ season (or whenever you want to refresh the dropdown values from the upstream we
 
 ---
 
+## Authentication
+
+Every endpoint except `/version` writes to the production D1 databases and hits the upstream
+league websites, so the worker rejects any request that does not carry the shared secret:
+
+```
+x-internal-token: <INTERNAL_SERVICE_TOKEN>
+```
+
+It is the same `INTERNAL_SERVICE_TOKEN` the gateway presents to the subgraphs. A request
+without it (or with a wrong value) gets `403 Forbidden`; a worker deployed without the secret
+answers `500` to everything (fail closed).
+
+- **Production:** `hack/scripts/setup-internal-service-token.sh` sets the secret on every
+  worker, setup-league included. For one worker only:
+  `wrangler secret put INTERNAL_SERVICE_TOKEN --name frontis-setup-league`.
+- **Local:** create `workers/setup-league/.dev.vars` (gitignored) with
+  `INTERNAL_SERVICE_TOKEN=dev-secret`, or run the setup script with `--dev-vars`.
+
+The examples below assume the token is exported in your shell:
+
+```bash
+export INTERNAL_SERVICE_TOKEN=dev-secret
+```
+
+---
+
 ## Running locally
 
 ```bash
@@ -71,7 +98,7 @@ Registers a new league in the database. Call this once before running `/bootstra
 **Example**
 
 ```bash
-curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
 ```
 
 > The `acronym` must match an existing D1 database binding (`DB_LEAGUE_<ACRONYM>`).
@@ -118,44 +145,47 @@ The league must already exist in the database (inserted via `/init`).
 
 ```bash
 # Register LCAPB
-curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
 
 # Register LIDFPB
-curl "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
 ```
 
 ### Bootstrap reference data
 
 ```bash
 # Preview all form options — does not write to the database
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?no_color=true"
 
 # Scope to a specific competition (scoped dropdowns from upstream)
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&no_color=true"
 
 # Save competitions, specialties, and categories for LCAPB
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?dry_run=false&no_color=true"
 
 # Save scoped to a specific competition
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 
 # Same for LIDFPB
-curl -H "X-Pilotariak-League: lidfpb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lidfpb" \
      "http://127.0.0.1:8788/bootstrap?dry_run=false&no_color=true"
 ```
 
-Against the deployed worker (requires Cloudflare Access service token):
+Against the deployed worker, the production `INTERNAL_SERVICE_TOKEN` is required. If the
+worker is additionally placed behind Cloudflare Access, add the Access service-token headers:
 
 ```bash
-CF_CLIENT_ID=xxx.access
+INTERNAL_SERVICE_TOKEN=...            # production secret
+CF_CLIENT_ID=xxx.access               # only with Cloudflare Access
 CF_CLIENT_SECRET=yyy
 BASE="https://frontis-setup-league.nicolas-lamirault.workers.dev"
 
-curl -H "CF-Access-Client-Id: ${CF_CLIENT_ID}" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" \
+     -H "CF-Access-Client-Id: ${CF_CLIENT_ID}" \
      -H "CF-Access-Client-Secret: ${CF_CLIENT_SECRET}" \
      -H "X-Pilotariak-League: lcapb" \
      -L \
@@ -199,17 +229,17 @@ being populated.
 
 ```bash
 # Step 1 — register leagues (once per deployment / new league)
-curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
-curl "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lidfpb&name=Ligue+Ile-de-France+de+Pelote+Basque&url=https://lidfpb.euskalpilota.fr/resultats.php"
 
 # Step 2 — dry-run to preview (scoped to the current season competition)
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&no_color=true"
 
 # Step 3 — write to database
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
-curl -H "X-Pilotariak-League: lidfpb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lidfpb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 
 # Step 4 — verify the data was saved
@@ -221,8 +251,8 @@ To reset and re-seed a league database:
 
 ```bash
 bun run db:reset:lcapb:local
-curl "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
-curl -H "X-Pilotariak-League: lcapb" \
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" "http://127.0.0.1:8788/init?acronym=lcapb&name=Comit%C3%A9+Cote+d%27Argent+Pelote+Basque&url=https://lcapb.euskalpilota.fr/resultats.php"
+curl -H "x-internal-token: ${INTERNAL_SERVICE_TOKEN}" -H "X-Pilotariak-League: lcapb" \
      "http://127.0.0.1:8788/bootstrap?competition_source_id=20260501&dry_run=false&no_color=true"
 ```
 

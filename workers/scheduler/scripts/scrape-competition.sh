@@ -18,6 +18,9 @@
 #
 # Requires: wrangler, jq, curl. Run from a dir where the D1 binding resolves
 # (e.g. database/ or workers/scheduler/).
+#
+# The worker requires the shared secret in the x-internal-token header:
+#   INTERNAL_SERVICE_TOKEN=... ./scrape-competition.sh lcapb
 
 set -euo pipefail
 
@@ -38,6 +41,8 @@ LEAGUE="${1:?usage: scrape-competition.sh <league> [--phase N] [--all] [--save]}
 shift || true
 
 BASE="${SCHEDULER_BASE:-https://frontis-scheduler.pilotariak.com}"
+TOKEN="${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN (the worker's x-internal-token secret)}"
+AUTH=(-H "x-internal-token: ${TOKEN}")
 DB_NAME="pilotariak-${LEAGUE}"
 PHASE="0"
 # Default to remote D1. --local reads the persisted local state instead.
@@ -173,7 +178,7 @@ if [ "$ALL" -eq 1 ]; then
       q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${spec}&category=${cat}&phase=${PHASE}${NOCOLOR}"
 
       # Preview first (dry run), so the user sees results before saving.
-      preview="$(curl -fsS "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" || echo "  (request failed)")"
+      preview="$(curl -fsS "${AUTH[@]}" "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" || echo "  (request failed)")"
 
       # Auto-skip combos with no results — nothing to save.
       if grep -q "(no results)" <<<"$preview"; then
@@ -198,7 +203,7 @@ if [ "$ALL" -eq 1 ]; then
 
       case "$ans" in
         y|Y|yes|YES)
-          if curl -fsS "${BASE}/scrape_results?${q}" >/dev/null; then
+          if curl -fsS "${AUTH[@]}" "${BASE}/scrape_results?${q}" >/dev/null; then
             echo "  ${GREEN}saved.${RESET}"; saved=$((saved + 1))
           else
             echo "  ${RED}FAILED.${RESET}"
@@ -221,7 +226,7 @@ q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${SPECIALTY}&category=$
 
 echo ""
 echo "${BOLD}${BLUE}── Preview (dry run) ─────────────────────────────────────────${RESET}"
-render_table "$(curl -fsS "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
+render_table "$(curl -fsS "${AUTH[@]}" "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
 echo ""
 
 if [ "$SAVE" -eq 1 ]; then
@@ -232,7 +237,7 @@ fi
 case "$answer" in
   y|Y|yes|YES)
     echo "${BOLD}${BLUE}── Saving ────────────────────────────────────────────────────${RESET}"
-    curl -fsS "${BASE}/scrape_results?${q}"
+    curl -fsS "${AUTH[@]}" "${BASE}/scrape_results?${q}"
     echo ""
     echo "${GREEN}done.${RESET}"
     ;;

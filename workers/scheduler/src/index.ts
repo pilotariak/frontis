@@ -1,3 +1,4 @@
+import { requireInternalToken } from "./auth";
 import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
 import { version } from "../../../package.json";
@@ -39,11 +40,17 @@ export default {
     const { bold, dim, cyan, yellow, green, red, magenta, gray, white } = makeColors(noColor);
 
     // ── /version ───────────────────────────────────────────────────────────────
+    // The only unauthenticated endpoint: it reveals nothing beyond the release
+    // number and lets monitoring confirm the deployed version.
     if (url.pathname === "/version") {
       return new Response(JSON.stringify({ version }), {
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    // Everything below scrapes upstream sites and/or writes to D1.
+    const denied = requireInternalToken(req, env.INTERNAL_SERVICE_TOKEN);
+    if (denied) return denied;
 
     // ── /scrape_infos ──────────────────────────────────────────────────────────
     if (url.pathname === "/scrape_infos") {
@@ -271,6 +278,9 @@ ${bold("/scrape_results")} — fetch and display match results (competition/spec
   ${gray(`${base}/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0&dry_run=true`)}
 
 Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
+
+Authentication: every endpoint except ${bold("/version")} requires the header
+  ${gray("x-internal-token: <INTERNAL_SERVICE_TOKEN>")}
 `,
       TEXT
     );
@@ -360,7 +370,8 @@ async function runNightlyScrape(env: Env): Promise<void> {
 /**
  * Scrape one competition in a fresh invocation of this worker via the SELF
  * service binding. The hostname is irrelevant for a service binding; only the
- * path and query are routed.
+ * path and query are routed. The callee is this same worker, so the request
+ * must carry the internal token like any other HTTP caller.
  */
 async function scrapeViaSelf(
   env: Env,
@@ -375,7 +386,9 @@ async function scrapeViaSelf(
     phase: "0",
     format: "json",
   });
-  const res = await env.SELF.fetch(`https://frontis-scheduler.internal/scrape_results?${params}`);
+  const res = await env.SELF.fetch(`https://frontis-scheduler.internal/scrape_results?${params}`, {
+    headers: { "x-internal-token": env.INTERNAL_SERVICE_TOKEN },
+  });
   const body = (await res.json().catch(() => null)) as
     | { found?: number; saved?: number; error?: string }
     | null;

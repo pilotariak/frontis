@@ -76,13 +76,15 @@ The `bildu` scheduler is a separate Cloudflare Worker with a cron trigger (runs 
 
 Separating the scraper from the read path means a scraping failure does not affect API availability.
 
+Its on-demand HTTP endpoints (`/scrape_infos`, `/scrape_results`) write to D1, so they require the same `x-internal-token` header the subgraphs demand from the gateway; only `/version` is public. The cron path is not an HTTP request and bypasses the check, but its per-competition self-calls through the `SELF` service binding carry the token like any other caller.
+
 ---
 
 ## The setup-league worker
 
 The `frontis-setup-league` Worker is a utility Worker used to seed or reconfigure league databases. It holds D1 bindings for all leagues (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`) but is not on the query path and has no service binding from the gateway.
 
-It exists to bootstrap league data independently of the scheduler and subgraph Workers.
+It exists to bootstrap league data independently of the scheduler and subgraph Workers. Like the scheduler, every endpoint except `/version` requires the `x-internal-token` header.
 
 ---
 

@@ -42,4 +42,8 @@ export interface Env {
   /** Service binding to this very worker; the nightly cron uses it to run each
    *  competition scrape as its own invocation with its own CPU budget. */
   SELF: Fetcher;
+  /** Shared secret expected in the `x-internal-token` header of every HTTP
+   *  request (except `/version`). Same value as the gateway and subgraphs;
+   *  set with `wrangler secret put` or in `.dev.vars` locally. */
+  INTERNAL_SERVICE_TOKEN: string;
 }

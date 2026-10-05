@@ -14,6 +14,9 @@
 #
 # Requires: wrangler, jq, curl. Run from a dir where the D1 binding resolves
 # (e.g. database/ or workers/scheduler/), or adjust DB_NAME below.
+#
+# The worker requires the shared secret in the x-internal-token header:
+#   INTERNAL_SERVICE_TOKEN=... ./scrape-all-results.sh ctpb
 
 set -euo pipefail
 
@@ -21,6 +24,8 @@ LEAGUE="${1:?usage: scrape-all-results.sh <league> [--dry-run] [--phase N]}"
 shift || true
 
 BASE="${SCHEDULER_BASE:-https://frontis-scheduler.pilotariak.com}"
+TOKEN="${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN (the worker's x-internal-token secret)}"
+AUTH=(-H "x-internal-token: ${TOKEN}")
 DB_NAME="pilotariak-${LEAGUE}"
 PHASE="0"
 DRY=""
@@ -52,7 +57,7 @@ for comp in "${COMPETITIONS[@]}"; do
     for cat in "${CATEGORIES[@]}"; do
       url="${BASE}/scrape_results?league=${LEAGUE}&competition=${comp}&specialty=${spec}&category=${cat}&phase=${PHASE}&no_color=true${DRY}"
       echo "GET $url"
-      curl -fsS "$url" || echo "  !! failed comp=$comp spec=$spec cat=$cat"
+      curl -fsS "${AUTH[@]}" "$url" || echo "  !! failed comp=$comp spec=$spec cat=$cat"
       sleep 0.3   # be gentle on the upstream site
     done
   done
