@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { scrapeFormOptions } from "./scraper";
-import type { Env, FormOption, League } from "./types";
+import type { Env, FormOption, FormOptions, League } from "./types";
 import { version } from "../../../package.json";
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
@@ -31,25 +31,29 @@ function getDatabase(env: Env, acronym: string): D1Database {
   return db;
 }
 
-async function saveFormOptions(db: D1Database, options: ReturnType<typeof scrapeFormOptions> extends Promise<infer T> ? T : never): Promise<void> {
-  for (const c of options.competitions) {
-    await db
-      .prepare(`INSERT INTO competitions (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`)
-      .bind(c.sourceId, c.name)
-      .run();
-  }
-  for (const s of options.specialties) {
-    await db
-      .prepare(`INSERT INTO specialties (source_id, name) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`)
-      .bind(s.sourceId, s.name)
-      .run();
-  }
-  for (const c of options.categories) {
-    await db
-      .prepare(`INSERT INTO categories (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`)
-      .bind(c.sourceId, c.name)
-      .run();
-  }
+/**
+ * Upsert every scraped dropdown value into its lookup table in one `db.batch()`:
+ * a single D1 subrequest and a single transaction, so a failure midway cannot
+ * leave the tables half-updated. Mirrors the scheduler's `saveFormOptions`.
+ */
+async function saveFormOptions(db: D1Database, options: FormOptions): Promise<void> {
+  const upsertCompetition = db.prepare(
+    `INSERT INTO competitions (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+  );
+  const upsertSpecialty = db.prepare(
+    `INSERT INTO specialties (source_id, name) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
+  );
+  const upsertCategory = db.prepare(
+    `INSERT INTO categories (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+  );
+
+  const statements: D1PreparedStatement[] = [
+    ...options.competitions.map((c) => upsertCompetition.bind(c.sourceId, c.name)),
+    ...options.specialties.map((s) => upsertSpecialty.bind(s.sourceId, s.name)),
+    ...options.categories.map((c) => upsertCategory.bind(c.sourceId, c.name)),
+  ];
+
+  if (statements.length > 0) await db.batch(statements);
 }
 
 export default {
