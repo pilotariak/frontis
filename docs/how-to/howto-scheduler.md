@@ -222,8 +222,13 @@ the Wrangler test endpoint:
 curl "http://127.0.0.1:8787/__scheduled?cron=0+3+*+*+*"
 ```
 
-This runs the same logic as the automatic nightly job: it scrapes all results for both
-`lcapb` and `lidfpb` with no filters and saves new rows to D1.
+This runs the same logic as the automatic nightly job. For each of `lcapb` and `lidfpb` it
+lists the competitions with `enabled = 1`, scrapes each one with no specialty/category/phase
+filter, and saves new rows to D1.
+
+A competition becomes enabled the first time results are saved for it, so to enrol one in
+the nightly refresh run `/scrape_results` for it once by hand (without `dry_run`). Competitions
+that were only discovered by `/scrape_infos` stay disabled and are never scraped by the cron.
 
 ---
 
