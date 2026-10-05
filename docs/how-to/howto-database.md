@@ -35,7 +35,8 @@ database/
     ├── 0007_scores.sql              ← replace score_a/score_b ints with a single scores TEXT column
     ├── 0008_competitions_enabled.sql ← add enabled flag (INTEGER 0/1, default 0) to competitions
     ├── 0009_categories_enabled.sql   ← add enabled flag (INTEGER 0/1, default 0) to categories
-    └── 0010_specialties_enabled.sql  ← add enabled flag (INTEGER 0/1, default 0) to specialties
+    ├── 0010_specialties_enabled.sql  ← add enabled flag (INTEGER 0/1, default 0) to specialties
+    └── 0011_indexes.sql              ← secondary indexes on results filters and source_id lookups
 ```
 
 ---
