@@ -265,17 +265,72 @@ Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
 
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`[scheduler] Cron triggered at ${event.cron}`);
-
-    const leagues = ["lcapb", "lidfpb"];
-    const tasks = leagues.map((league) =>
-      scrapeResults(env, { league, competition: "", specialty: "0", category: "0", phase: "0" }, false)
-        .then(({ saved }) => console.log(`[scheduler][${league}] Saved ${saved} results`))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          console.error(`[scheduler][${league}] Error: ${message}`);
-        })
-    );
-
-    ctx.waitUntil(Promise.all(tasks));
+    ctx.waitUntil(runNightlyScrape(env));
   },
 } satisfies ExportedHandler<Env>;
+
+const CRON_LEAGUES = ["lcapb", "lidfpb"];
+
+/**
+ * Nightly job: refresh results for every enabled competition of each league.
+ *
+ * `scrapeResults` requires a competition DB id; the upstream sites only filter
+ * by competition, so there is no "all competitions" request. The cron therefore
+ * iterates the league's competitions and scrapes each one with no other filter.
+ *
+ * Only competitions with `enabled = 1` are visited. That flag is opt-in: it is
+ * flipped by `saveResults` the first time results land for a competition,
+ * typically through a manual `/scrape_results` call. Bootstrapping a competition
+ * once by hand is what enrols it in the nightly refresh. The full list produced
+ * by `/scrape_infos` reaches back to 2013 and must not be re-scraped every night.
+ *
+ * Competitions run sequentially: each costs several subrequests (one upstream
+ * fetch plus D1 queries) and a Workers invocation is capped at 50 on the free
+ * plan, so fanning out in parallel would only hit that ceiling sooner.
+ */
+async function runNightlyScrape(env: Env): Promise<void> {
+  for (const league of CRON_LEAGUES) {
+    const db = getDatabase(env, league);
+    if (!db) {
+      console.error(`[scheduler][${league}] No database binding, skipping`);
+      continue;
+    }
+
+    let competitions: { id: number; name: string }[];
+    try {
+      ({ results: competitions } = await db
+        .prepare("SELECT id, name FROM competitions WHERE enabled = 1 ORDER BY id")
+        .all<{ id: number; name: string }>());
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[scheduler][${league}] Failed to list enabled competitions: ${message}`);
+      continue;
+    }
+
+    if (competitions.length === 0) {
+      console.log(
+        `[scheduler][${league}] No enabled competition; run /scrape_results once for a competition to enrol it`
+      );
+      continue;
+    }
+
+    let total = 0;
+    for (const competition of competitions) {
+      const label = `${competition.name} (#${competition.id})`;
+      try {
+        const { saved } = await scrapeResults(
+          env,
+          { league, competition: String(competition.id), specialty: "0", category: "0", phase: "0" },
+          false
+        );
+        total += saved;
+        console.log(`[scheduler][${league}] ${label}: saved ${saved} results`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[scheduler][${league}] ${label}: ${message}`);
+      }
+    }
+
+    console.log(`[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions`);
+  }
+}
