@@ -223,12 +223,35 @@ curl "http://127.0.0.1:8787/__scheduled?cron=0+3+*+*+*"
 ```
 
 This runs the same logic as the automatic nightly job. For each of `lcapb` and `lidfpb` it
-lists the competitions with `enabled = 1`, scrapes each one with no specialty/category/phase
-filter, and saves new rows to D1.
+lists the competitions with `enabled = 1`, then calls its own
+`/scrape_results?...&specialty=0&category=0&phase=0&format=json` endpoint once per
+competition through the `SELF` service binding (see `wrangler.toml`).
 
 A competition becomes enabled the first time results are saved for it, so to enrol one in
 the nightly refresh run `/scrape_results` for it once by hand (without `dry_run`). Competitions
 that were only discovered by `/scrape_infos` stay disabled and are never scraped by the cron.
+
+### CPU time budget
+
+On the Workers Free plan every invocation — HTTP request or cron trigger — gets **10 ms of
+CPU time** (the Paid plan allows 30 s, 15 min for a daily cron). Hitting it surfaces as
+`Worker exceeded CPU time limit.` in the invocation logs. Two things keep the scheduler
+under that budget:
+
+- **Parsing is cheap.** Pages are parsed with `cheerio/slim` (htmlparser2), result rows are
+  walked on raw DOM nodes, the form dropdowns are only parsed by `/scrape_infos`, and nothing
+  is logged per row. A full-season page (~500 KB, ~600 results) parses in roughly 10 ms on a
+  laptop versus ~80 ms before.
+- **One invocation per competition.** The cron does not scrape in-process: each self-call
+  through the service binding is a separate invocation with its own CPU budget, so the cost of
+  one competition is never added to the others', and one competition exceeding the limit does
+  not abort the rest of the run.
+
+`format=json` makes `/scrape_results` return only `{ league, competition, found, saved,
+dry_run }` so the callee spends no CPU rendering rows.
+
+When running `bun run dev` the `SELF` binding points at the same dev session, so
+`/__scheduled` exercises the real fan-out locally.
 
 ---
 

@@ -12,6 +12,13 @@ crons = ["0 3 * * *"]
 [dev]
 inspector_port = 9233
 
+# Self binding. The nightly cron fans out one `/scrape_results` call per enabled
+# competition through it, so each scrape runs as a separate invocation with its
+# own CPU time limit instead of all of them sharing the cron invocation's.
+[[services]]
+binding = "SELF"
+service = "frontis-scheduler"
+
 [[d1_databases]]
 binding = "DB_LEAGUE_LCAPB"
 database_name = "pilotariak-lcapb"
