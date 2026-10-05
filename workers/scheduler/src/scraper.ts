@@ -27,56 +27,46 @@ function getDatabase(env: Env, league: string): D1Database {
 
 // ── /scrape_infos ─────────────────────────────────────────────────────────────
 
+/**
+ * Upsert every scraped dropdown value into its lookup table.
+ *
+ * All rows go through a single `db.batch()`: one D1 subrequest instead of one
+ * per row (a full `/scrape_infos` yields a few hundred rows, which used to be a
+ * few hundred sequential round trips), and D1 runs a batch as one transaction,
+ * so a failure midway no longer leaves the lookup tables half-updated. Each
+ * prepared statement is reused across its rows via `bind()`.
+ *
+ * Conflict targets differ on purpose: specialties and clubs are keyed by name
+ * (the HTML results only carry names), categories/phases/competitions by
+ * source_id (their names change between seasons, the id does not).
+ */
 async function saveFormOptions(db: D1Database, options: FormOptions): Promise<void> {
-  for (const s of options.specialties) {
-    await db
-      .prepare(
-        `INSERT INTO specialties (source_id, name) VALUES (?, ?)
-         ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
-      )
-      .bind(s.sourceId, s.name)
-      .run();
-  }
+  const bySourceIdOnNameConflict = (table: string) =>
+    db.prepare(
+      `INSERT INTO ${table} (source_id, name) VALUES (?, ?)
+       ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
+    );
+  const byNameOnSourceIdConflict = (table: string) =>
+    db.prepare(
+      `INSERT INTO ${table} (source_id, name) VALUES (?, ?)
+       ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+    );
 
-  for (const c of options.clubs) {
-    await db
-      .prepare(
-        `INSERT INTO clubs (source_id, name) VALUES (?, ?)
-         ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
-      )
-      .bind(c.sourceId, c.name)
-      .run();
-  }
+  const upsertSpecialty = bySourceIdOnNameConflict("specialties");
+  const upsertClub = bySourceIdOnNameConflict("clubs");
+  const upsertCategory = byNameOnSourceIdConflict("categories");
+  const upsertPhase = byNameOnSourceIdConflict("phases");
+  const upsertCompetition = byNameOnSourceIdConflict("competitions");
 
-  for (const c of options.categories) {
-    await db
-      .prepare(
-        `INSERT INTO categories (source_id, name) VALUES (?, ?)
-         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
-      )
-      .bind(c.sourceId, c.name)
-      .run();
-  }
+  const statements: D1PreparedStatement[] = [
+    ...options.specialties.map((s) => upsertSpecialty.bind(s.sourceId, s.name)),
+    ...options.clubs.map((c) => upsertClub.bind(c.sourceId, c.name)),
+    ...options.categories.map((c) => upsertCategory.bind(c.sourceId, c.name)),
+    ...options.phases.map((p) => upsertPhase.bind(p.sourceId, p.name)),
+    ...options.competitions.map((c) => upsertCompetition.bind(c.sourceId, c.name)),
+  ];
 
-  for (const p of options.phases) {
-    await db
-      .prepare(
-        `INSERT INTO phases (source_id, name) VALUES (?, ?)
-         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
-      )
-      .bind(p.sourceId, p.name)
-      .run();
-  }
-
-  for (const c of options.competitions) {
-    await db
-      .prepare(
-        `INSERT INTO competitions (source_id, name) VALUES (?, ?)
-         ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
-      )
-      .bind(c.sourceId, c.name)
-      .run();
-  }
+  if (statements.length > 0) await db.batch(statements);
 }
 
 export async function scrapeInfos(
