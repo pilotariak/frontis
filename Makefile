@@ -55,6 +55,16 @@ clean: ## Clean project
 bun: ## Bun executions
 	@bun run
 
+.PHONY: test
+test: ## Run unit tests (bun test) [FILTER=path/or/name]
+	@echo -e "$(INFO)$(INFO_COLOR)[Test] Running bun test $(FILTER)$(NO_COLOR)"
+	@bun test $(FILTER)
+
+.PHONY: typecheck
+typecheck: ## Type-check every workspace with tsc
+	@echo -e "$(INFO)$(INFO_COLOR)[Typecheck] Running tsc --noEmit$(NO_COLOR)"
+	@bunx tsc --noEmit -p tsconfig.json
+
 ##@ Cloudflare
 
 .PHONY: cloudflare-deploy
