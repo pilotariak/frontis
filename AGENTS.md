@@ -93,6 +93,8 @@ make cloudflare-deploy SERVICE=gateway      # deploy a single worker
 - GraphQL endpoint in production: `https://frontis-gateway.pilotariak.com/graphql`
 - Formatting: `dprint` (config in `.dprint.json`)
 - License headers required on all source files (checked by `licenserc.toml`)
+- Design tokens: `DESIGN.md` (design.md standard) is the source of truth for the gateway landing page. Edit it, then
+  run `make tokens` to regenerate the `:root` block of `gateway/index.html`; CI fails on drift (`make tokens-check`)
 
 ## Useful Commands
 

@@ -65,6 +65,29 @@ typecheck: ## Type-check every workspace with tsc
 	@echo -e "$(INFO)$(INFO_COLOR)[Typecheck] Running tsc --noEmit$(NO_COLOR)"
 	@bunx tsc --noEmit -p tsconfig.json
 
+##@ Design System
+
+.PHONY: tokens
+tokens: ## Generate the gateway/index.html :root tokens from DESIGN.md (single source of truth)
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Generating gateway/index.html tokens from DESIGN.md$(NO_COLOR)"
+	python3 hack/gen-design-tokens.py
+
+.PHONY: tokens-check
+tokens-check: ## Verify gateway/index.html tokens match DESIGN.md (no drift)
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Checking gateway/index.html is in sync with DESIGN.md$(NO_COLOR)"
+	python3 hack/gen-design-tokens.py --check
+
+.PHONY: tokens-lint
+tokens-lint: ## Lint DESIGN.md against the design.md standard
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Linting DESIGN.md$(NO_COLOR)"
+	bunx @google/design.md@0.4.0 lint DESIGN.md
+
+.PHONY: tokens-export
+tokens-export: ## Export DESIGN.md tokens to tokens.json (W3C DTCG interchange)
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Exporting DTCG tokens to tokens.json$(NO_COLOR)"
+	bunx @google/design.md@0.4.0 export --format dtcg DESIGN.md > tokens.json
+	@echo -e "$(OK)$(OK_COLOR) wrote tokens.json$(NO_COLOR)"
+
 ##@ Cloudflare
 
 .PHONY: cloudflare-deploy

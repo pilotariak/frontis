@@ -37,3 +37,6 @@ yarn-error.log*
 # Cloudflare
 **/.wrangler
 **/.dev.vars
+
+# exported design tokens (regenerate with `make tokens-export`)
+tokens.json
