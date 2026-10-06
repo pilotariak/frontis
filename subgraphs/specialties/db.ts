@@ -1,4 +1,5 @@
 import { GraphQLError } from "graphql";
+import type { Loader } from "./loader.js";
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
@@ -7,15 +8,17 @@ export interface Env {
   INTERNAL_SERVICE_TOKEN: string;
 }
 
-export interface Context {
-  db: D1Database;
-}
-
 export interface SpecialtyRow {
   id: number;
   name: string;
   /** SQLite has no boolean: 0 = disabled, 1 = enabled. */
   enabled: number;
+}
+
+export interface Context {
+  db: D1Database;
+  /** Per-request batching loader for `Specialty.__resolveReference`. */
+  specialties: Loader<SpecialtyRow>;
 }
 
 type LeagueDbKey = Extract<keyof Env, `DB_LEAGUE_${string}`>;

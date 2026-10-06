@@ -4,6 +4,7 @@ import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
 import type { Context, Env, SpecialtyRow } from "./db.js";
+import { createRowLoader } from "./loader.js";
 import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
@@ -45,14 +46,13 @@ const resolvers = {
       return Boolean(specialty.enabled);
     },
 
-    async __resolveReference(
+    // Batched: every representation in one `_entities` query is resolved by
+    // a single `WHERE id IN (...)` statement (see loader.ts).
+    __resolveReference(
       ref: { id: string },
-      { db }: Context
+      { specialties }: Context
     ): Promise<SpecialtyRow | null> {
-      return db
-        .prepare("SELECT id, name, enabled FROM specialties WHERE id = ?")
-        .bind(Number(ref.id))
-        .first<SpecialtyRow>();
+      return specialties.load(Number(ref.id));
     },
   },
 };
@@ -70,7 +70,11 @@ const yoga = createYoga<{ env: Env } & ExecutionContext>({
         extensions: { code: "BAD_REQUEST" },
       });
     }
-    return { db: getDatabase(env, league) };
+    const db = getDatabase(env, league);
+    return {
+      db,
+      specialties: createRowLoader<SpecialtyRow>(db, "SELECT id, name, enabled FROM specialties"),
+    };
   },
 });
 

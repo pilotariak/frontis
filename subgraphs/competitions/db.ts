@@ -1,14 +1,11 @@
 import { GraphQLError } from "graphql";
+import type { Loader } from "./loader.js";
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
   DB_LEAGUE_LIDFPB: D1Database;
   DB_LEAGUE_CTPB: D1Database;
   INTERNAL_SERVICE_TOKEN: string;
-}
-
-export interface Context {
-  db: D1Database;
 }
 
 export interface CompetitionRow {
@@ -19,6 +16,11 @@ export interface CompetitionRow {
   enabled: number;
 }
 
+export interface Context {
+  db: D1Database;
+  /** Per-request batching loader for `Competition.__resolveReference`. */
+  competitions: Loader<CompetitionRow>;
+}
 
 type LeagueDbKey = Extract<keyof Env, `DB_LEAGUE_${string}`>;
 

@@ -1,4 +1,5 @@
 import { GraphQLError } from "graphql";
+import type { Loader } from "./loader.js";
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
@@ -7,13 +8,15 @@ export interface Env {
   INTERNAL_SERVICE_TOKEN: string;
 }
 
-export interface Context {
-  db: D1Database;
-}
-
 export interface ClubRow {
   id: number;
   name: string;
+}
+
+export interface Context {
+  db: D1Database;
+  /** Per-request batching loader for `Club.__resolveReference`. */
+  clubs: Loader<ClubRow>;
 }
 
 type LeagueDbKey = Extract<keyof Env, `DB_LEAGUE_${string}`>;

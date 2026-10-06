@@ -4,6 +4,7 @@ import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
 import type { ClubRow, Context, Env } from "./db.js";
+import { createRowLoader } from "./loader.js";
 import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
@@ -32,14 +33,10 @@ const resolvers = {
   },
 
   Club: {
-    async __resolveReference(
-      ref: { id: string },
-      { db }: Context
-    ): Promise<ClubRow | null> {
-      return db
-        .prepare("SELECT id, name FROM clubs WHERE id = ?")
-        .bind(Number(ref.id))
-        .first<ClubRow>();
+    // Batched: every representation in one `_entities` query is resolved by
+    // a single `WHERE id IN (...)` statement (see loader.ts).
+    __resolveReference(ref: { id: string }, { clubs }: Context): Promise<ClubRow | null> {
+      return clubs.load(Number(ref.id));
     },
   },
 };
@@ -57,7 +54,11 @@ const yoga = createYoga<{ env: Env } & ExecutionContext>({
         extensions: { code: "BAD_REQUEST" },
       });
     }
-    return { db: getDatabase(env, league) };
+    const db = getDatabase(env, league);
+    return {
+      db,
+      clubs: createRowLoader<ClubRow>(db, "SELECT id, name FROM clubs"),
+    };
   },
 });
 
