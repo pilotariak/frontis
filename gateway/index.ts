@@ -121,7 +121,12 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/") {
-      const html = (landingPage as string).replace("__FRONTIS_VERSION__", `v${rootPkg.version}`);
+      // Wrangler bundles `.html` imports as a string; @types/bun (pulled in
+      // for `bun:test`) types them as HTMLBundle, hence the double cast.
+      const html = (landingPage as unknown as string).replace(
+        "__FRONTIS_VERSION__",
+        `v${rootPkg.version}`
+      );
       return new Response(html, {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });

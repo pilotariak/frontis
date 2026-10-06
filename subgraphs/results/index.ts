@@ -4,6 +4,7 @@ import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
 import type { Context, Env, ResultRow } from "./db.js";
+import { createRowLoader } from "./loader.js";
 import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
@@ -142,14 +143,15 @@ const resolvers = {
   },
 
   Result: {
+    // Batched: every representation in one `_entities` query is resolved by
+    // a single `WHERE id IN (...)` statement (see loader.ts).
+    // `async` so an invalid id rejects this entity only, instead of throwing
+    // synchronously out of the whole `_entities` list.
     async __resolveReference(
       ref: { id: string },
-      { db }: Context
+      { results }: Context
     ): Promise<ResultRow | null> {
-      return db
-        .prepare("SELECT * FROM results WHERE id = ?")
-        .bind(toId(ref.id, "id"))
-        .first<ResultRow>();
+      return results.load(toId(ref.id, "id"));
     },
 
     // snake_case DB columns → camelCase GraphQL fields
@@ -223,7 +225,11 @@ const yoga = createYoga<{ env: Env } & ExecutionContext>({
         extensions: { code: "BAD_REQUEST" },
       });
     }
-    return { db: getDatabase(env, league) };
+    const db = getDatabase(env, league);
+    return {
+      db,
+      results: createRowLoader<ResultRow>(db, "SELECT * FROM results"),
+    };
   },
 });
 

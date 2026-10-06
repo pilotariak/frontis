@@ -61,6 +61,8 @@ The gateway:
 
 This is transparent to the client. The client writes one query; the gateway handles the coordination.
 
+On the subgraph side, `@apollo/subgraph` calls `__resolveReference` once per representation. Each subgraph resolves these through a per-request loader (`subgraphs/<name>/loader.ts`) that collects every lookup made in the same tick and runs one `SELECT … WHERE id IN (…)` against D1, chunked to stay under D1's 100 bound-parameter limit. A `_entities` query carrying 50 club ids therefore costs one database round-trip, not 50.
+
 ---
 
 ## The supergraph SDL

@@ -1,4 +1,5 @@
 import { GraphQLError } from "graphql";
+import type { Loader } from "./loader.js";
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
@@ -9,6 +10,8 @@ export interface Env {
 
 export interface Context {
   db: D1Database;
+  /** Per-request batching loader for `Result.__resolveReference`. */
+  results: Loader<ResultRow>;
 }
 
 export interface ResultRow {
