@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/pilotariak/frontis/compare/v0.11.0...v0.12.0) (2026-10-06)
+
+
+### 🚀 Features
+
+* **db:** add enabled flag to categories and specialties ([#84](https://github.com/pilotariak/frontis/issues/84)) ([3d4ce71](https://github.com/pilotariak/frontis/commit/3d4ce710781023713080201e0a7d028a448706bc))
+* **design:** adopt design.md standard as single source of truth ([#93](https://github.com/pilotariak/frontis/issues/93)) ([72b29f1](https://github.com/pilotariak/frontis/commit/72b29f1674b094ceec20054f14704297b026794c))
+
+
+### 🐛 Bug Fixes
+
+* **scheduler:** scrape enabled competitions in nightly cron ([#86](https://github.com/pilotariak/frontis/issues/86)) ([4d5d60f](https://github.com/pilotariak/frontis/commit/4d5d60f8314f9df7875447a40b9f577288b9c0c3))
+
 ## [0.11.0](https://github.com/pilotariak/frontis/compare/v0.10.0...v0.11.0) (2026-10-04)
 
 
