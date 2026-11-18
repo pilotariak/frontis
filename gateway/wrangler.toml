@@ -54,18 +54,21 @@ GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
 # Demand control: max query cost (sum of per-field weights); 0 = disabled
 GRAPHQL_MAX_COST = "1000"
-# Rate limiting: window in ms, max requests per window per client IP
-RATE_LIMIT_WINDOW_MS = "60000"
-RATE_LIMIT_MAX_LIST = "60"
-RATE_LIMIT_MAX_ITEM = "120"
 
-[[kv_namespaces]]
-binding = "SUPERGRAPH_CACHE"
-id = "9b61ecdddbf84363a2b9d7f886aec23a"
+# Rate limiting: Workers Rate Limiting bindings, requests per client IP and
+# root Query field, counted per Cloudflare location. `period` must be 10 or 60
+# (gateway/rate-limit.ts assumes 60 for Retry-After). `namespace_id` must be
+# unique in the Cloudflare account: azkena uses 1001-1003. Bindings are not
+# inherited by [env.production], so they are declared again below.
+[[ratelimits]]
+name = "RATE_LIMIT_LIST"
+namespace_id = "1101"
+simple = { limit = 60, period = 60 }
 
-[[kv_namespaces]]
-binding = "RATE_LIMIT_CACHE"
-id = "aeca138a6eb44f0e99d2ecfbef2bd119"
+[[ratelimits]]
+name = "RATE_LIMIT_ITEM"
+namespace_id = "1102"
+simple = { limit = 120, period = 60 }
 
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -74,14 +77,13 @@ GRAPHQL_MAX_DEPTH = "7"
 GRAPHQL_MAX_TOKENS = "1000"
 GRAPHQL_MAX_DIRECTIVES = "10"
 GRAPHQL_MAX_COST = "1000"
-RATE_LIMIT_WINDOW_MS = "60000"
-RATE_LIMIT_MAX_LIST = "60"
-RATE_LIMIT_MAX_ITEM = "120"
 
-[[env.production.kv_namespaces]]
-binding = "SUPERGRAPH_CACHE"
-id = "9b61ecdddbf84363a2b9d7f886aec23a"
+[[env.production.ratelimits]]
+name = "RATE_LIMIT_LIST"
+namespace_id = "1103"
+simple = { limit = 60, period = 60 }
 
-[[env.production.kv_namespaces]]
-binding = "RATE_LIMIT_CACHE"
-id = "aeca138a6eb44f0e99d2ecfbef2bd119"
+[[env.production.ratelimits]]
+name = "RATE_LIMIT_ITEM"
+namespace_id = "1104"
+simple = { limit = 120, period = 60 }

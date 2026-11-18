@@ -69,7 +69,7 @@ On the subgraph side, `@apollo/subgraph` calls `__resolveReference` once per rep
 
 The **supergraph SDL** is the merged schema built by composing all subgraph schemas. It describes the complete API that clients see, including which fields come from which subgraph.
 
-In local development, the supergraph SDL is built by `bun run compose` and stored in `gateway/supergraph.graphql`. In production, the gateway fetches it from the **Hive CDN** (cached in KV) — this means subgraph schema updates are picked up without redeploying the gateway.
+In local development, the supergraph SDL is built by `bun run compose` and stored in `gateway/supergraph.graphql`. In production, the gateway fetches it from the **Hive CDN** (cached in memory for 60 seconds) — this means subgraph schema updates are picked up without redeploying the gateway.
 
 ---
 
