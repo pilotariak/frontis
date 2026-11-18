@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.12.0](https://github.com/pilotariak/frontis/compare/v0.11.0...v0.12.0) (2026-11-18)
+
+
+### 🚀 Features
+
+* **db:** add enabled flag to categories and specialties ([#84](https://github.com/pilotariak/frontis/issues/84)) ([3d4ce71](https://github.com/pilotariak/frontis/commit/3d4ce710781023713080201e0a7d028a448706bc))
+* **design:** adopt design.md standard as single source of truth ([#93](https://github.com/pilotariak/frontis/issues/93)) ([72b29f1](https://github.com/pilotariak/frontis/commit/72b29f1674b094ceec20054f14704297b026794c))
+* **rankings:** add end-of-championship rankings subgraph and scraper ([#95](https://github.com/pilotariak/frontis/issues/95)) ([02808df](https://github.com/pilotariak/frontis/commit/02808dfcb4910c1aa78845b793e95f75e2136201))
+
+
+### 🐛 Bug Fixes
+
+* **gateway:** list the rankings subgraph on the landing page ([#97](https://github.com/pilotariak/frontis/issues/97)) ([df2733d](https://github.com/pilotariak/frontis/commit/df2733dfc8a02b8dd418a2d4053f8eaaeb15bae9))
+* **scheduler:** scrape enabled competitions in nightly cron ([#86](https://github.com/pilotariak/frontis/issues/86)) ([4d5d60f](https://github.com/pilotariak/frontis/commit/4d5d60f8314f9df7875447a40b9f577288b9c0c3))
+* **scripts:** add rankings worker to internal token setup ([#98](https://github.com/pilotariak/frontis/issues/98)) ([bee1934](https://github.com/pilotariak/frontis/commit/bee1934bba39f5b51bd78b1af4cb3a367abb8ea1))
+
+
+### 📚 Documentation
+
+* **how-to:** add league setup and scheduler script guides ([#94](https://github.com/pilotariak/frontis/issues/94)) ([a329f34](https://github.com/pilotariak/frontis/commit/a329f34ae37ceb61a984479c1d8d569b69dbb267))
+* **how-to:** split the API query guide into one guide per subgraph ([#96](https://github.com/pilotariak/frontis/issues/96)) ([5b5a1e1](https://github.com/pilotariak/frontis/commit/5b5a1e1c806b4f729042f3244b095a5cb6adb44f))
+
 ## [0.11.0](https://github.com/pilotariak/frontis/compare/v0.10.0...v0.11.0) (2026-10-04)
 
 
