@@ -36,11 +36,30 @@ The gateway calls subgraphs via Cloudflare service bindings (in-process, no publ
 | `COMPETITIONS` | `frontis-competitions` | competitions |
 | `RESULTS`      | `frontis-results`      | results      |
 
-#### KV namespaces
+#### Rate limiting bindings
 
-| Binding            | Purpose                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| `SUPERGRAPH_CACHE` | Caches the supergraph SDL fetched from Hive CDN. Avoids a remote fetch on every cold start. |
+The gateway rate limits root `Query` fields with
+[Workers Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) bindings
+(`[[ratelimits]]`), keyed on the client IP (`CF-Connecting-IP`) and the field:
+
+| Binding           | `namespace_id` (default / production) | `limit` | `period` | Fields                                                                                        |
+| ----------------- | ------------------------------------- | ------- | -------- | --------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_LIST` | `1101` / `1103`                       | 60      | 60 s     | `categories`, `clubs`, `competitions`, `results`, `rankings`, `playerRankings`, `specialties` |
+| `RATE_LIMIT_ITEM` | `1102` / `1104`                       | 120     | 60 s     | `category`, `club`, `competition`, `result`, `teamRanking`, `specialty`                       |
+
+- `limit` counts per Cloudflare location and is approximate.
+- `period` must be `10` or `60`. `gateway/rate-limit.ts` sends `Retry-After: 60`, so keep it at `60`.
+- `namespace_id` must be unique in the Cloudflare account. Bindings that share one share their counters. azkena uses
+  `1001` to `1003`.
+- Bindings are not inherited by `[env.production]`, so both environments declare them.
+- No environment variable sets these limits. To change one, edit `gateway/wrangler.toml` and redeploy.
+- Requires Wrangler 4.36.0 or later.
+
+When a binding is missing, the fields it covers are not rate limited. When a call to a binding throws, the gateway logs
+the error and resolves the field.
+
+The gateway uses no KV namespace. It caches the supergraph SDL fetched from the Hive CDN in memory, for 60 seconds per
+Worker isolate.
 
 ### Observability
 

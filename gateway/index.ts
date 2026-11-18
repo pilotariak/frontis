@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createGatewayRuntime, useRateLimit } from "@graphql-hive/gateway";
-import CFWorkerKVCache from "@graphql-mesh/cache-cfw-kv";
+import { createGatewayRuntime } from "@graphql-hive/gateway";
 import * as httpTransport from "@graphql-mesh/transport-http";
 import landingPage from "./index.html";
 import rootPkg from "../package.json" with { type: "json" };
@@ -12,6 +11,7 @@ import {
   createCostAnalysisRule,
   type CostMap,
 } from "./validation.js";
+import { createRateLimitPlugin } from "./rate-limit.js";
 
 // Schema-specific demand control cost map.
 //
@@ -83,6 +83,38 @@ const SERVICE_BINDING_MAP: Record<string, string> = {
 // Using AsyncLocalStorage ensures each request's fetch calls use its own env
 // rather than the env captured at gateway initialization time.
 const envStorage = new AsyncLocalStorage<any>();
+
+type RuntimeCache = NonNullable<Parameters<typeof createGatewayRuntime>[0]["cache"]>;
+
+// Cache handed to the Hive Gateway runtime. The runtime only uses it to store
+// the supergraph SDL (key "hive-gateway:supergraph", with a 60 s TTL when no
+// polling interval is set), so the per-request runtime can skip the Hive CDN
+// fetch. It lives in module scope, which outlives a request within an isolate,
+// and holds a plain string, so sharing it across requests is safe. It replaces
+// the SUPERGRAPH_CACHE KV namespace, which cost one KV read on every request
+// and one KV write on every miss.
+const supergraphEntries = new Map<string, { value: unknown; expiresAt: number }>();
+const supergraphCache: RuntimeCache = {
+  get(key) {
+    const entry = supergraphEntries.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= Date.now()) {
+      supergraphEntries.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  },
+  set(key, value, options) {
+    const expiresAt = options?.ttl ? Date.now() + options.ttl * 1000 : Infinity;
+    supergraphEntries.set(key, { value, expiresAt });
+  },
+  delete(key) {
+    return supergraphEntries.delete(key);
+  },
+  getKeysByPrefix(prefix) {
+    return [...supergraphEntries.keys()].filter((key) => key.startsWith(prefix));
+  },
+};
 
 // Routes fetch calls to subgraph workers.dev URLs through CF Service Bindings.
 // Worker-to-Worker HTTP calls via workers.dev do not work within CF's network;
@@ -170,46 +202,13 @@ export default {
     const maxDirectives = parseInt(env.GRAPHQL_MAX_DIRECTIVES ?? "10", 10);
     const maxCost = parseInt(env.GRAPHQL_MAX_COST ?? "1000", 10);
 
-    // Rate limit windows (ms) and max requests per window per client IP
-    const rateLimitWindowMs = parseInt(env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
-    const rateLimitMaxList = parseInt(env.RATE_LIMIT_MAX_LIST ?? "60", 10);
-    const rateLimitMaxItem = parseInt(env.RATE_LIMIT_MAX_ITEM ?? "120", 10);
-
-    // Identify clients by Cloudflare's authoritative IP header, falling back to x-forwarded-for
-    const clientIdentifier =
-      "{context.headers.cf-connecting-ip}" +
-      "|{context.headers.x-forwarded-for}" +
-      "|{context.headers.host}";
-
-    const rateLimitConfig = [
-      // List queries — broader result sets, lower limit
-      { type: "Query", field: "categories",   max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "clubs",        max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "competitions", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "results",      max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "rankings",       max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "playerRankings", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "specialties",  max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      // Single-item queries — higher limit
-      { type: "Query", field: "category",     max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "club",         max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "competition",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "result",       max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "teamRanking",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-      { type: "Query", field: "specialty",    max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
-    ];
-
-    const rateLimitCache = env.RATE_LIMIT_CACHE
-      ? new CFWorkerKVCache({ namespace: env.RATE_LIMIT_CACHE })
-      : undefined;
-
     // The gateway is created per-request to avoid cross-request I/O context
     // issues in CF Workers. The Hive Gateway runtime accumulates request-scoped
     // I/O objects (AbortSignals, response streams) during processing; reusing a
     // singleton across requests triggers "Cannot perform I/O on behalf of a
-    // different request" (RefcountedCanceler). With SUPERGRAPH_CACHE backed by
-    // KV, the supergraph schema is read from the KV cache (~1-3 ms) on each
-    // call, making per-request creation cheap.
+    // different request" (RefcountedCanceler). The supergraph SDL comes from
+    // supergraphCache when this isolate fetched it less than 60 s ago, so most
+    // requests skip the Hive CDN fetch.
     const gateway = createGatewayRuntime({
       logging: getLogLevel(env),
       maskedErrors: env.ENVIRONMENT === "production",
@@ -226,16 +225,13 @@ export default {
             key: env.HIVE_CDN_TOKEN,
           }
         : localSupergraph,
-      cache: env.SUPERGRAPH_CACHE
-        ? new CFWorkerKVCache({ namespace: env.SUPERGRAPH_CACHE })
-        : undefined,
+      cache: supergraphCache,
       landingPage: false,
       graphiql: false,
       disableIntrospection: env.ENVIRONMENT === "production" ? {} : undefined,
       plugins: () => [
-        ...(rateLimitCache
-          ? [useRateLimit({ config: rateLimitConfig, cache: rateLimitCache }) as any]
-          : []),
+        // Workers Rate Limiting bindings, declared in wrangler.toml ([[ratelimits]]).
+        createRateLimitPlugin({ list: env.RATE_LIMIT_LIST, item: env.RATE_LIMIT_ITEM }),
         {
           onValidate({ addValidationRule }: { addValidationRule: (rule: unknown) => void }) {
             addValidationRule(createMaxDepthRule(maxDepth));
