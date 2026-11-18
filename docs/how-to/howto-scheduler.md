@@ -41,16 +41,16 @@ Run this first to discover the IDs you need for `/scrape_results`.
 
 **Required parameters**
 
-| Parameter     | Description                       |
-| ------------- | --------------------------------- |
-| `league`      | `lcapb` or `lidfpb`               |
+| Parameter | Description         |
+| --------- | ------------------- |
+| `league`  | `lcapb` or `lidfpb` |
 
 **Optional parameters**
 
-| Parameter     | Default | Description                                              |
-| ------------- | ------- | -------------------------------------------------------- |
-| `competition` | `""`    | Filter dropdowns to a specific competition `source_id`   |
-| `dry_run`     | `false` | If `true`, fetch and display results but do not save     |
+| Parameter     | Default | Description                                            |
+| ------------- | ------- | ------------------------------------------------------ |
+| `competition` | `""`    | Filter dropdowns to a specific competition `source_id` |
+| `dry_run`     | `false` | If `true`, fetch and display results but do not save   |
 
 **Examples**
 
@@ -124,20 +124,20 @@ Use `/scrape_infos` first to seed the database, then query it to obtain the IDs.
 
 **Required parameters**
 
-| Parameter     | Description                                           |
-| ------------- | ----------------------------------------------------- |
-| `league`      | `lcapb` or `lidfpb`                                   |
-| `competition` | Competition DB `id`                                   |
+| Parameter     | Description         |
+| ------------- | ------------------- |
+| `league`      | `lcapb` or `lidfpb` |
+| `competition` | Competition DB `id` |
 
 **Optional parameters**
 
-| Parameter   | Default | Description                                                   |
-| ----------- | ------- | ------------------------------------------------------------- |
-| `specialty` | `0`     | Specialty DB `id`; `0` means all specialties                  |
-| `category`  | `0`     | Category DB `id`; `0` means all categories                    |
-| `phase`     | `0`     | Phase DB `id`; `0` means all phases                           |
-| `dry_run`   | `false` | If `true`, scrape and display results but do not save         |
-| `no_color`  | `false` | If `true`, strip ANSI escape codes — useful for browsers      |
+| Parameter   | Default | Description                                              |
+| ----------- | ------- | -------------------------------------------------------- |
+| `specialty` | `0`     | Specialty DB `id`; `0` means all specialties             |
+| `category`  | `0`     | Category DB `id`; `0` means all categories               |
+| `phase`     | `0`     | Phase DB `id`; `0` means all phases                      |
+| `dry_run`   | `false` | If `true`, scrape and display results but do not save    |
+| `no_color`  | `false` | If `true`, strip ANSI escape codes — useful for browsers |
 
 **Examples**
 
@@ -180,6 +180,9 @@ Status      : 3 results saved
 ---
 
 ## Recommended workflow
+
+To pick ids from menus and preview results before saving them, use the scripts in
+`workers/scheduler/scripts/`: see [Use the scheduler scripts](howto-scheduler-scripts.md).
 
 Always run `/scrape_infos` before `/scrape_results` for a new competition season.
 It seeds the `competitions`, `specialties`, `clubs`, `categories`, and `phases` tables
@@ -247,8 +250,7 @@ under that budget:
   one competition is never added to the others', and one competition exceeding the limit does
   not abort the rest of the run.
 
-`format=json` makes `/scrape_results` return only `{ league, competition, found, saved,
-dry_run }` so the callee spends no CPU rendering rows.
+`format=json` makes `/scrape_results` return only `{ league, competition, found, saved, dry_run }` so the callee spends no CPU rendering rows.
 
 When running `bun run dev` the `SELF` binding points at the same dev session, so
 `/__scheduled` exercises the real fan-out locally.
@@ -259,8 +261,8 @@ When running `bun run dev` the `SELF` binding points at the same dev session, so
 
 ### Filter values (`competition`, `specialty`, `category`, `phase`)
 
-| Value | Endpoint        | Meaning                                      |
-| ----- | --------------- | -------------------------------------------- |
+| Value | Endpoint          | Meaning                                    |
+| ----- | ----------------- | ------------------------------------------ |
 | `0`   | `/scrape_results` | No filter — fetch all                      |
 | `""`  | `/scrape_infos`   | No filter — fetch all form options         |
 | `N`   | `/scrape_results` | Internal DB `id` — resolved to `source_id` |
@@ -272,7 +274,7 @@ When running `bun run dev` the `SELF` binding points at the same dev session, so
 
 ### Output flags
 
-| Parameter  | Default | Description                                                    |
-| ---------- | ------- | -------------------------------------------------------------- |
-| `dry_run`  | `false` | Fetch and display results but do not write to the database     |
-| `no_color` | `false` | Strip ANSI escape codes from the response (use in browsers)    |
+| Parameter  | Default | Description                                                 |
+| ---------- | ------- | ----------------------------------------------------------- |
+| `dry_run`  | `false` | Fetch and display results but do not write to the database  |
+| `no_color` | `false` | Strip ANSI escape codes from the response (use in browsers) |
