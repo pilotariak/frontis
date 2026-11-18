@@ -20,15 +20,28 @@ Start here if you are new to Frontis.
 
 Use these when you know what you want to accomplish and need the steps.
 
-| Document                                                 | Description                                          |
-| -------------------------------------------------------- | ---------------------------------------------------- |
-| [Develop and run Frontis](how-to/howto-dev.md)           | Local dev, Docker, scheduler, deploy, port reference |
-| [Query the GraphQL API](how-to/howto-query-the-api.md)   | curl examples for all queries                        |
-| [Manage D1 databases](how-to/howto-database.md)          | Migrations, schema, adding leagues                   |
-| [Set up a league](how-to/howto-setup-league.md)          | Bootstrap competitions, specialties, and categories  |
-| [Use the scheduler](how-to/howto-scheduler.md)           | Scrape results, discover source IDs, trigger cron    |
-| [Publish schemas to Hive](how-to/howto-hive-registry.md) | Schema registry workflow                             |
-| [Add a new subgraph](how-to/howto-add-subgraph.md)       | Introduce a new federated service                    |
+### Set up a league from scratch
+
+Follow these three guides in order to add a new league, from an empty database to its full results.
+
+| Step | Document                                                         | Description                                                |
+| ---- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1    | [Create the database](how-to/howto-league-create-database.md)    | D1 database, bindings in every worker, scraper, migrations |
+| 2    | [Bootstrap the reference data](how-to/howto-league-bootstrap.md) | League, competitions, specialties and categories           |
+| 3    | [Load all results](how-to/howto-league-load-results.md)          | Results of every competition, then the nightly refresh     |
+
+### Other guides
+
+| Document                                                       | Description                                          |
+| -------------------------------------------------------------- | ---------------------------------------------------- |
+| [Develop and run Frontis](how-to/howto-dev.md)                 | Local dev, Docker, scheduler, deploy, port reference |
+| [Query the GraphQL API](how-to/howto-query-the-api.md)         | curl examples for all queries                        |
+| [Manage D1 databases](how-to/howto-database.md)                | Migrations, schema, adding leagues                   |
+| [Set up a league](how-to/howto-setup-league.md)                | Bootstrap competitions, specialties, and categories  |
+| [Use the scheduler](how-to/howto-scheduler.md)                 | Scrape results, discover source IDs, trigger cron    |
+| [Use the scheduler scripts](how-to/howto-scheduler-scripts.md) | `scrape-competition.sh` and `scrape-all-results.sh`  |
+| [Publish schemas to Hive](how-to/howto-hive-registry.md)       | Schema registry workflow                             |
+| [Add a new subgraph](how-to/howto-add-subgraph.md)             | Introduce a new federated service                    |
 
 ---
 

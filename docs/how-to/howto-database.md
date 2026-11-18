@@ -195,37 +195,5 @@ bun run migrate:remote
 
 ## Adding a new league
 
-1. Create the D1 database:
-
-   ```bash
-   wrangler d1 create pilotariak-<league>
-   ```
-
-2. Add a `[[d1_databases]]` binding to `database/wrangler.toml`:
-
-   ```toml
-   [[d1_databases]]
-   binding = "DB_LEAGUE_<LEAGUE>"
-   database_name = "pilotariak-<league>"
-   database_id = "<id from step 1>"
-   migrations_dir = "migrations"
-   ```
-
-3. Add the same binding to `workers/scheduler/wrangler.toml` (so the scraper can write the
-   new league), `subgraphs/clubs/wrangler.toml` and `subgraphs/competitions/wrangler.toml`.
-
-4. Add `DB_LEAGUE_<LEAGUE>: D1Database` to the `Env` interface in
-   `subgraphs/clubs/db.ts` and `subgraphs/competitions/db.ts`.
-
-5. Apply migrations:
-
-   ```bash
-   cd database
-   wrangler d1 migrations apply pilotariak-<league> --remote
-   ```
-
-6. Deploy the subgraphs:
-
-   ```bash
-   bun run deploy
-   ```
+See [Create the database for a new league](howto-league-create-database.md), the first of the three
+guides that set up a league from scratch.
