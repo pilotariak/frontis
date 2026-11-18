@@ -70,6 +70,8 @@ export interface RankingSource {
 }
 
 export interface LeagueScraper {
+  /** The league site's results page, stored in the `leagues` row. */
+  readonly baseUrl: string;
   fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData>;
   /**
    * The results form of a competition (source_id): the competitions the site

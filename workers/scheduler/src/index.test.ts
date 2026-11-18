@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import worker from "./index";
+import * as rankings from "./rankings";
+import * as scraper from "./scraper";
 import type { Env } from "./types";
 import { version } from "../../../package.json";
 
@@ -142,6 +144,29 @@ describe("fetch", () => {
     expect(await res.text()).toBe(
       "Error: Competition with id '9' not found in database. Run /scrape_infos first."
     );
+  });
+
+  test("/scrape_results reports its counts as headers, which the admin page reads", async () => {
+    spyOn(scraper, "scrapeResults").mockResolvedValue({ results: [], saved: 0 });
+    const res = await get(
+      "/scrape_results?league=lcapb&competition=2&specialty=10&category=1&no_color=true&dry_run=true",
+      envWith({})
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Scrape-Found")).toBe("0");
+    expect(res.headers.get("X-Scrape-Saved")).toBe("0");
+    expect(await res.text()).toContain("(no results)");
+  });
+
+  test("/scrape_rankings reports its counts as headers, which the admin page reads", async () => {
+    spyOn(rankings, "scrapeRankings").mockResolvedValue({ competition: "Championnat", pages: [], found: 7, saved: 6 });
+    const res = await get(
+      "/scrape_rankings?league=lcapb&competition=2&specialty=10&category=1&no_color=true",
+      envWith({})
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Scrape-Found")).toBe("7");
+    expect(res.headers.get("X-Scrape-Saved")).toBe("6");
   });
 
   test("/scrape_rankings takes the same required parameters as /scrape_results", async () => {

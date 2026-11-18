@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { BadRequestError } from "./params";
 import { scrapeInfos, scrapeResults } from "./scraper";
@@ -400,8 +401,48 @@ describe("scrapeInfos", () => {
       ["INSERT INTO clubs (source_id, name) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id", ["7", "CA BEGLAIS"]],
       ["INSERT INTO categories (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name", ["3", "Seniors"]],
       ["INSERT INTO phases (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name", ["4", "Finale"]],
-      ["INSERT INTO competitions (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name", ["20260501", "Championnat 2026"]],
+      [
+        "INSERT INTO competitions (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name WHERE NOT EXISTS (SELECT 1 FROM competitions WHERE name = excluded.name) ON CONFLICT(name) DO NOTHING",
+        ["20260501", "Championnat 2026"],
+      ],
     ]);
+  });
+
+  test("skips a competition whose name another source_id holds, so the save does not fail", async () => {
+    // The LCAPB site lists one name under two ids; competitions.name is UNIQUE.
+    serve(FORM_HTML.replace(
+      `<option value="20260501">Championnat 2026</option>`,
+      `<option value="20270503">Corpo 2025-2026</option><option value="20260503">Corpo 2025-2026</option>` +
+        `<option value="20260501">Championnat 2026</option>`
+    ));
+    const { db, batches } = fakeDb([]);
+    await scrapeInfos(envWith(db), ALL, false);
+
+    // Replay the batch on real SQLite, with the table as the migrations leave it.
+    const sqlite = new Database(":memory:");
+    sqlite.run(
+      `CREATE TABLE competitions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_id TEXT UNIQUE, name TEXT NOT NULL UNIQUE)`
+    );
+    sqlite.run(`INSERT INTO competitions (source_id, name) VALUES ('20250101', 'Championnat 2025')`);
+    const competitionRows = () => sqlite.query("SELECT source_id, name FROM competitions ORDER BY source_id").all();
+    const replay = () => {
+      for (const s of batches.at(-1)!.filter((s) => s.sql.includes("INTO competitions"))) {
+        sqlite.query(s.sql).run(...(s.bindings as string[]));
+      }
+    };
+
+    replay();
+    expect(competitionRows()).toEqual([
+      { source_id: "20250101", name: "Championnat 2025" },
+      { source_id: "20260501", name: "Championnat 2026" },
+      { source_id: "20260503", name: "Corpo 2025-2026" },
+    ]);
+
+    // A known competition renamed onto a taken name keeps its own name.
+    serve(FORM_HTML.replace("Championnat 2026", "Championnat 2025"));
+    await scrapeInfos(envWith(db), ALL, false);
+    replay();
+    expect(competitionRows()).toContainEqual({ source_id: "20260501", name: "Championnat 2026" });
   });
 
   test("skips the batch entirely when the form is empty", async () => {

@@ -12,7 +12,7 @@ const BROWSER_HEADERS: Record<string, string> = {
 };
 
 export class CtpbScraper extends EuskalpilotaScraper {
-  protected readonly baseUrl = "https://ctpb.euskalpilota.fr/resultats.php";
+  readonly baseUrl = "https://ctpb.euskalpilota.fr/resultats.php";
   protected readonly leagueName = "CTPB";
 
   // CTPB requires a warm-up GET to obtain a PHPSESSID cookie; without it the

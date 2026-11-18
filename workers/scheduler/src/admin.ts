@@ -7,6 +7,9 @@ import type { Env } from "./types";
 /**
  * Admin page for /scrape_results and /scrape_rankings: pick a league, a
  * competition, a specialty and a category from menus instead of typing ids.
+ * It also bootstraps a league, as setup-league's /init and /bootstrap do: it
+ * writes the league's row, then runs /scrape_infos to load the menus' values.
+ * The league must already be wired in code (a scraper and a D1 binding).
  *
  * It is served by the scheduler itself, so it sits behind the same Cloudflare
  * Access application as the scrape routes, and its requests carry the Access
@@ -34,16 +37,47 @@ function checkLeague(env: Env, league: string | null): string {
   return league;
 }
 
-/** Competitions the scrape routes accept (those with a source_id), newest season first. */
+/**
+ * Competitions the scrape routes accept (those with a source_id), newest season
+ * first. /scrape_infos takes the source_id, the other scrape routes the id.
+ */
 async function listCompetitions(env: Env, league: string) {
   const { results } = await getDatabase(env, league)
     .prepare(
-      `SELECT id, name, enabled FROM competitions
+      `SELECT id, source_id, name, enabled FROM competitions
        WHERE source_id IS NOT NULL
        ORDER BY source_id DESC`
     )
-    .all<{ id: number; name: string; enabled: number }>();
-  return results.map((c) => ({ id: c.id, name: c.name, enabled: c.enabled === 1 }));
+    .all<{ id: number; source_id: string; name: string; enabled: number }>();
+  return results.map((c) => ({ id: c.id, source_id: c.source_id, name: c.name, enabled: c.enabled === 1 }));
+}
+
+/**
+ * The league's row in `leagues`, which setup-league's /init writes. The URL is
+ * the scraper's own, so the row names the site the scheduler actually reads.
+ */
+async function readLeague(env: Env, league: string) {
+  const row = await getDatabase(env, league)
+    .prepare("SELECT name FROM leagues WHERE acronym = ?")
+    .bind(league)
+    .first<{ name: string }>();
+  return { acronym: league, url: scrapers[league]!.baseUrl, name: row?.name ?? null };
+}
+
+async function registerLeague(env: Env, league: string, req: Request) {
+  const input = (await req.json().catch(() => null)) as { name?: unknown } | null;
+  const name = typeof input?.name === "string" ? input.name.trim() : "";
+  if (!name) throw new BadRequestError("missing required parameter: name");
+
+  const url = scrapers[league]!.baseUrl;
+  await getDatabase(env, league)
+    .prepare(
+      `INSERT INTO leagues (name, acronym, url) VALUES (?, ?, ?)
+       ON CONFLICT(acronym) DO UPDATE SET name = excluded.name, url = excluded.url`
+    )
+    .bind(name, league, url)
+    .run();
+  return { acronym: league, url, name };
 }
 
 /**
@@ -82,19 +116,22 @@ async function listOffered(env: Env, league: string, competitionId: string, scri
 }
 
 /** Answer an /admin route, or null when the path is not one. */
-export async function handleAdmin(url: URL, env: Env, version: string): Promise<Response | null> {
+export async function handleAdmin(req: Request, url: URL, env: Env, version: string): Promise<Response | null> {
   if (url.pathname === "/admin" || url.pathname === "/admin/") {
     return new Response(renderAdminPage(adminLeagues(env), version), {
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
 
-  if (url.pathname !== "/admin/competitions" && url.pathname !== "/admin/options") return null;
+  if (!["/admin/competitions", "/admin/options", "/admin/league"].includes(url.pathname)) return null;
 
   try {
     const league = checkLeague(env, url.searchParams.get("league"));
     if (url.pathname === "/admin/competitions") {
       return Response.json({ competitions: await listCompetitions(env, league) });
+    }
+    if (url.pathname === "/admin/league") {
+      return Response.json(req.method === "POST" ? await registerLeague(env, league, req) : await readLeague(env, league));
     }
 
     const competition = url.searchParams.get("competition");

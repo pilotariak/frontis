@@ -18,6 +18,12 @@ async function lookupName(db: D1Database, table: string, id: string): Promise<st
 
 const TEXT = { headers: { "Content-Type": "text/plain; charset=utf-8" } };
 
+// A text answer that also carries its counts as headers. The admin page walks
+// every combination of a competition and skips the empty ones by reading them.
+const counted = (found: number, saved: number) => ({
+  headers: { ...TEXT.headers, "X-Scrape-Found": String(found), "X-Scrape-Saved": String(saved) },
+});
+
 // ANSI colour helpers — returns plain-text identity functions when noColor=true.
 function makeColors(noColor: boolean) {
   const a = (code: string) => (s: string) => noColor ? s : `\x1b[${code}m${s}\x1b[0m`;
@@ -48,8 +54,8 @@ export default {
       });
     }
 
-    // ── /admin, /admin/competitions, /admin/options ────────────────────────────
-    const admin = await handleAdmin(url, env, version);
+    // ── /admin, /admin/competitions, /admin/options, /admin/league ─────────────
+    const admin = await handleAdmin(req, url, env, version);
     if (admin) return admin;
 
     // ── /scrape_infos ──────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ export default {
             `category=${idName(category!, catName)}  —  ${status}`;
 
           if (results.length === 0) {
-            return new Response(`${header}\n  (no results)\n`, TEXT);
+            return new Response(`${header}\n  (no results)\n`, counted(0, saved));
           }
 
           // A club cell stacks the club name then one line per player. Sub-lines
@@ -196,7 +202,7 @@ export default {
             ),
           ];
 
-          return new Response(`${header}\n${rows.join("\n")}\n`, TEXT);
+          return new Response(`${header}\n${rows.join("\n")}\n`, counted(results.length, saved));
         }
 
         const statusLine = dryRun
@@ -254,7 +260,7 @@ export default {
           }
         }
 
-        return new Response(lines.join("\n") + "\n", TEXT);
+        return new Response(lines.join("\n") + "\n", counted(results.length, saved));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         // A parameter the caller must fix is a 400; anything else is ours.
@@ -333,7 +339,7 @@ export default {
           }
         }
 
-        return new Response(lines.join("\n") + "\n", TEXT);
+        return new Response(lines.join("\n") + "\n", counted(summary.found, summary.saved));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         // A parameter the caller must fix is a 400; anything else is ours.
@@ -350,7 +356,7 @@ export default {
     return new Response(
       `${bold(cyan("Frontis Scheduler"))}
 
-${bold("/admin")}           — web page to pick a league, competition, specialty and category, then run /scrape_results or /scrape_rankings
+${bold("/admin")}           — web page to bootstrap a league, or to pick a league, competition, specialty and category, then run /scrape_results or /scrape_rankings
   ${gray(`${base}/admin`)}
 
 ${bold("/scrape_infos")}   — fetch form options (competitions, specialties, clubs, categories, phases)

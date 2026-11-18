@@ -26,11 +26,20 @@ so you can fire it manually without waiting for 03:00 UTC.
 ## Use the admin page
 
 The admin page runs `/scrape_results` and `/scrape_rankings` from menus, so you do not look up
-database ids or build URLs by hand. Open `/admin` on the scheduler:
+database ids or build URLs by hand. It also bootstraps a league: see
+[Bootstrap a league](#bootstrap-a-league). Open `/admin` on the scheduler:
 
 - Production: `https://frontis-scheduler.pilotariak.com/admin`. Cloudflare Access protects the
   scheduler, so the browser asks for your GitHub login first.
 - Locally: `http://127.0.0.1:8787/admin`, with the local D1 databases.
+
+The page has two modes:
+
+- **One combination** runs one request for the specialty and category you pick.
+- **Every combination** works like `scrape-competition.sh --all`. It walks each specialty and
+  category the competition offers, shows a preview of each, and asks whether to save it.
+
+### One combination
 
 1. Choose **Match results** or **Rankings**. The league site has one page for each, and they can
    offer different specialties.
@@ -38,12 +47,73 @@ database ids or build URLs by hand. Open `/admin` on the scheduler:
    under **Refreshed nightly**. The others follow, newest season first.
 3. Choose the specialty and the category. The menus list only what the league site offers for this
    competition, read live from its form. **All specialties** and **All categories** send `0`.
-   A choice shown greyed out is offered by the site but missing from the database: run
-   [`/scrape_infos`](#get-scrape_infos--discover-source-ids) for the league first.
+   A choice shown greyed out is offered by the site but missing from the database:
+   [bootstrap the league](#bootstrap-a-league) with this competition as its scope.
 4. Leave **Dry run** checked and click **Preview**. The output panel shows the request it sent and
    the scheduler's plain-text answer.
 5. Click **Save these results** (or **Save these rankings**) to run the same request again without
    dry run. To save in one step, uncheck **Dry run** and click **Run and save**.
+
+### Every combination
+
+1. Choose **Match results** or **Rankings**, then **Every combination**.
+2. Choose the league, then the competition. The hint under the menus counts the combinations to
+   walk: every specialty the league site offers for this competition, times every category.
+   Choices missing from the database are left out.
+3. Leave **Ask before each save** checked and click **Review N combinations**. The page previews
+   each combination in turn with a dry run and skips the empty ones. For each other one, choose:
+
+   | Button                 | Key | Effect                                            |
+   | ---------------------- | --- | ------------------------------------------------- |
+   | **Save**               | `y` | Run the request again without dry run, then go on |
+   | **Skip**               | `n` | Save nothing for this combination, then go on     |
+   | **Save all remaining** | `a` | Save this one and every later one without asking  |
+   | **Stop**               | `q` | End the walk; what is already saved stays saved   |
+
+4. When the walk ends, the output panel lists each combination saved, skipped or failed, with the
+   counts. A failed combination does not stop the walk: you can skip it and go on.
+
+To save every combination without previews, uncheck **Ask before each save** and click
+**Save N combinations**: each one is scraped and saved in one request. The page waits 300 ms
+between combinations, as the script does, to spare the league site.
+
+Match results already in D1 are not inserted twice, so saving them again reports `0 saved`.
+
+### Bootstrap a league
+
+The **Bootstrap a league** card, under the main form, does from the page what setup-league's
+`/init` and `/bootstrap` do. It registers the league in `leagues`, then runs `/scrape_infos`, which
+saves the competitions, specialties, categories, clubs and phases the league site offers. The page
+opens the card when the league you choose has no competition in D1.
+
+The card lists only the leagues the scheduler already supports: a scraper class and a
+`DB_LEAGUE_<LEAGUE>` binding. A new league needs that code first: see
+[Create the database](howto-league-create-database.md).
+
+1. Choose the league. The card shows whether it is registered and how many competitions D1 holds.
+2. Give its full name, prefilled when the league is registered. **Site URL** shows the URL saved
+   with it, read-only: the scraper's `baseUrl`, the page the scheduler reads. To change it, change
+   the scraper class. **Init (register only)** writes the league row now and scrapes nothing,
+   like setup-league's `/init`. The save in step 4 writes it too, so Init is optional.
+3. Choose the scope:
+
+   | Scope                                         | Request                                           |
+   | --------------------------------------------- | ------------------------------------------------- |
+   | **Site default competition**                  | `/scrape_infos` with no competition               |
+   | A competition                                 | `/scrape_infos` with the competition source_id    |
+   | **Every competition in D1, one request each** | One `/scrape_infos` per competition, 300 ms apart |
+
+4. Leave **Dry run** checked and click **Preview**, then **Bootstrap and save**. A save first writes
+   the league row (`POST /admin/league`), then runs `/scrape_infos` without dry run. **Every
+   competition** always saves, shows its progress, and stops with **Stop** or `q`.
+
+For a new league, save the site default competition first: it lists every competition of the site.
+Then save every competition once: the site offers all the specialties and categories of a
+competition only when the request names it, and loading results skips a result whose specialty is
+not in D1. The walk goes from the oldest competition to the newest: the last save of a
+category or a phase sets its name, so the current season's labels win.
+
+### Limits and errors
 
 A rankings request for every specialty and every category can exceed the 35 pages one call may
 fetch. The scheduler then answers HTTP 400: pick a specialty.
@@ -51,15 +121,20 @@ fetch. The scheduler then answers HTTP 400: pick a specialty.
 If a menu or a run reports that the scheduler did not answer, your Cloudflare Access session has
 probably expired: reload the page.
 
-The page reads two JSON routes, which you can also call yourself:
+### JSON routes
 
-| Route                                                          | Returns                                                                                    |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `GET /admin/competitions?league=lcapb`                         | `{ competitions: [{ id, name, enabled }] }`, competitions with a `source_id`, newest first |
-| `GET /admin/options?league=lcapb&competition=2&script=results` | `{ specialties: [{ id, name }], categories: [{ id, name }] }`, `id` null when not in D1    |
+The page reads these JSON routes, which you can also call yourself:
+
+| Route                                                          | Returns                                                                                               |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GET /admin/competitions?league=lcapb`                         | `{ competitions: [{ id, source_id, name, enabled }] }`, competitions with a `source_id`, newest first |
+| `GET /admin/options?league=lcapb&competition=2&script=results` | `{ specialties: [{ id, name }], categories: [{ id, name }] }`, `id` null when not in D1               |
+| `GET /admin/league?league=lcapb`                               | `{ acronym, url, name }`, `name` null when the league is not registered                               |
+| `POST /admin/league?league=lcapb` with `{"name": "..."}`       | The same, after an upsert of the league row with the scraper's URL                                    |
 
 `script` is `results` or `rankings`. A wrong parameter, or a competition the league site does not
-list, is an HTTP 400 with `{ error }`.
+list, is an HTTP 400 with `{ error }`. `POST /admin/league` takes a JSON body: a missing or empty
+`name` is an HTTP 400.
 
 ---
 
@@ -409,3 +484,7 @@ When running `bun run dev` the `SELF` binding points at the same dev session, so
 | ---------- | ------- | ----------------------------------------------------------- |
 | `dry_run`  | `false` | Fetch and display results but do not write to the database  |
 | `no_color` | `false` | Strip ANSI escape codes from the response (use in browsers) |
+
+The text answers of `/scrape_results` and `/scrape_rankings` carry two headers: `X-Scrape-Found`,
+the rows read from the league site, and `X-Scrape-Saved`, the rows written (`0` on a dry run). The
+admin page reads them to skip empty combinations.
