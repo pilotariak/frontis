@@ -16,10 +16,16 @@
 # --save skips every interactive confirmation and persists results straight into
 # D1 (non-interactive / CI-friendly). Without it, each save is confirmed.
 #
-# Requires: wrangler, jq, curl. Run from a dir where the D1 binding resolves
-# (e.g. database/ or workers/scheduler/).
+# Requires: wrangler, jq, curl. Runs from any directory: it moves to database/,
+# where wrangler finds the D1 bindings and --local finds the shared state.
+#
+# The deployed scheduler (the default SCHEDULER_BASE) is behind Cloudflare
+# Access. Set CF_ACCESS_TOKEN (cloudflared access token -app=<url>), or
+# CF_CLIENT_ID and CF_CLIENT_SECRET for a service token, to call it.
 
 set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/../../../database"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 # Enabled only when stderr is a terminal and NO_COLOR is unset. When piped, all
@@ -48,17 +54,73 @@ WRANGLER=(bunx wrangler)
 
 ALL=0   # --all: skip specialty/category menus, loop every combo and save.
 SAVE=0  # --save: skip every confirmation prompt and persist automatically.
+LOCAL=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --phase) PHASE="$2"; shift ;;
-    --local) D1_TARGET=(--local --persist-to ../.wrangler/state) ;;
+    --local) LOCAL=1; D1_TARGET=(--local --persist-to ../.wrangler/state) ;;
     --all)   ALL=1 ;;
     --save)  SAVE=1 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
 done
+
+# --local lists local ids; a remote worker would resolve them against its own
+# database and load a different competition than the one picked.
+if [ "$LOCAL" -eq 1 ]; then
+  case "$BASE" in
+    http://127.0.0.1:*|http://localhost:*) ;;
+    *) echo "${RED}--local needs a local worker: set SCHEDULER_BASE=http://127.0.0.1:8787.${RESET}" >&2; exit 2 ;;
+  esac
+fi
+
+# ── Scheduler calls ───────────────────────────────────────────────────────────
+if [ -n "${CF_CLIENT_ID:-}${CF_CLIENT_SECRET:-}" ] && { [ -z "${CF_CLIENT_ID:-}" ] || [ -z "${CF_CLIENT_SECRET:-}" ]; }; then
+  echo "${RED}set both CF_CLIENT_ID and CF_CLIENT_SECRET, or neither.${RESET}" >&2
+  exit 2
+fi
+
+access_headers() {
+  if [ -n "${CF_ACCESS_TOKEN:-}" ]; then
+    printf 'cf-access-token: %s\n' "$CF_ACCESS_TOKEN"
+  else
+    printf 'CF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$CF_CLIENT_ID" "$CF_CLIENT_SECRET"
+  fi
+}
+
+# api <url> [curl args...] -> curl the scheduler, with the Cloudflare Access
+# headers when credentials are set. Headers are read from a file descriptor so
+# the secrets stay out of the process list.
+api() {
+  if [ -n "${CF_ACCESS_TOKEN:-}${CF_CLIENT_ID:-}" ]; then
+    curl -fsS -H @<(access_headers) "$@"
+  else
+    curl -fsS "$@"
+  fi
+}
+
+# Without valid credentials Cloudflare Access answers with a redirect to its
+# login page, which curl -f treats as success: every call would then silently
+# do nothing. Fail before the first menu instead.
+version="$(api "${BASE}/version" 2>/dev/null || true)"
+if [[ "$version" != *'"version"'* ]]; then
+  echo "${RED}no scheduler answers at ${BASE}.${RESET}" >&2
+  echo "  local worker:    start it with 'bun run scheduler:local' or 'bun run scheduler:remote'." >&2
+  echo "  deployed worker: set CF_ACCESS_TOKEN, or CF_CLIENT_ID and CF_CLIENT_SECRET (Cloudflare Access)." >&2
+  exit 1
+fi
+
+# rows() runs inside process substitutions, where a wrangler failure (expired
+# login, unknown database) would be lost and read as an empty table. Check that
+# D1 answers before the first menu.
+if ! d1_check="$("${WRANGLER[@]}" d1 execute "$DB_NAME" "${D1_TARGET[@]}" --json --command "SELECT 1" 2>&1)"; then
+  echo "${RED}cannot query ${DB_NAME} with wrangler:${RESET}" >&2
+  printf '%s\n' "$d1_check" | grep -m1 -E 'ERROR|"text"' >&2 || true
+  echo "  if your wrangler login expired, run 'bunx wrangler login' (or set CLOUDFLARE_API_TOKEN)." >&2
+  exit 1
+fi
 
 # rows <table> -> lines "id<TAB>name" from D1.
 rows() {
@@ -173,7 +235,7 @@ if [ "$ALL" -eq 1 ]; then
       q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${spec}&category=${cat}&phase=${PHASE}${NOCOLOR}"
 
       # Preview first (dry run), so the user sees results before saving.
-      preview="$(curl -fsS "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" || echo "  (request failed)")"
+      preview="$(api "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" || echo "  (request failed)")"
 
       # Auto-skip combos with no results — nothing to save.
       if grep -q "(no results)" <<<"$preview"; then
@@ -198,7 +260,7 @@ if [ "$ALL" -eq 1 ]; then
 
       case "$ans" in
         y|Y|yes|YES)
-          if curl -fsS "${BASE}/scrape_results?${q}" >/dev/null; then
+          if api "${BASE}/scrape_results?${q}" >/dev/null; then
             echo "  ${GREEN}saved.${RESET}"; saved=$((saved + 1))
           else
             echo "  ${RED}FAILED.${RESET}"
@@ -221,7 +283,7 @@ q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${SPECIALTY}&category=$
 
 echo ""
 echo "${BOLD}${BLUE}── Preview (dry run) ─────────────────────────────────────────${RESET}"
-render_table "$(curl -fsS "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
+render_table "$(api "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
 echo ""
 
 if [ "$SAVE" -eq 1 ]; then
@@ -232,7 +294,7 @@ fi
 case "$answer" in
   y|Y|yes|YES)
     echo "${BOLD}${BLUE}── Saving ────────────────────────────────────────────────────${RESET}"
-    curl -fsS "${BASE}/scrape_results?${q}"
+    api "${BASE}/scrape_results?${q}"
     echo ""
     echo "${GREEN}done.${RESET}"
     ;;
