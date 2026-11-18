@@ -37,8 +37,12 @@ function getDatabase(env: Env, acronym: string): D1Database {
  * leave the tables half-updated. Mirrors the scheduler's `saveFormOptions`.
  */
 async function saveFormOptions(db: D1Database, options: FormOptions): Promise<void> {
+  // Skip a competition whose name another source_id holds: see the scheduler.
   const upsertCompetition = db.prepare(
-    `INSERT INTO competitions (source_id, name) VALUES (?, ?) ON CONFLICT(source_id) DO UPDATE SET name = excluded.name`
+    `INSERT INTO competitions (source_id, name) VALUES (?, ?)
+     ON CONFLICT(source_id) DO UPDATE SET name = excluded.name
+       WHERE NOT EXISTS (SELECT 1 FROM competitions WHERE name = excluded.name)
+     ON CONFLICT(name) DO NOTHING`
   );
   const upsertSpecialty = db.prepare(
     `INSERT INTO specialties (source_id, name) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET source_id = excluded.source_id`
@@ -48,7 +52,9 @@ async function saveFormOptions(db: D1Database, options: FormOptions): Promise<vo
   );
 
   const statements: D1PreparedStatement[] = [
-    ...options.competitions.map((c) => upsertCompetition.bind(c.sourceId, c.name)),
+    ...[...options.competitions]
+      .sort((a, b) => a.sourceId.localeCompare(b.sourceId))
+      .map((c) => upsertCompetition.bind(c.sourceId, c.name)),
     ...options.specialties.map((s) => upsertSpecialty.bind(s.sourceId, s.name)),
     ...options.categories.map((c) => upsertCategory.bind(c.sourceId, c.name)),
   ];

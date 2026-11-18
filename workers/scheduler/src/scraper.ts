@@ -57,14 +57,24 @@ async function saveFormOptions(db: D1Database, options: FormOptions): Promise<vo
   const upsertClub = bySourceIdOnNameConflict("clubs");
   const upsertCategory = byNameOnSourceIdConflict("categories");
   const upsertPhase = byNameOnSourceIdConflict("phases");
-  const upsertCompetition = byNameOnSourceIdConflict("competitions");
+  // competitions.name is UNIQUE, but a league site can list two competitions
+  // under one name (LCAPB: 20260503 and 20270503). The second one is skipped,
+  // so the batch, one transaction, does not fail; oldest first, the older
+  // source_id keeps the name. A known one renamed onto a taken name keeps its own.
+  const upsertCompetition = db.prepare(
+    `INSERT INTO competitions (source_id, name) VALUES (?, ?)
+     ON CONFLICT(source_id) DO UPDATE SET name = excluded.name
+       WHERE NOT EXISTS (SELECT 1 FROM competitions WHERE name = excluded.name)
+     ON CONFLICT(name) DO NOTHING`
+  );
+  const competitions = [...options.competitions].sort((a, b) => a.sourceId.localeCompare(b.sourceId));
 
   const statements: D1PreparedStatement[] = [
     ...options.specialties.map((s) => upsertSpecialty.bind(s.sourceId, s.name)),
     ...options.clubs.map((c) => upsertClub.bind(c.sourceId, c.name)),
     ...options.categories.map((c) => upsertCategory.bind(c.sourceId, c.name)),
     ...options.phases.map((p) => upsertPhase.bind(p.sourceId, p.name)),
-    ...options.competitions.map((c) => upsertCompetition.bind(c.sourceId, c.name)),
+    ...competitions.map((c) => upsertCompetition.bind(c.sourceId, c.name)),
   ];
 
   if (statements.length > 0) await db.batch(statements);
