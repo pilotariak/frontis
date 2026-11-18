@@ -3,12 +3,13 @@ import { CtpbScraper } from "./leagues/ctpb";
 import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
 import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
+import { BadRequestError, checkIds, lookup, pick } from "./params";
 
 export interface ScraperOptions extends ScrapeOptions {
   league: string;
 }
 
-const scrapers: Record<string, LeagueScraper> = {
+export const scrapers: Record<string, LeagueScraper> = {
   lcapb: new LcapbScraper(),
   lidfpb: new LidfpbScraper(),
   ctpb: new CtpbScraper(),
@@ -16,7 +17,7 @@ const scrapers: Record<string, LeagueScraper> = {
 
 type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;
 
-function getDatabase(env: Env, league: string): D1Database {
+export function getDatabase(env: Env, league: string): D1Database {
   const key = `DB_LEAGUE_${league.toUpperCase()}` as DatabaseBinding;
   const db: D1Database | undefined = env[key];
   if (!db) {
@@ -92,53 +93,43 @@ export async function scrapeInfos(
 /**
  * Resolve internal DB IDs to source_ids before passing options to the league
  * scraper, which communicates with the external website using source_ids.
+ *
+ * Every parameter is checked first, and a wrong one is a BadRequestError: an id
+ * that is not a number or not in the database, a competition the site does not
+ * list (the site would answer with its default competition, whose results would
+ * be saved under this one), or a specialty, category or phase the competition
+ * does not offer (the site would silently return nothing). The last two checks
+ * read the competition's results form, a small GET before the results POST.
  */
-async function resolveSourceIds(db: D1Database, options: ScraperOptions): Promise<ScraperOptions> {
-  const competition = await db
-    .prepare("SELECT source_id FROM competitions WHERE id = ?")
-    .bind(options.competition)
-    .first<{ source_id: string }>();
+async function resolveSourceIds(
+  db: D1Database,
+  scraper: LeagueScraper,
+  options: ScraperOptions
+): Promise<ScraperOptions> {
+  const { competition: c, specialty: s, category: k, phase: p } = options;
+  checkIds({ competition: c, specialty: s, category: k, phase: p });
 
-  if (!competition?.source_id) {
-    throw new Error(`Competition with id '${options.competition}' not found in database. Run /scrape_infos first.`);
+  const competition = (await lookup(db, "competitions", c, "Competition", false))!;
+  const specialty = await lookup(db, "specialties", s, "Specialty", true);
+  const category = await lookup(db, "categories", k, "Category", true);
+  const phase = await lookup(db, "phases", p, "Phase", true);
+
+  const form = await scraper.fetchResultsForm(competition.source_id);
+  const label = `competition ${competition.id} (${competition.name})`;
+  if (!form.competitions.some((o) => o.sourceId === competition.source_id)) {
+    throw new BadRequestError(`The league site lists no results for ${label}`);
   }
+  await pick(db, "specialties", form.specialties, specialty, "Specialty", label);
+  await pick(db, "categories", form.categories, category, "Category", label);
+  await pick(db, "phases", form.phases, phase, "Phase", label);
 
-  let specialty = options.specialty;
-  if (specialty && specialty !== "0") {
-    const row = await db
-      .prepare("SELECT source_id FROM specialties WHERE id = ?")
-      .bind(specialty)
-      .first<{ source_id: string }>();
-    if (!row?.source_id) {
-      throw new Error(`Specialty with id '${specialty}' not found in database. Run /scrape_infos first.`);
-    }
-    specialty = row.source_id;
-  }
-
-  let category = options.category;
-  if (category && category !== "0") {
-    const row = await db
-      .prepare("SELECT source_id FROM categories WHERE id = ?")
-      .bind(category)
-      .first<{ source_id: string | null }>();
-    if (row?.source_id) {
-      category = row.source_id;
-    }
-  }
-
-  let phase = options.phase;
-  if (phase && phase !== "0") {
-    const row = await db
-      .prepare("SELECT source_id FROM phases WHERE id = ?")
-      .bind(phase)
-      .first<{ source_id: string }>();
-    if (!row?.source_id) {
-      throw new Error(`Phase with id '${phase}' not found in database. Run /scrape_infos first.`);
-    }
-    phase = row.source_id;
-  }
-
-  return { ...options, competition: competition.source_id, specialty, category, phase };
+  return {
+    ...options,
+    competition: competition.source_id,
+    specialty: specialty?.source_id ?? "0",
+    category: category?.source_id ?? "0",
+    phase: phase?.source_id ?? "0",
+  };
 }
 
 /**
@@ -297,11 +288,11 @@ export async function scrapeResults(
   dryRun: boolean
 ): Promise<{ results: ScrapedResult[]; saved: number }> {
   const scraper = scrapers[options.league.toLowerCase()];
-  if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
+  if (!scraper) throw new BadRequestError(`Unsupported league: ${options.league}`);
 
   // Always resolve DB IDs → source_ids before hitting the external website.
   const db = getDatabase(env, options.league);
-  const resolved = await resolveSourceIds(db, options);
+  const resolved = await resolveSourceIds(db, scraper, options);
 
   const { results: scraped } = await scraper.fetchData(resolved, true);
 

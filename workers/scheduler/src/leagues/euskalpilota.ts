@@ -1,7 +1,16 @@
 import { load, type CheerioAPI } from "cheerio/slim";
 import type { AnyNode, Element } from "domhandler";
 import type { ScrapedResult } from "../types";
-import type { FormOption, FormOptions, LeagueScraper, ScrapeData, ScrapeOptions } from "./types";
+import type {
+  FormOption,
+  FormOptions,
+  LeagueScraper,
+  RankingSource,
+  ScrapedRankedPlayer,
+  ScrapedRanking,
+  ScrapeData,
+  ScrapeOptions,
+} from "./types";
 
 /**
  * Shared scraper for the euskalpilota.fr league sites (LCAPB, LIDFPB, CTPB all
@@ -71,6 +80,74 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     );
 
     return { formOptions, results };
+  }
+
+  async fetchResultsForm(competition: string): Promise<FormOptions> {
+    // A GET with InCompet alone returns the form only (about 20 KB), not the
+    // results: cheap enough to check a request before the results POST.
+    const headers = await this.requestHeaders();
+    const res = await fetch(`${this.baseUrl}?${new URLSearchParams({ InCompet: competition })}`, { headers });
+    if (!res.ok) {
+      throw new Error(`[${this.leagueName}] Failed to fetch results form: ${res.statusText}`);
+    }
+    const options = parseFormOptions(load(await res.text()));
+    // No competition list means no form at all (session not primed, error
+    // page, markup change), not a competition missing from the list.
+    if (options.competitions.length === 0) {
+      throw new Error(`[${this.leagueName}] Results form not found on resultats.php (HTTP ${res.status})`);
+    }
+    return options;
+  }
+
+  async openRankings(competition: string): Promise<RankingSource> {
+    const url = new URL("classements.php", this.baseUrl).toString();
+    const leagueName = this.leagueName;
+
+    // One set of headers for every page: CTPB primes a new PHPSESSID on each
+    // requestHeaders() call, which would double the subrequests.
+    const headers = await this.requestHeaders();
+
+    // The GET lists the competitions, and the specialties and categories this
+    // competition offers.
+    const form = await fetch(`${url}?${new URLSearchParams({ InCompet: competition })}`, { headers });
+    if (!form.ok) {
+      throw new Error(`[${leagueName}] Failed to fetch rankings form: ${form.statusText}`);
+    }
+    const options = parseFormOptions(load(await form.text()));
+    // No competition list means no form at all (session not primed, error
+    // page, markup change), not a competition missing from the list.
+    if (options.competitions.length === 0) {
+      throw new Error(`[${leagueName}] Rankings form not found on classements.php (HTTP ${form.status})`);
+    }
+
+    return {
+      listed: options.competitions.some((c) => c.sourceId === competition),
+      specialties: options.specialties,
+      categories: options.categories,
+
+      async fetch(specialty: string, category: string): Promise<ScrapedRanking[]> {
+        const body = new URLSearchParams({
+          InCompet: competition,
+          InSpec: specialty,
+          InCat: category,
+          InGroupe: "0",
+          InPoule: "0",
+          InPhasePoule: "1",
+          // 2 = "Classement à la fin du championnat".
+          InPPoule: "2",
+          InVoir: "Voir le classement",
+        });
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+          body: body.toString(),
+        });
+        if (!res.ok) {
+          throw new Error(`[${leagueName}] Failed to fetch ranking ${specialty}/${category}: ${res.statusText}`);
+        }
+        return parseRanking(load(await res.text()));
+      },
+    };
   }
 }
 
@@ -218,4 +295,71 @@ export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[]
   }
 
   return results;
+}
+
+// ── Rankings table ────────────────────────────────────────────────────────────
+
+const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
+
+/**
+ * "(000102 - 01-339-002) GARAT Beñat (E)": licence, optional licence club
+ * after a dash, optional name, optional upper-case marker in parentheses.
+ */
+const PLAYER = /^\(\s*([^\s)][^\s)]*?)\s*(?:-\s*([^)]*?)\s*)?\)\s*(.*?)\s*(?:\(([A-Z]{1,3})\))?$/;
+
+export function parseRankedPlayer(text: string): ScrapedRankedPlayer | null {
+  const m = PLAYER.exec(collapse(text));
+  if (!m) return null;
+  const player: ScrapedRankedPlayer = { licence: m[1] };
+  if (m[2]) player.licenceClub = m[2];
+  if (m[3]) player.name = m[3];
+  if (m[4]) player.marker = m[4];
+  return player;
+}
+
+/**
+ * Rows of the classements.php end-of-championship ranking. Each team row has
+ * five cells: rank (with a classements2.php link carrying `no_club` and
+ * `no_equipe`) | phase | club | team number | players as `li`. Header rows
+ * have no such link and are skipped.
+ */
+export function parseRanking($: CheerioAPI): ScrapedRanking[] {
+  const rows: ScrapedRanking[] = [];
+
+  for (const table of $(".mBloc").toArray()) {
+    for (const tr of descendants(table, "tr")) {
+      const cells = tr.children.filter(
+        (c): c is Element => isElement(c) && (c.name === "td" || c.name === "th")
+      );
+      if (cells.length < 5) continue;
+
+      const href = descendants(cells[0], "a")
+        .map((a) => a.attribs["href"] ?? "")
+        .find((h) => h.includes("no_club="));
+      if (!href) continue;
+
+      const params = new URLSearchParams(href.slice(href.indexOf("?") + 1));
+      const clubSourceId = params.get("no_club") ?? "";
+      const rank = Number.parseInt(collapse(textOf(cells[0])), 10);
+      const teamNumber = Number.parseInt(params.get("no_equipe") ?? collapse(textOf(cells[3])), 10);
+      if (!clubSourceId || !Number.isInteger(rank) || !Number.isInteger(teamNumber)) continue;
+
+      const players: ScrapedRankedPlayer[] = [];
+      for (const li of descendants(cells[4], "li")) {
+        const player = parseRankedPlayer(textOf(li));
+        if (player) players.push(player);
+      }
+
+      rows.push({
+        rank,
+        phase: collapse(textOf(cells[1])),
+        club: collapse(textOf(cells[2])),
+        clubSourceId,
+        teamNumber,
+        players,
+      });
+    }
+  }
+
+  return rows;
 }

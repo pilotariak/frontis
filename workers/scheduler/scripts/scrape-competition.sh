@@ -101,6 +101,20 @@ api() {
   fi
 }
 
+# api_status <url> <file>: like api, but writes the body to <file> and prints
+# the HTTP status instead of failing on an error status. The scheduler answers
+# 400 when the competition does not offer the specialty or category picked.
+api_status() {
+  if [ -n "${CF_ACCESS_TOKEN:-}${CF_CLIENT_ID:-}" ]; then
+    curl -sS -o "$2" -w '%{http_code}' -H @<(access_headers) "$1"
+  else
+    curl -sS -o "$2" -w '%{http_code}' "$1"
+  fi
+}
+
+body="$(mktemp)"
+trap 'rm -f "$body"' EXIT
+
 # Without valid credentials Cloudflare Access answers with a redirect to its
 # login page, which curl -f treats as success: every call would then silently
 # do nothing. Fail before the first menu instead.
@@ -235,9 +249,19 @@ if [ "$ALL" -eq 1 ]; then
       q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${spec}&category=${cat}&phase=${PHASE}${NOCOLOR}"
 
       # Preview first (dry run), so the user sees results before saving.
-      preview="$(api "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" || echo "  (request failed)")"
+      code="$(api_status "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" "$body" || true)"
 
-      # Auto-skip combos with no results — nothing to save.
+      # Auto-skip combos the competition does not offer (HTTP 400) and combos
+      # with no results — nothing to save.
+      if [ "$code" = 400 ]; then
+        skipped=$((skipped + 1))
+        continue
+      fi
+      if [ "$code" = 200 ]; then
+        preview="$(cat "$body")"
+      else
+        preview="  (request failed: HTTP ${code:-none})"
+      fi
       if grep -q "(no results)" <<<"$preview"; then
         skipped=$((skipped + 1))
         continue
@@ -272,7 +296,7 @@ if [ "$ALL" -eq 1 ]; then
     done
   done
   echo ""
-  echo "${BOLD}done: $n combos — ${GREEN}$saved saved${RESET}${BOLD}, ${DIM}$skipped empty-skipped${RESET}${BOLD}.${RESET}"
+  echo "${BOLD}done: $n combos — ${GREEN}$saved saved${RESET}${BOLD}, ${DIM}$skipped skipped (empty or not offered)${RESET}${BOLD}.${RESET}"
   exit 0
 fi
 
@@ -283,7 +307,13 @@ q="league=${LEAGUE}&competition=${COMPETITION}&specialty=${SPECIALTY}&category=$
 
 echo ""
 echo "${BOLD}${BLUE}── Preview (dry run) ─────────────────────────────────────────${RESET}"
-render_table "$(api "${BASE}/scrape_results?${q}&dry_run=true&format=tsv")"
+code="$(api_status "${BASE}/scrape_results?${q}&dry_run=true&format=tsv" "$body" || true)"
+if [ "$code" != 200 ]; then
+  # 400 explains what to pick instead (the ids the competition offers).
+  echo "${RED}HTTP ${code:-none}: $(cat "$body")${RESET}" >&2
+  exit 1
+fi
+render_table "$(cat "$body")"
 echo ""
 
 if [ "$SAVE" -eq 1 ]; then

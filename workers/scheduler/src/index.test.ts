@@ -112,27 +112,53 @@ describe("fetch", () => {
     });
   });
 
-  test("/scrape_results reports scraper errors as JSON when format=json", async () => {
+  test("/scrape_results answers a parameter the caller must fix with a 400, as JSON when format=json", async () => {
     const res = await get(
       "/scrape_results?league=lcapb&competition=9&specialty=0&category=0&format=json",
       envWith({})
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(await body(res)).toEqual({
       error: "Competition with id '9' not found in database. Run /scrape_infos first.",
     });
   });
 
-  test("/scrape_results reports scraper errors as plain text otherwise", async () => {
+  test("/scrape_rankings rejects a malformed id as plain text otherwise", async () => {
+    const res = await get(
+      "/scrape_rankings?league=lcapb&competition=2&specialty=0&category=abc&no_color=true",
+      envWith({})
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Error: Invalid category: 'abc'");
+  });
+
+  test("/scrape_results reports a bad parameter as plain text otherwise", async () => {
     const res = await get(
       "/scrape_results?league=lcapb&competition=9&specialty=0&category=0&no_color=true",
       envWith({})
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
     expect(await res.text()).toBe(
       "Error: Competition with id '9' not found in database. Run /scrape_infos first."
     );
+  });
+
+  test("/scrape_rankings takes the same required parameters as /scrape_results", async () => {
+    const res = await get("/scrape_rankings?league=lcapb&competition=2", envWith({}));
+    expect(res.status).toBe(400);
+    expect(await body(res)).toEqual({ error: "missing required parameters: specialty, category" });
+  });
+
+  test("/scrape_rankings answers a parameter the caller must fix with a 400", async () => {
+    const res = await get(
+      "/scrape_rankings?league=lcapb&competition=9&specialty=0&category=0&format=json",
+      envWith({})
+    );
+    expect(res.status).toBe(400);
+    expect(await body(res)).toEqual({
+      error: "Competition with id '9' not found in database. Run /scrape_infos first.",
+    });
   });
 
   test("colour codes are omitted with no_color and present without it", async () => {
@@ -148,6 +174,7 @@ describe("fetch", () => {
     const text = await res.text();
     expect(text).toContain("/scrape_infos");
     expect(text).toContain("/scrape_results");
+    expect(text).toContain("/scrape_rankings");
   });
 });
 
@@ -241,8 +268,36 @@ describe("scheduled", () => {
     await worker.scheduled(event, envWith({ DB_LEAGUE_LCAPB: lcapb.db, DB_LEAGUE_LIDFPB: lidfpb.db, SELF: self }), ctx);
     await settled();
 
-    expect(errors).toEqual(["[scheduler][lcapb] Failed to list enabled competitions: D1 unavailable"]);
+    expect(errors).toEqual([
+      "[scheduler][lcapb] Failed to list enabled competitions: D1 unavailable",
+      "[scheduler][lcapb] Failed to list provisional rankings: D1 unavailable",
+    ]);
     expect(calls.map((u) => u.searchParams.get("league"))).toEqual(["lidfpb"]);
+  });
+
+  test("refreshes each provisional (competition, specialty) ranking through the SELF binding", async () => {
+    const lcapb = fakeDb([
+      [/FROM rankings/, () => [
+        { competition_id: 4, specialty_id: 98 },
+        { competition_id: 4, specialty_id: 97 },
+      ]],
+    ]);
+    const { self, calls } = fakeSelf(() => json({ found: 12, saved: 12 }));
+    const { ctx, settled } = fakeCtx();
+
+    await worker.scheduled(event, envWith({ DB_LEAGUE_LCAPB: lcapb.db, SELF: self }), ctx);
+    await settled();
+
+    expect(lcapb.queries.map((q) => q.sql).find((s) => s.includes("FROM rankings"))).toContain(
+      "HAVING SUM(phase = 'Champion') = 0"
+    );
+    expect(calls.map((u) => u.pathname)).toEqual(["/scrape_rankings", "/scrape_rankings"]);
+    expect(calls.map((u) => Object.fromEntries(u.searchParams))).toEqual([
+      { league: "lcapb", competition: "4", specialty: "98", category: "0", format: "json" },
+      { league: "lcapb", competition: "4", specialty: "97", category: "0", format: "json" },
+    ]);
+    expect(logs).toContain("[scheduler][lcapb] Saved 24 ranked teams across 2 specialties (0 failed)");
+    expect(errors).toEqual([]);
   });
 
   test("a missing database binding is skipped", async () => {

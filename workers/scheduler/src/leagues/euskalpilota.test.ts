@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { load } from "cheerio/slim";
-import { parseFormOptions, parseResults } from "./euskalpilota";
+import { parseFormOptions, parseRankedPlayer, parseRanking, parseResults } from "./euskalpilota";
 
 // Markup modelled on resultats.php: one `.mBloc` table per specialty/category
 // block. Row 0 is a title, row 1 the "<specialty> <span>category</span>" header,
@@ -147,5 +147,103 @@ describe("parseFormOptions", () => {
       categories: [],
       phases: [],
     });
+  });
+});
+
+// Markup modelled on classements.php with InPPoule=2 ("à la fin du
+// championnat"). Names and licence numbers are made up. The rank cell carries
+// a classements2.php link that is never closed (`<a>` instead of `</a>`), and
+// players are bare `li` elements with no `ul`, as on the site.
+const rankingRow = (cls: string, rank: number, club: string, noClub: string, team: number, phase: string, players: string) => `
+  <tr>
+    <th class="${cls}">
+      ${rank}<a href="./classements2.php?no_club=${noClub}&no_compet=20260501&no_spec=2&no_equipe=${team}&no_cat=1&InCompet=20260501&InCat=1&InSpec=2&InPoule=0&InPPoule=2&InGroupe=0">
+      <img src="./images/edit.gif" border="0"><a>
+    </th>
+    <td class="${cls}">
+      ${phase}\t\t\t\t</td>
+    <td class="${cls}">
+      ${club}\t\t\t\t</td>
+    <td class="${cls}" align="center">
+      ${team}\t\t\t\t</td>
+    <td class="${cls}">
+      ${players}\t\t\t\t</td>
+  </tr>`;
+
+const RANKING_HTML = `
+<html><body>
+<form action="classements.php" method="post"><table class="cadre"><tr><td>form</td></tr></table></form>
+<table  class="mBloc">
+  <thead>
+    <tr><td colspan="14" align="right"><a href="classements_championnat_csv.php">Télécharger <img src="./images/save.png" /><a></td></tr>
+    <tr><th class="mTitreSmall">Rang</th><th class="mTitreSmall">Phase</th><th class="mTitreSmall">Club</th><th class="mTitreSmall">Equipe</th><th class="mTitreSmall">Joueurs</th></tr>
+  </thead>
+  <tbody>
+    ${rankingRow("L0", 1, "PILOTA CLUB TEST", "1339001", 1, "Champion", "<li>(000101) ETXEBERRI Ane</li><li>(000102 - 01-339-002) GARAT Beñat (E)</li>")}
+    ${rankingRow("L1", 2, "PILOTA CLUB TEST", "1339001", 2, "Finale", "<li>(000103) IRIGOIN Mikel</li><li>(000104) LARRALDE Peio</li><li>(000105) OÇAFRAIN Xabi</li>")}
+    ${rankingRow("L0", 3, "ZAHARRAK PILOTARI", "1339003", 4, "1/2&nbsp;finale", "<li>(000106 - 00-000-000) (E)</li><li>(000107) SALLABERRY Jon (S)</li>")}
+    ${rankingRow("forfait", 4, "BASKO ELKARTEA", "1339004", 1, "FORFAIT", "<li>(000108) URRUTY Eneko</li><li>(000109 - 01-339-001) HARAN Iker (ES)</li>")}
+  </tbody>
+</table>
+</body></html>`;
+
+describe("parseRanking", () => {
+  const rows = parseRanking(load(RANKING_HTML));
+
+  test("reads one row per team and skips the header rows", () => {
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3, 4]);
+  });
+
+  test("takes club and team from the classements2.php link", () => {
+    expect(rows[1]).toMatchObject({ club: "PILOTA CLUB TEST", clubSourceId: "1339001", teamNumber: 2 });
+    expect(rows[2]).toMatchObject({ club: "ZAHARRAK PILOTARI", clubSourceId: "1339003", teamNumber: 4 });
+  });
+
+  test("normalises the phase whitespace, forfeits included", () => {
+    expect(rows.map((r) => r.phase)).toEqual(["Champion", "Finale", "1/2 finale", "FORFAIT"]);
+  });
+
+  test("keeps every player of two- and three-player teams, in order", () => {
+    expect(rows[0].players.map((p) => p.licence)).toEqual(["000101", "000102"]);
+    expect(rows[1].players.map((p) => p.name)).toEqual(["IRIGOIN Mikel", "LARRALDE Peio", "OÇAFRAIN Xabi"]);
+  });
+
+  test("returns an empty list when the page has no ranking", () => {
+    expect(parseRanking(load("<html><body>Vous devez choisir une catégorie</body></html>"))).toEqual([]);
+  });
+});
+
+describe("parseRankedPlayer", () => {
+  test("licence and name", () => {
+    expect(parseRankedPlayer("(000101) ETXEBERRI Ane")).toEqual({ licence: "000101", name: "ETXEBERRI Ane" });
+  });
+
+  test("licence club and marker", () => {
+    expect(parseRankedPlayer("(000102 - 01-339-002) GARAT Beñat (E)")).toEqual({
+      licence: "000102",
+      licenceClub: "01-339-002",
+      name: "GARAT Beñat",
+      marker: "E",
+    });
+  });
+
+  test("marker without a licence club", () => {
+    expect(parseRankedPlayer("(000107) SALLABERRY Jon (S)")).toEqual({
+      licence: "000107",
+      name: "SALLABERRY Jon",
+      marker: "S",
+    });
+  });
+
+  test("licence with no name", () => {
+    expect(parseRankedPlayer("(000106 - 00-000-000) (E)")).toEqual({
+      licence: "000106",
+      licenceClub: "00-000-000",
+      marker: "E",
+    });
+  });
+
+  test("text without a licence is rejected", () => {
+    expect(parseRankedPlayer("ETXEBERRI Ane")).toBeNull();
   });
 });

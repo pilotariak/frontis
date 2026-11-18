@@ -69,6 +69,13 @@ const subgraphs = [
     workerUrl: `https://frontis-results.${subdomain}.workers.dev/graphql`,
     typeDefs: readSchema("results"),
   },
+  {
+    name: "rankings",
+    url: "http://localhost:4007/graphql",
+    dockerUrl: "http://rankings_subgraph:4007/graphql",
+    workerUrl: `https://frontis-rankings.${subdomain}.workers.dev/graphql`,
+    typeDefs: readSchema("rankings"),
+  },
 ];
 
 type UrlMode = "local" | "docker" | "workers";

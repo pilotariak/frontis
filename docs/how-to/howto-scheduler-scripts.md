@@ -73,6 +73,8 @@ database:
 | Local worker                   | Production  | `bun run scheduler:remote` | `http://127.0.0.1:8787` | none        |
 | Deployed worker, behind Access | Production  | nothing to start           | unset (the default)     | none        |
 
+The local worker's port comes from the [Port reference](../reference/ports.md).
+
 You can call the scripts from any directory: they move to `database/` first, where wrangler finds the
 D1 bindings and `--local` finds the state in `../.wrangler/state`.
 
@@ -207,6 +209,9 @@ Save these results into D1? [y/N] >
 The header line shows each filter as `id [name]`. A combination with no results shows
 `(no results)` under it.
 
+A specialty or category the competition does not offer stops the script with
+`HTTP 400: <reason>`, and the reason lists the ids the competition offers.
+
 ---
 
 ## Load every specialty and category of a competition
@@ -220,11 +225,11 @@ With `--all` you only pick the competition. The script prints
 `Proceed? [y/N]`. Then, for each specialty and category:
 
 - It previews the results as a dry run.
-- It skips a combination with no results without asking.
+- It skips a combination with no results, or one the competition does not offer, without asking.
 - It shows the table and asks `Save? [y]es / [n]o / [a]ll-rest / [q]uit`. `a` saves this
   combination and every following one without asking again. `q` stops.
 
-It ends with `done: <N> combos — <saved> saved, <empty> empty-skipped.`
+It ends with `done: <N> combos — <saved> saved, <skipped> skipped (empty or not offered).`
 
 The `Save?` prompt reads from the terminal, not from standard input, so you cannot pipe answers to
 it. Use `--save` instead.
@@ -287,8 +292,10 @@ The first line gives the size of the run:
 league=<league> competitions=<N> specialties=<S> categories=<C> dry=no
 ```
 
-The script then prints `GET <url>` and the scheduler's answer for each combination. A failed request
-prints `!! failed comp=<id> spec=<id> cat=<id>` and the loop goes on. Count the failures when it ends:
+The script then prints `GET <url>` and the scheduler's answer for each combination. A combination
+the competition does not offer is answered with HTTP 400 and printed as `skipped: <reason>`; most
+combinations are skipped this way. Any other failed request prints
+`!! failed comp=<id> spec=<id> cat=<id>` and the loop goes on. Count the failures when it ends:
 
 ```bash
 grep -c '!! failed' scrape-all.log
@@ -296,6 +303,23 @@ grep -c '!! failed' scrape-all.log
 
 The script sends N × S × C requests, with a 0.3 s pause after each. For 36 competitions, 11
 specialties and 8 categories, that is 3,168 requests and close to 16 minutes of pauses alone.
+
+---
+
+## Load every ranking in production
+
+`scrape-all-rankings.sh` loads the end-of-championship rankings the same way: one `/scrape_rankings`
+call per competition and specialty of the production database, every category at once. A competition missing from the rankings page,
+or a specialty the competition does not offer, is answered with HTTP 400 and printed as
+`skipped: <reason>`: most combinations are skipped, and only other errors print `!! failed`.
+
+```bash
+../workers/scheduler/scripts/scrape-all-rankings.sh <league> --dry-run > rankings-all.log
+../workers/scheduler/scripts/scrape-all-rankings.sh <league> > rankings-all.log
+grep -c '!! failed' rankings-all.log
+```
+
+Rankings of a season still running stay in the nightly refresh until each has a champion.
 
 ---
 
