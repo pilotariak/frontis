@@ -5,22 +5,12 @@ import type {
   FormOption,
   FormOptions,
   LeagueScraper,
-  RankingPage,
+  RankingSource,
   ScrapedRankedPlayer,
   ScrapedRanking,
   ScrapeData,
   ScrapeOptions,
 } from "./types";
-
-/**
- * Most ranking pages one call may fetch. The site has no "every category"
- * ranking (it answers "Vous devez choisir une catégorie"), so a call fetches
- * one page per specialty × category pair, and each page is one subrequest out
- * of the 50 a Free plan invocation gets, which also cover the form GET, the
- * CTPB session warm-up and the D1 queries. CTPB offers about 20 specialties and
- * 10 categories per competition: those calls must name a specialty.
- */
-export const MAX_RANKING_PAGES = 35;
 
 /**
  * Shared scraper for the euskalpilota.fr league sites (LCAPB, LIDFPB, CTPB all
@@ -92,39 +82,54 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     return { formOptions, results };
   }
 
-  async fetchRankings(competition: string, specialty: string, category: string): Promise<RankingPage[]> {
+  async fetchResultsForm(competition: string): Promise<FormOptions> {
+    // A GET with InCompet alone returns the form only (about 20 KB), not the
+    // results: cheap enough to check a request before the results POST.
+    const headers = await this.requestHeaders();
+    const res = await fetch(`${this.baseUrl}?${new URLSearchParams({ InCompet: competition })}`, { headers });
+    if (!res.ok) {
+      throw new Error(`[${this.leagueName}] Failed to fetch results form: ${res.statusText}`);
+    }
+    const options = parseFormOptions(load(await res.text()));
+    // No competition list means no form at all (session not primed, error
+    // page, markup change), not a competition missing from the list.
+    if (options.competitions.length === 0) {
+      throw new Error(`[${this.leagueName}] Results form not found on resultats.php (HTTP ${res.status})`);
+    }
+    return options;
+  }
+
+  async openRankings(competition: string): Promise<RankingSource> {
     const url = new URL("classements.php", this.baseUrl).toString();
+    const leagueName = this.leagueName;
 
     // One set of headers for every page: CTPB primes a new PHPSESSID on each
     // requestHeaders() call, which would double the subrequests.
     const headers = await this.requestHeaders();
 
-    // The GET lists the specialties and categories this competition offers.
+    // The GET lists the competitions, and the specialties and categories this
+    // competition offers.
     const form = await fetch(`${url}?${new URLSearchParams({ InCompet: competition })}`, { headers });
     if (!form.ok) {
-      throw new Error(`[${this.leagueName}] Failed to fetch rankings form: ${form.statusText}`);
+      throw new Error(`[${leagueName}] Failed to fetch rankings form: ${form.statusText}`);
     }
     const options = parseFormOptions(load(await form.text()));
-    const pick = (offered: FormOption[], id: string) =>
-      id === "0" ? offered : offered.filter((o) => o.sourceId === id);
-    const specialties = pick(options.specialties, specialty);
-    const categories = pick(options.categories, category);
-
-    const count = specialties.length * categories.length;
-    if (count > MAX_RANKING_PAGES) {
-      throw new Error(
-        `${count} rankings (${specialties.length} specialties × ${categories.length} categories) exceed the ` +
-          `${MAX_RANKING_PAGES} pages one call may fetch; pass a specialty`
-      );
+    // No competition list means no form at all (session not primed, error
+    // page, markup change), not a competition missing from the list.
+    if (options.competitions.length === 0) {
+      throw new Error(`[${leagueName}] Rankings form not found on classements.php (HTTP ${form.status})`);
     }
 
-    const pages: RankingPage[] = [];
-    for (const s of specialties) {
-      for (const c of categories) {
+    return {
+      listed: options.competitions.some((c) => c.sourceId === competition),
+      specialties: options.specialties,
+      categories: options.categories,
+
+      async fetch(specialty: string, category: string): Promise<ScrapedRanking[]> {
         const body = new URLSearchParams({
           InCompet: competition,
-          InSpec: s.sourceId,
-          InCat: c.sourceId,
+          InSpec: specialty,
+          InCat: category,
           InGroupe: "0",
           InPoule: "0",
           InPhasePoule: "1",
@@ -138,16 +143,11 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
           body: body.toString(),
         });
         if (!res.ok) {
-          throw new Error(`[${this.leagueName}] Failed to fetch ranking ${s.sourceId}/${c.sourceId}: ${res.statusText}`);
+          throw new Error(`[${leagueName}] Failed to fetch ranking ${specialty}/${category}: ${res.statusText}`);
         }
-        pages.push({ specialty: s, category: c, rows: parseRanking(load(await res.text())) });
-      }
-    }
-
-    console.log(
-      `[${this.leagueName}] rankings competition=${competition} pages=${pages.length} teams=${pages.reduce((n, p) => n + p.rows.length, 0)}`
-    );
-    return pages;
+        return parseRanking(load(await res.text()));
+      },
+    };
   }
 }
 

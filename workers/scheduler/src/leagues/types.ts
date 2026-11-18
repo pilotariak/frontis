@@ -55,11 +55,27 @@ export interface RankingPage {
   rows: ScrapedRanking[];
 }
 
+/** The rankings page of one competition, opened with one upstream session. */
+export interface RankingSource {
+  /**
+   * Whether the site lists the competition. For any other value the site
+   * shows its default competition, whose rankings must not be saved under it.
+   */
+  listed: boolean;
+  /** Specialties and categories the competition offers, by source_id. */
+  specialties: FormOption[];
+  categories: FormOption[];
+  /** Fetch the ranking of one specialty and category, by source_id. */
+  fetch(specialty: string, category: string): Promise<ScrapedRanking[]>;
+}
+
 export interface LeagueScraper {
   fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData>;
   /**
-   * Fetch the end-of-championship rankings of a competition. `specialty` and
-   * `category` are source_ids, "0" for every one the competition offers.
+   * The results form of a competition (source_id): the competitions the site
+   * lists, and the specialties, categories and phases it offers for this one.
    */
-  fetchRankings(competition: string, specialty: string, category: string): Promise<RankingPage[]>;
+  fetchResultsForm(competition: string): Promise<FormOptions>;
+  /** Open the end-of-championship rankings page of a competition (source_id). */
+  openRankings(competition: string): Promise<RankingSource>;
 }

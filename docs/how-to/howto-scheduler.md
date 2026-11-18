@@ -122,6 +122,19 @@ database IDs** (the `id` primary key column), not `source_id` values.
 The worker resolves them to `source_id`s internally before hitting the upstream website.
 Use `/scrape_infos` first to seed the database, then query it to obtain the IDs.
 
+Before fetching the results, the worker reads the competition's form (a small GET of
+`resultats.php?InCompet=<source_id>`) and checks the parameters. The call fails with **HTTP 400**,
+and saves nothing, when:
+
+- an id is not a number, or is not in the database (run `/scrape_infos` first);
+- the competition is not on the league site: the site would answer with its default competition,
+  whose results would be saved under this one;
+- the competition does not offer the requested specialty, category or phase: the error lists the
+  ids it offers.
+
+Other errors (league site unreachable or without its results form, database unreachable) answer
+HTTP 500.
+
 **Required parameters**
 
 | Parameter     | Description         |
@@ -195,8 +208,21 @@ specialties and 10 categories per competition) pass a `specialty`.
 
 A ranking changes while its championship runs, so each fetched ranking **replaces** the stored one
 for that competition, specialty and category. A page that lists no team leaves the stored ranking
-untouched. A specialty or category missing from the database is reported and skipped: run
-`/scrape_infos` for the competition first. Clubs missing from the database are inserted.
+untouched. Clubs missing from the database are inserted.
+
+The parameters are checked before any ranking is fetched. The call fails with **HTTP 400**, and
+saves nothing, when:
+
+- an id is not a number, or is not in the database (run `/scrape_infos` first);
+- the competition is not on the league site's rankings page: the site would answer with its
+  default competition instead, whose rankings must not be saved under this one;
+- the competition does not offer the requested specialty or category: the error lists the ids it
+  offers;
+- the call would fetch more than 35 pages.
+
+With `specialty=0` or `category=0`, an offered specialty or category missing from the database is
+reported in the output and skipped: run `/scrape_infos` for the competition first. Other errors
+(league site unreachable or without its rankings form, database unreachable) answer HTTP 500.
 
 **Parameters**
 

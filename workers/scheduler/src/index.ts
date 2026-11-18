@@ -1,3 +1,4 @@
+import { BadRequestError } from "./params";
 import { scrapeRankings } from "./rankings";
 import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
@@ -251,10 +252,12 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        // A parameter the caller must fix is a 400; anything else is ours.
+        const status = err instanceof BadRequestError ? 400 : 500;
         if (url.searchParams.get("format") === "json") {
-          return new Response(JSON.stringify({ error: msg }), { status: 500, headers: JSON_HEADERS });
+          return new Response(JSON.stringify({ error: msg }), { status, headers: JSON_HEADERS });
         }
-        return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
+        return new Response(`${red(`Error: ${msg}`)}`, { status, ...TEXT });
       }
     }
 
@@ -328,10 +331,12 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        // A parameter the caller must fix is a 400; anything else is ours.
+        const status = err instanceof BadRequestError ? 400 : 500;
         if (asJson) {
-          return new Response(JSON.stringify({ error: msg }), { status: 500, headers: JSON_HEADERS });
+          return new Response(JSON.stringify({ error: msg }), { status, headers: JSON_HEADERS });
         }
-        return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
+        return new Response(`${red(`Error: ${msg}`)}`, { status, ...TEXT });
       }
     }
 

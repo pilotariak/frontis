@@ -4,8 +4,9 @@
 #
 # Load the end-of-championship rankings of a league by firing one
 # /scrape_rankings call per (competition x specialty) combo found in the D1
-# database, every category at once (category=0). A specialty the competition
-# does not offer costs one upstream GET and saves nothing.
+# database, every category at once (category=0). A competition missing from the
+# rankings page, or a specialty the competition does not offer, is answered
+# with HTTP 400 and printed as "skipped"; only other errors count as failures.
 #
 # Usage:
 #   ./scrape-all-rankings.sh <league> [--dry-run]
@@ -98,12 +99,31 @@ mapfile -t SPECIALTIES  < <(ids specialties)
 
 echo "league=$LEAGUE competitions=${#COMPETITIONS[@]} specialties=${#SPECIALTIES[@]} dry=${DRY:-no}"
 
+# api_status <url> <file>: like api, but writes the body to <file> and prints
+# the HTTP status instead of failing on an error status.
+api_status() {
+  if [ -n "${CF_ACCESS_TOKEN:-}${CF_CLIENT_ID:-}" ]; then
+    curl -sS -o "$2" -w '%{http_code}' -H @<(access_headers) "$1"
+  else
+    curl -sS -o "$2" -w '%{http_code}' "$1"
+  fi
+}
+
+body="$(mktemp)"
+trap 'rm -f "$body"' EXIT
+
 for comp in "${COMPETITIONS[@]}"; do
   for spec in "${SPECIALTIES[@]}"; do
     url="${BASE}/scrape_rankings?league=${LEAGUE}&competition=${comp}&specialty=${spec}&category=0&format=json${DRY}"
     echo "GET $url"
-    api "$url" || echo "  !! failed comp=$comp spec=$spec"
-    echo
+    # 400: the competition is not on the rankings page or does not offer this
+    # specialty. That is expected for most combos, so it is a skip, not a failure.
+    code="$(api_status "$url" "$body" || true)"
+    case "$code" in
+      200) cat "$body"; echo ;;
+      400) echo "  skipped: $(jq -r '.error // empty' "$body" 2>/dev/null)" ;;
+      *)   echo "  !! failed comp=$comp spec=$spec (HTTP ${code:-none})" ;;
+    esac
     sleep 0.3   # be gentle on the upstream site
   done
 done

@@ -54,7 +54,7 @@ function toId(value: string, name: string): number {
 function nameKey(name: string): string {
   return name
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();

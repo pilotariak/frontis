@@ -112,23 +112,32 @@ describe("fetch", () => {
     });
   });
 
-  test("/scrape_results reports scraper errors as JSON when format=json", async () => {
+  test("/scrape_results answers a parameter the caller must fix with a 400, as JSON when format=json", async () => {
     const res = await get(
       "/scrape_results?league=lcapb&competition=9&specialty=0&category=0&format=json",
       envWith({})
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(await body(res)).toEqual({
       error: "Competition with id '9' not found in database. Run /scrape_infos first.",
     });
   });
 
-  test("/scrape_results reports scraper errors as plain text otherwise", async () => {
+  test("/scrape_rankings rejects a malformed id as plain text otherwise", async () => {
+    const res = await get(
+      "/scrape_rankings?league=lcapb&competition=2&specialty=0&category=abc&no_color=true",
+      envWith({})
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Error: Invalid category: 'abc'");
+  });
+
+  test("/scrape_results reports a bad parameter as plain text otherwise", async () => {
     const res = await get(
       "/scrape_results?league=lcapb&competition=9&specialty=0&category=0&no_color=true",
       envWith({})
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
     expect(await res.text()).toBe(
       "Error: Competition with id '9' not found in database. Run /scrape_infos first."
@@ -141,12 +150,12 @@ describe("fetch", () => {
     expect(await body(res)).toEqual({ error: "missing required parameters: specialty, category" });
   });
 
-  test("/scrape_rankings reports scraper errors as JSON when format=json", async () => {
+  test("/scrape_rankings answers a parameter the caller must fix with a 400", async () => {
     const res = await get(
       "/scrape_rankings?league=lcapb&competition=9&specialty=0&category=0&format=json",
       envWith({})
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(await body(res)).toEqual({
       error: "Competition with id '9' not found in database. Run /scrape_infos first.",
     });

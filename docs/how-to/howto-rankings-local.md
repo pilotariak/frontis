@@ -250,6 +250,9 @@ and players must match.
 | `… with id '…' not found in database. Run /scrape_infos first.`    | The id does not exist in the local database. Look it up again in step 2.                                                              |
 | A ranking is skipped with `… not in database; run /scrape_infos …` | The competition offers a specialty or category the database lacks. Run `/scrape_infos` for the competition's source id.               |
 | `… exceed the 35 pages one call may fetch; pass a specialty`       | Too many specialty × category pairs for one call, typically on CTPB. Pass a `specialty`.                                              |
+| `… is not offered by competition …. Offered: …`                    | The competition does not offer that specialty or category. Pick an id from the `Offered` list.                                        |
+| `The league site lists no ranking for competition …`               | The competition is not on `classements.php`: it has no end-of-championship ranking.                                                   |
+| `Invalid category: '…'` (or competition, specialty)                | An id is not a number.                                                                                                                |
 | `Error: missing required parameters: …`                            | `/scrape_rankings` takes `league`, `competition`, `specialty` and `category`, like `/scrape_results`.                                 |
 
 ---

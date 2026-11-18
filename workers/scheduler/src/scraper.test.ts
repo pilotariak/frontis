@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { BadRequestError } from "./params";
 import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
 
@@ -108,8 +109,28 @@ function serve(html: string): void {
   globalThis.fetch = fetchMock as unknown as typeof fetch;
 }
 
+// The results form of competition 20260501, as a GET with InCompet returns it:
+// the source_ids match LOOKUPS below. Categories C9 and phase P9 are in the
+// database but not offered here.
+const SITE_FORM_HTML = `
+<select name="InCompet"><option value="20260501">Championnat 2026</option></select>
+<select name="InSpec"><option value="S10">Trinquet / P.G. Pleine Masculin</option><option value="S11">Main Nue</option></select>
+<select name="InCat"><option value="0">Toutes</option><option value="C3">Seniors</option><option value="C5">Cadets</option></select>
+<select name="InPhase"><option value="0">Toutes</option><option value="P4">Finale</option></select>`;
+
+/** GET answers with the results form, POST with the results. */
+function serveSite(form: string, results: string): void {
+  fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) =>
+    new Response(init?.method === "POST" ? results : form, { status: 200 })
+  );
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+}
+
+/** The POST calls, i.e. the results requests that went past validation. */
+const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+
 beforeEach(() => {
-  serve(RESULTS_HTML);
+  serveSite(SITE_FORM_HTML, RESULTS_HTML);
   spyOn(console, "log").mockImplementation(() => {});
   spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -122,10 +143,21 @@ afterEach(() => {
 // Lookup rows shared by the scrapeResults cases: DB ids on the left are what
 // the HTTP API receives, source_ids are what the upstream form expects.
 const LOOKUPS: Rule[] = [
-  [/SELECT source_id FROM competitions WHERE id/, ([id]) => (id === "2" ? [{ source_id: "20260501" }] : [])],
-  [/SELECT source_id FROM specialties WHERE id/, ([id]) => (id === "10" ? [{ source_id: "S10" }] : [])],
-  [/SELECT source_id FROM categories WHERE id/, ([id]) => (id === "3" ? [{ source_id: "C3" }] : [])],
-  [/SELECT source_id FROM phases WHERE id/, ([id]) => (id === "4" ? [{ source_id: "P4" }] : [])],
+  [/SELECT id, source_id, name FROM competitions WHERE id/, ([id]) => ({
+    "2": [{ id: 2, source_id: "20260501", name: "Championnat 2026" }],
+    "7": [{ id: 7, source_id: "20230503", name: "Challenge 2023" }],
+  }[String(id)] ?? [])],
+  [/SELECT id, source_id, name FROM specialties WHERE id/, ([id]) =>
+    id === "10" ? [{ id: 10, source_id: "S10", name: "Trinquet / P.G. pleine masculin" }] : []],
+  [/SELECT id, source_id, name FROM categories WHERE id/, ([id]) => ({
+    "3": [{ id: 3, source_id: "C3", name: "Séniors" }],
+    "9": [{ id: 9, source_id: "C9", name: "Minimes" }],
+  }[String(id)] ?? [])],
+  [/SELECT id, source_id, name FROM phases WHERE id/, ([id]) => ({
+    "4": [{ id: 4, source_id: "P4", name: "Finale" }],
+    "9": [{ id: 9, source_id: "P9", name: "Barrage" }],
+  }[String(id)] ?? [])],
+  [/SELECT id, source_id FROM categories WHERE source_id IN/, (ids) => (ids.includes("C3") ? [{ id: 3, source_id: "C3" }] : [])],
   [/SELECT name FROM specialties WHERE id/, ([id]) => (id === "10" ? [{ name: "Trinquet / P.G. pleine masculin" }] : [])],
   [/SELECT name FROM categories WHERE id/, ([id]) => (id === "3" ? [{ name: "Séniors" }] : [])],
   [/SELECT id FROM competitions WHERE source_id/, () => [{ id: 2 }]],
@@ -176,8 +208,10 @@ describe("scrapeResults", () => {
     const { db } = fakeDb(LOOKUPS);
     await scrapeResults(envWith(db), { ...ALL, specialty: "10", category: "3", phase: "4" }, true);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    // A GET of the competition's form first, then the results POST.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://lcapb.euskalpilota.fr/resultats.php?InCompet=20260501");
+    const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe("https://lcapb.euskalpilota.fr/resultats.php");
     expect(init?.method).toBe("POST");
     const body = new URLSearchParams(String(init?.body));
@@ -187,11 +221,58 @@ describe("scrapeResults", () => {
     expect(body.get("InPhase")).toBe("P4");
   });
 
-  test("a category without a source id is passed through unchanged", async () => {
+  test("rejects a category id missing from the database instead of ignoring it", async () => {
     const { db } = fakeDb(LOOKUPS);
-    await scrapeResults(envWith(db), { ...ALL, category: "42" }, true);
-    const body = new URLSearchParams(String(fetchMock.mock.calls[0][1]?.body));
-    expect(body.get("InCat")).toBe("42");
+    const call = scrapeResults(envWith(db), { ...ALL, category: "42" }, true);
+    await expect(call).rejects.toBeInstanceOf(BadRequestError);
+    await expect(call).rejects.toThrow("Category with id '42' not found in database. Run /scrape_infos first.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects a parameter that is not a database id", async () => {
+    const { db } = fakeDb(LOOKUPS);
+    const call = scrapeResults(envWith(db), { ...ALL, phase: "x1" }, true);
+    await expect(call).rejects.toBeInstanceOf(BadRequestError);
+    await expect(call).rejects.toThrow("Invalid phase: 'x1'");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects a category the competition does not offer, listing the offered ones", async () => {
+    const { db, batches } = fakeDb(LOOKUPS);
+    const call = scrapeResults(envWith(db), { ...ALL, category: "9" }, false);
+    await expect(call).rejects.toBeInstanceOf(BadRequestError);
+    await expect(call).rejects.toThrow(
+      "Category 9 (Minimes) is not offered by competition 2 (Championnat 2026). " +
+        "Offered: 3 (Seniors), ? (Cadets, source_id C5 not in database)"
+    );
+    expect(posts()).toEqual([]);
+    expect(batches).toEqual([]);
+  });
+
+  test("rejects a phase the site does not offer", async () => {
+    const { db } = fakeDb(LOOKUPS);
+    await expect(scrapeResults(envWith(db), { ...ALL, phase: "9" }, true)).rejects.toThrow(
+      "Phase 9 (Barrage) is not offered by competition 2 (Championnat 2026)"
+    );
+    expect(posts()).toEqual([]);
+  });
+
+  test("refuses a competition the site does not list, since it would answer with another one", async () => {
+    const { db, batches } = fakeDb(LOOKUPS);
+    const call = scrapeResults(envWith(db), { ...ALL, competition: "7" }, false);
+    await expect(call).rejects.toBeInstanceOf(BadRequestError);
+    await expect(call).rejects.toThrow("The league site lists no results for competition 7 (Challenge 2023)");
+    expect(posts()).toEqual([]);
+    expect(batches).toEqual([]);
+  });
+
+  test("a page without the results form is an upstream failure, not a bad request", async () => {
+    serveSite("<html><body>Erreur</body></html>", RESULTS_HTML);
+    const { db } = fakeDb(LOOKUPS);
+    const call = scrapeResults(envWith(db), ALL, true);
+    await expect(call).rejects.toThrow("[LCAPB] Results form not found on resultats.php (HTTP 200)");
+    await expect(call).rejects.not.toBeInstanceOf(BadRequestError);
+    expect(posts()).toEqual([]);
   });
 
   test("dry run returns every parsed row and writes nothing", async () => {
@@ -280,7 +361,7 @@ describe("scrapeResults", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const { db } = fakeDb(LOOKUPS);
     await expect(scrapeResults(envWith(db), ALL, true)).rejects.toThrow(
-      "[LCAPB] Failed to fetch page: Service Unavailable"
+      "[LCAPB] Failed to fetch results form: Service Unavailable"
     );
   });
 });

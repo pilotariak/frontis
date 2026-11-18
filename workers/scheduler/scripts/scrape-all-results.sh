@@ -99,12 +99,32 @@ mapfile -t CATEGORIES   < <(ids categories)
 
 echo "league=$LEAGUE competitions=${#COMPETITIONS[@]} specialties=${#SPECIALTIES[@]} categories=${#CATEGORIES[@]} dry=${DRY:-no}"
 
+# api_status <url> <file>: like api, but writes the body to <file> and prints
+# the HTTP status instead of failing on an error status.
+api_status() {
+  if [ -n "${CF_ACCESS_TOKEN:-}${CF_CLIENT_ID:-}" ]; then
+    curl -sS -o "$2" -w '%{http_code}' -H @<(access_headers) "$1"
+  else
+    curl -sS -o "$2" -w '%{http_code}' "$1"
+  fi
+}
+
+body="$(mktemp)"
+trap 'rm -f "$body"' EXIT
+
 for comp in "${COMPETITIONS[@]}"; do
   for spec in "${SPECIALTIES[@]}"; do
     for cat in "${CATEGORIES[@]}"; do
       url="${BASE}/scrape_results?league=${LEAGUE}&competition=${comp}&specialty=${spec}&category=${cat}&phase=${PHASE}&no_color=true${DRY}"
       echo "GET $url"
-      api "$url" || echo "  !! failed comp=$comp spec=$spec cat=$cat"
+      # 400: the competition does not offer this specialty or category, or is
+      # not on the site. Expected for most combos: a skip, not a failure.
+      code="$(api_status "$url" "$body" || true)"
+      case "$code" in
+        200) cat "$body" ;;
+        400) echo "  skipped: $(sed 's/^Error: //' "$body")" ;;
+        *)   echo "  !! failed comp=$comp spec=$spec cat=$cat (HTTP ${code:-none})" ;;
+      esac
       sleep 0.3   # be gentle on the upstream site
     done
   done

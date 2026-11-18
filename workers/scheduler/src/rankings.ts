@@ -1,6 +1,7 @@
 import { getDatabase, scrapers } from "./scraper";
 import type { Env } from "./types";
 import type { RankingPage, ScrapedRanking } from "./leagues/types";
+import { BadRequestError, checkIds, idsBySourceId, lookup, pick } from "./params";
 
 /** Same arguments as /scrape_results: DB ids, "0" for every one. */
 export interface RankingOptions {
@@ -35,36 +36,21 @@ export interface RankingSummary {
 export function nameKey(name: string): string {
   return name
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
 }
 
-async function sourceIdOf(db: D1Database, table: string, id: string, label: string): Promise<string> {
-  if (!id || id === "0") return "0";
-  const row = await db
-    .prepare(`SELECT source_id FROM ${table} WHERE id = ?`)
-    .bind(id)
-    .first<{ source_id: string | null }>();
-  if (!row?.source_id) {
-    throw new Error(`${label} with id '${id}' not found in database. Run /scrape_infos first.`);
-  }
-  return row.source_id;
-}
-
-/** source_id → id for the given source_ids; the oldest row wins a duplicate. */
-async function idsBySourceId(db: D1Database, table: string, sourceIds: string[]): Promise<Map<string, number>> {
-  const ids = new Map<string, number>();
-  const distinct = [...new Set(sourceIds)];
-  if (distinct.length === 0) return ids;
-  const { results } = await db
-    .prepare(`SELECT id, source_id FROM ${table} WHERE source_id IN (${distinct.map(() => "?").join(", ")}) ORDER BY id`)
-    .bind(...distinct)
-    .all<{ id: number; source_id: string }>();
-  for (const r of results) if (!ids.has(r.source_id)) ids.set(r.source_id, r.id);
-  return ids;
-}
+/**
+ * Most ranking pages one call may fetch. The site has no "every category"
+ * ranking (it answers "Vous devez choisir une catégorie"), so a call fetches
+ * one page per specialty × category pair, and each page is one subrequest out
+ * of the 50 a Free plan invocation gets, which also cover the form GET, the
+ * CTPB session warm-up and the D1 queries. CTPB offers about 20 specialties and
+ * 10 categories per competition: those calls must name a specialty.
+ */
+export const MAX_RANKING_PAGES = 35;
 
 /**
  * Club ids for the clubs of the given rankings: by source_id (`no_club`), then
@@ -112,20 +98,38 @@ async function resolveClubs(db: D1Database, pages: RankingPage[]): Promise<(row:
  */
 export async function scrapeRankings(env: Env, options: RankingOptions, dryRun: boolean): Promise<RankingSummary> {
   const scraper = scrapers[options.league.toLowerCase()];
-  if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
+  if (!scraper) throw new BadRequestError(`Unsupported league: ${options.league}`);
+
+  checkIds({ competition: options.competition, specialty: options.specialty, category: options.category });
 
   const db = getDatabase(env, options.league);
-  const competition = await db
-    .prepare("SELECT id, source_id, name FROM competitions WHERE id = ?")
-    .bind(options.competition)
-    .first<{ id: number; source_id: string | null; name: string }>();
-  if (!competition?.source_id) {
-    throw new Error(`Competition with id '${options.competition}' not found in database. Run /scrape_infos first.`);
-  }
-  const specialty = await sourceIdOf(db, "specialties", options.specialty, "Specialty");
-  const category = await sourceIdOf(db, "categories", options.category, "Category");
+  const competition = (await lookup(db, "competitions", options.competition, "Competition", false))!;
+  const specialty = await lookup(db, "specialties", options.specialty, "Specialty", true);
+  const category = await lookup(db, "categories", options.category, "Category", true);
 
-  const pages = await scraper.fetchRankings(competition.source_id, specialty, category);
+  const source = await scraper.openRankings(competition.source_id);
+  const label = `competition ${competition.id} (${competition.name})`;
+  if (!source.listed) {
+    // The site would answer with its default competition's rankings instead.
+    throw new BadRequestError(`The league site lists no ranking for ${label}`);
+  }
+  const specialties = await pick(db, "specialties", source.specialties, specialty, "Specialty", label);
+  const categories = await pick(db, "categories", source.categories, category, "Category", label);
+
+  const count = specialties.length * categories.length;
+  if (count > MAX_RANKING_PAGES) {
+    throw new BadRequestError(
+      `${count} rankings (${specialties.length} specialties × ${categories.length} categories) exceed the ` +
+        `${MAX_RANKING_PAGES} pages one call may fetch; pass a specialty`
+    );
+  }
+
+  const pages: RankingPage[] = [];
+  for (const s of specialties) {
+    for (const c of categories) {
+      pages.push({ specialty: s, category: c, rows: await source.fetch(s.sourceId, c.sourceId) });
+    }
+  }
 
   const specialtyIds = await idsBySourceId(db, "specialties", pages.map((p) => p.specialty.sourceId));
   const categoryIds = await idsBySourceId(db, "categories", pages.map((p) => p.category.sourceId));
