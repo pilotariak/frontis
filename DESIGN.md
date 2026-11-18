@@ -2,8 +2,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Machine-readable design tokens (design.md standard, https://design.md).
 # Source of truth for the `:root { … }` custom-property block of
-# gateway/index.html. Human-readable rationale lives in the markdown body.
-# Edit here, then run `make tokens` to regenerate the landing page tokens.
+# gateway/index.html and of the scheduler admin page
+# (workers/scheduler/src/admin-page.ts). Human-readable rationale lives in the
+# markdown body. Edit here, then run `make tokens` to regenerate both blocks.
 # ─────────────────────────────────────────────────────────────────────────────
 
 version: alpha
@@ -542,7 +543,8 @@ Every focusable element gets `outline: 2px solid primary; outline-offset: 3px; b
 - ✅ Reuse `text-primary` for dark surfaces (code block, footer) instead of introducing a new black.
 - ✅ Switch text from white to `text-primary` / `text-muted` as soon as content leaves the hero gradient.
 - ✅ Respect `prefers-reduced-motion`; every animation must have a reduced fallback.
-- ✅ Edit `DESIGN.md` first, then run `make tokens`; never hand-edit the `:root` block of `gateway/index.html`.
+- ✅ Edit `DESIGN.md` first, then run `make tokens`; never hand-edit the `:root` block of `gateway/index.html` or
+  `workers/scheduler/src/admin-page.ts`.
 
 ### Don't
 

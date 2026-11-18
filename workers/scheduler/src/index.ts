@@ -1,3 +1,4 @@
+import { handleAdmin } from "./admin";
 import { BadRequestError } from "./params";
 import { scrapeRankings } from "./rankings";
 import { scrapeInfos, scrapeResults } from "./scraper";
@@ -46,6 +47,10 @@ export default {
         headers: { "Content-Type": "application/json" },
       });
     }
+
+    // ── /admin, /admin/competitions, /admin/options ────────────────────────────
+    const admin = await handleAdmin(url, env, version);
+    if (admin) return admin;
 
     // ── /scrape_infos ──────────────────────────────────────────────────────────
     if (url.pathname === "/scrape_infos") {
@@ -344,6 +349,9 @@ export default {
     const base = url.origin;
     return new Response(
       `${bold(cyan("Frontis Scheduler"))}
+
+${bold("/admin")}           — web page to pick a league, competition, specialty and category, then run /scrape_results or /scrape_rankings
+  ${gray(`${base}/admin`)}
 
 ${bold("/scrape_infos")}   — fetch form options (competitions, specialties, clubs, categories, phases)
   ${gray(`${base}/scrape_infos?league=lcapb&competition=20260501`)}

@@ -12,6 +12,10 @@ To load a whole league quickly, use one request per competition instead: see
 [Load all results](howto-league-load-results.md#3-load-every-competition). The scripts send one
 request per specialty and category, so they take much longer.
 
+To load one competition from a browser instead, use the scheduler's
+[admin page](howto-scheduler.md#use-the-admin-page): it lists only the specialties and categories
+the competition offers, and runs rankings too.
+
 In the commands below, replace `<league>` with the lowercase league code, for example `lcapb`.
 
 ## Prerequisites

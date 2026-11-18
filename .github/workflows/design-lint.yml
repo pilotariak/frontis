@@ -10,6 +10,7 @@ on:
     paths:
       - "DESIGN.md"
       - "gateway/index.html"
+      - "workers/scheduler/src/admin-page.ts"
       - "hack/gen-design-tokens.py"
       - ".github/workflows/design-lint.yml"
   push:
@@ -18,6 +19,7 @@ on:
     paths:
       - "DESIGN.md"
       - "gateway/index.html"
+      - "workers/scheduler/src/admin-page.ts"
       - "hack/gen-design-tokens.py"
       - ".github/workflows/design-lint.yml"
 
@@ -51,7 +53,7 @@ jobs:
       - name: Lint DESIGN.md against the design.md standard
         run: bunx @google/design.md@0.4.0 lint DESIGN.md
 
-      - name: Verify gateway/index.html tokens are in sync with DESIGN.md
+      - name: Verify page tokens are in sync with DESIGN.md
         run: |
           python3 -m pip install --quiet pyyaml
           python3 hack/gen-design-tokens.py --check

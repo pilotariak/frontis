@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (C) Nicolas Lamirault <nicolas.lamirault@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
-"""Generate the `:root { … }` design-token block of gateway/index.html from DESIGN.md.
+"""Generate the `:root { … }` design-token block of the Frontis pages from DESIGN.md.
 
 DESIGN.md frontmatter is the single source of truth for every design token.
-This script renders the CSS custom properties the landing page relies on
-(`--red`, `--cream`, `--font`, …) from those tokens, so the stylesheet can
-never drift from the documented design system.
+This script renders the CSS custom properties the pages rely on (`--red`,
+`--cream`, `--font`, …) from those tokens, so no stylesheet can drift from the
+documented design system. The pages are the gateway landing page and the
+scheduler admin page, whose HTML lives in a TypeScript string.
 
 Colour variables come from the standard `colors:` block; the two font-stack
 variables come from `typography.<level>.fontFamily`.
 
 Usage:
-    gen-design-tokens.py            # rewrite gateway/index.html in place
-    gen-design-tokens.py --check    # exit 1 if index.html is out of date (CI)
+    gen-design-tokens.py            # rewrite the pages in place
+    gen-design-tokens.py --check    # exit 1 if a page is out of date (CI)
 """
 from __future__ import annotations
 
@@ -28,7 +29,10 @@ except ModuleNotFoundError:
 
 ROOT = Path(__file__).resolve().parent.parent
 DESIGN = ROOT / "DESIGN.md"
-INDEX = ROOT / "gateway" / "index.html"
+PAGES = [
+    ROOT / "gateway" / "index.html",
+    ROOT / "workers" / "scheduler" / "src" / "admin-page.ts",
+]
 
 # Source of each CSS variable's value in the frontmatter:
 #   ("c", key)   -> colors[key]
@@ -102,9 +106,9 @@ def render_body(entries: list[tuple[str, str, str]]) -> str:
     return "\n".join(lines)
 
 
-def rewrite(text: str, body: str) -> str:
+def rewrite(page: Path, text: str, body: str) -> str:
     if not ROOT_RE.search(text):
-        sys.exit(f"error: no '/* ── Design System Tokens ── */ :root {{' block found in {INDEX}")
+        sys.exit(f"error: no '/* ── Design System Tokens ── */ :root {{' block found in {page}")
     return ROOT_RE.sub(lambda m: f"{m.group(1)}{body}{m.group(2)}", text, count=1)
 
 
@@ -114,26 +118,28 @@ def main() -> int:
 
     entries = [(var, src[0], resolve(tokens, var, src)) for var, src in FIELDS]
 
-    old = INDEX.read_text()
-    updated = rewrite(old, render_body(entries))
+    body = render_body(entries)
 
-    rel = INDEX.relative_to(ROOT)
-    if check:
-        if updated != old:
-            sys.stderr.write(
-                f"error: {rel} is out of date with DESIGN.md tokens.\n"
-                "       run `make tokens` and commit the result.\n"
-            )
-            return 1
-        print(f"✅ {rel} matches DESIGN.md")
-        return 0
-
-    if updated != old:
-        INDEX.write_text(updated)
-        print(f"✅ wrote {rel} from DESIGN.md")
-    else:
-        print(f"✅ {rel} already up to date")
-    return 0
+    stale = 0
+    for page in PAGES:
+        old = page.read_text()
+        updated = rewrite(page, old, body)
+        rel = page.relative_to(ROOT)
+        if check:
+            if updated != old:
+                sys.stderr.write(
+                    f"error: {rel} is out of date with DESIGN.md tokens.\n"
+                    "       run `make tokens` and commit the result.\n"
+                )
+                stale += 1
+            else:
+                print(f"✅ {rel} matches DESIGN.md")
+        elif updated != old:
+            page.write_text(updated)
+            print(f"✅ wrote {rel} from DESIGN.md")
+        else:
+            print(f"✅ {rel} already up to date")
+    return 1 if stale else 0
 
 
 if __name__ == "__main__":

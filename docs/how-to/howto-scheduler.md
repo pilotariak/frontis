@@ -23,6 +23,46 @@ so you can fire it manually without waiting for 03:00 UTC.
 
 ---
 
+## Use the admin page
+
+The admin page runs `/scrape_results` and `/scrape_rankings` from menus, so you do not look up
+database ids or build URLs by hand. Open `/admin` on the scheduler:
+
+- Production: `https://frontis-scheduler.pilotariak.com/admin`. Cloudflare Access protects the
+  scheduler, so the browser asks for your GitHub login first.
+- Locally: `http://127.0.0.1:8787/admin`, with the local D1 databases.
+
+1. Choose **Match results** or **Rankings**. The league site has one page for each, and they can
+   offer different specialties.
+2. Choose the league, then the competition. Competitions the nightly cron refreshes come first,
+   under **Refreshed nightly**. The others follow, newest season first.
+3. Choose the specialty and the category. The menus list only what the league site offers for this
+   competition, read live from its form. **All specialties** and **All categories** send `0`.
+   A choice shown greyed out is offered by the site but missing from the database: run
+   [`/scrape_infos`](#get-scrape_infos--discover-source-ids) for the league first.
+4. Leave **Dry run** checked and click **Preview**. The output panel shows the request it sent and
+   the scheduler's plain-text answer.
+5. Click **Save these results** (or **Save these rankings**) to run the same request again without
+   dry run. To save in one step, uncheck **Dry run** and click **Run and save**.
+
+A rankings request for every specialty and every category can exceed the 35 pages one call may
+fetch. The scheduler then answers HTTP 400: pick a specialty.
+
+If a menu or a run reports that the scheduler did not answer, your Cloudflare Access session has
+probably expired: reload the page.
+
+The page reads two JSON routes, which you can also call yourself:
+
+| Route                                                          | Returns                                                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `GET /admin/competitions?league=lcapb`                         | `{ competitions: [{ id, name, enabled }] }`, competitions with a `source_id`, newest first |
+| `GET /admin/options?league=lcapb&competition=2&script=results` | `{ specialties: [{ id, name }], categories: [{ id, name }] }`, `id` null when not in D1    |
+
+`script` is `results` or `rankings`. A wrong parameter, or a competition the league site does not
+list, is an HTTP 400 with `{ error }`.
+
+---
+
 ## Endpoints
 
 ### `GET /` — built-in help
