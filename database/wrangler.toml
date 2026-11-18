@@ -22,3 +22,9 @@ binding = "DB_LEAGUE_CTPB"
 database_name = "pilotariak-ctpb"
 database_id = "11d235a6-faf2-4dde-81bd-2781f7e1e15e"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "DB_LEAGUE_LLPB"
+database_name = "pilotariak-llpb"
+database_id = "6f3f9566-33a9-4f20-bf54-1cc4e2f76e43"
+migrations_dir = "migrations"

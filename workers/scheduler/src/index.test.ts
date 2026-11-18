@@ -84,6 +84,7 @@ function envWith(parts: Partial<Env>): Env {
     DB_LEAGUE_LCAPB: none,
     DB_LEAGUE_LIDFPB: none,
     DB_LEAGUE_CTPB: none,
+    DB_LEAGUE_LLPB: none,
     SELF: fakeSelf(() => json({})).self,
     ...parts,
   };

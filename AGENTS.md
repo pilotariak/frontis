@@ -52,6 +52,7 @@ bun run migrate:local               # apply migrations locally
 bun run db:lcapb:local              # seed LCAPB league data
 bun run db:lidfpb:local             # seed LIDFPB league data
 bun run db:ctpb:local               # seed CTPB league data
+bun run db:llpb:local               # seed LLPB league data
 ```
 
 Remote (production D1):
@@ -91,7 +92,8 @@ make cloudflare-deploy SERVICE=gateway      # deploy a single worker
 ## Key Conventions
 
 - All workers use **TypeScript** with `@cloudflare/workers-types`
-- League codes: `lcapb`, `lidfpb`, `ccapb`, `ctpb` (passed as query variables)
+- League codes: `lcapb`, `lidfpb`, `ccapb`, `ctpb`, `llpb` (passed as query variables); see
+  `docs/reference/leagues.md` for each league's site, D1 database and scraper
 - GraphQL endpoint in production: `https://frontis-gateway.pilotariak.com/graphql`
 - Formatting: `dprint` (config in `.dprint.json`)
 - License headers required on all source files (checked by `licenserc.toml`)

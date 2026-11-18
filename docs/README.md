@@ -54,6 +54,7 @@ Look these up when you need accurate, factual information.
 | --------------------------------------------- | ------------------------------------------------- |
 | [GraphQL Schema](reference/graphql-schema.md) | All types, queries, and fields                    |
 | [Configuration](reference/configuration.md)   | Environment variables, Wrangler bindings, secrets |
+| [Supported leagues](reference/leagues.md)     | Codes, results sites, D1 databases, scrapers      |
 | [Ports](reference/ports.md)                   | Local development port assignments                |
 
 ---

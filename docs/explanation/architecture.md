@@ -62,7 +62,7 @@ The service binding architecture means there is no public endpoint for subgraphs
 
 ## The `X-Pilotariak-League` header
 
-Each D1-backed subgraph (`clubs`, `competitions`, `results`, `rankings`, `specialties`, `categories`) manages data for multiple leagues (LCAPB, LIDFPB, CTPB). Rather than deploying a separate Worker per league, each Worker holds multiple D1 bindings (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`) and selects the right database at request time based on the `X-Pilotariak-League` header.
+Each D1-backed subgraph (`clubs`, `competitions`, `results`, `rankings`, `specialties`, `categories`) manages data for multiple leagues (LCAPB, LIDFPB, CTPB, LLPB). Rather than deploying a separate Worker per league, each Worker holds multiple D1 bindings (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`, `DB_LEAGUE_LLPB`) and selects the right database at request time based on the `X-Pilotariak-League` header.
 
 This keeps the number of deployed Workers small while supporting multiple leagues. The gateway forwards the header to all subgraphs transparently.
 
@@ -80,7 +80,7 @@ Separating the scraper from the read path means a scraping failure does not affe
 
 ## The setup-league worker
 
-The `frontis-setup-league` Worker is a utility Worker used to seed or reconfigure league databases. It holds D1 bindings for all leagues (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`) but is not on the query path and has no service binding from the gateway.
+The `frontis-setup-league` Worker is a utility Worker used to seed or reconfigure league databases. It holds D1 bindings for all leagues (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`, `DB_LEAGUE_LLPB`) but is not on the query path and has no service binding from the gateway.
 
 It exists to bootstrap league data independently of the scheduler and subgraph Workers.
 

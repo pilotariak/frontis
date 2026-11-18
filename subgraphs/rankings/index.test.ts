@@ -69,7 +69,7 @@ const PLAYERS: PlayerRow[] = [
 const TOKEN = "internal-secret";
 
 function envWith(db: D1Database): Env {
-  return { DB_LEAGUE_LCAPB: db, DB_LEAGUE_LIDFPB: db, DB_LEAGUE_CTPB: db, INTERNAL_SERVICE_TOKEN: TOKEN };
+  return { DB_LEAGUE_LCAPB: db, DB_LEAGUE_LIDFPB: db, DB_LEAGUE_CTPB: db, DB_LEAGUE_LLPB: db, INTERNAL_SERVICE_TOKEN: TOKEN };
 }
 
 async function graphql(env: Env, query: string, variables: Record<string, unknown> = {}, headers: Record<string, string> = {}) {

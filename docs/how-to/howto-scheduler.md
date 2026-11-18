@@ -1,8 +1,7 @@
 # How to use the Frontis Scheduler
 
-The scheduler is a Cloudflare Worker that scrapes match results from the league websites
-([LCAPB](https://lcapb.euskalpilota.fr/resultats.php) and
-[LIDFPB](https://lidfpb.euskalpilota.fr/resultats.php)) and writes them into the D1 databases.
+The scheduler is a Cloudflare Worker that scrapes match results from the league websites (see
+[Supported leagues](../reference/leagues.md)) and writes them into the D1 databases.
 
 It exposes two HTTP endpoints for on-demand scraping and runs automatically on a daily cron
 (`0 3 * * *` — every day at 03:00 UTC).
@@ -81,9 +80,9 @@ Run this first to discover the IDs you need for `/scrape_results`.
 
 **Required parameters**
 
-| Parameter | Description         |
-| --------- | ------------------- |
-| `league`  | `lcapb` or `lidfpb` |
+| Parameter | Description                         |
+| --------- | ----------------------------------- |
+| `league`  | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
 
 **Optional parameters**
 
@@ -177,10 +176,10 @@ HTTP 500.
 
 **Required parameters**
 
-| Parameter     | Description         |
-| ------------- | ------------------- |
-| `league`      | `lcapb` or `lidfpb` |
-| `competition` | Competition DB `id` |
+| Parameter     | Description                         |
+| ------------- | ----------------------------------- |
+| `league`      | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
+| `competition` | Competition DB `id`                 |
 
 **Optional parameters**
 
@@ -268,7 +267,7 @@ reported in the output and skipped: run `/scrape_infos` for the competition firs
 
 | Parameter     | Required | Description                                                            |
 | ------------- | -------- | ---------------------------------------------------------------------- |
-| `league`      | yes      | `lcapb`, `lidfpb` or `ctpb`                                            |
+| `league`      | yes      | `lcapb`, `lidfpb`, `ctpb` or `llpb`                                    |
 | `competition` | yes      | Competition DB `id`                                                    |
 | `specialty`   | yes      | Specialty DB `id`; `0` means every specialty of the competition        |
 | `category`    | yes      | Category DB `id`; `0` means every category of the competition          |
