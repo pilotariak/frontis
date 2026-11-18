@@ -112,13 +112,33 @@ In `gateway/index.ts`, wire the new binding into the proxy configuration (follow
 
 ---
 
-## 5. Register the port
+## 5. Share the internal service token
+
+The gateway sends `INTERNAL_SERVICE_TOKEN` in the `x-internal-token` header, and every subgraph returns
+`403 Forbidden` when the value does not match. Add the check to the Worker's `fetch` and
+`INTERNAL_SERVICE_TOKEN: string` to its `Env` (see `subgraphs/clubs/index.ts`).
+
+- **Local:** create `subgraphs/<name>/.dev.vars` with the same `INTERNAL_SERVICE_TOKEN` as `gateway/.dev.vars`.
+- **Production:** before the gateway routes traffic to the new Worker, set the secret to the gateway's value:
+
+  ```bash
+  bunx wrangler secret put INTERNAL_SERVICE_TOKEN --name frontis-<name>
+  ```
+
+  Check it with `bunx wrangler secret list --name frontis-<name>`. Cloudflare cannot read the value back: if it is
+  lost, rotate it on every Worker with `hack/scripts/setup-internal-service-token.sh`.
+
+Add the Worker to the `WORKER_DIRS` map in `hack/scripts/setup-internal-service-token.sh`, so a rotation reaches it.
+
+---
+
+## 6. Register the port
 
 Add the new subgraph to `docs/reference/ports.md` with its app port and inspector port.
 
 ---
 
-## 6. Recompose the supergraph
+## 7. Recompose the supergraph
 
 ```bash
 bun run compose
@@ -128,7 +148,7 @@ If composition fails, Hive will report which types conflict. Fix the schema and 
 
 ---
 
-## 7. Add the start script
+## 8. Add the start script
 
 In the root `package.json`, add:
 
@@ -140,7 +160,7 @@ And include it in the `dev` concurrently command.
 
 ---
 
-## 8. Publish to Hive
+## 9. Publish to Hive
 
 After deploying the Worker to Cloudflare:
 
