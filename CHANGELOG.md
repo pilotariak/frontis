@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/pilotariak/frontis/compare/v0.13.0...v0.13.1) (2026-11-18)
+
+
+### 🐛 Bug Fixes
+
+* **gateway:** move rate limiting and supergraph cache off workers kv ([#104](https://github.com/pilotariak/frontis/issues/104)) ([7f5a415](https://github.com/pilotariak/frontis/commit/7f5a415dc5dfced364133d14ed552a9bc597b005))
+
 ## [0.13.0](https://github.com/pilotariak/frontis/compare/v0.12.0...v0.13.0) (2026-11-18)
 
 
