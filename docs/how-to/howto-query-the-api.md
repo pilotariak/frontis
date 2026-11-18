@@ -31,7 +31,8 @@ Queries that span several subgraphs are in [Cross-subgraph query](#cross-subgrap
 
 All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`,
 `rankings`) require an **`X-Pilotariak-League` header** identifying the target database.
-Supported values: `lcapb`, `lidfpb`, `ctpb`. Any other value returns `Unknown league: <value>`.
+Supported values: `lcapb`, `lidfpb`, `ctpb`, `llpb` (see [Supported leagues](../reference/leagues.md)).
+Any other value returns `Unknown league: <value>`.
 
 > **About the IDs in the examples.** IDs are imported from each league's website and are
 > not sequential (`club(id: "1")` returns `null`). The IDs used in the guides come from production
@@ -250,7 +251,7 @@ The query targets a D1-backed subgraph. Add `-H "X-Pilotariak-League: <league>"`
 
 ### `BAD_USER_INPUT` — `Unknown league: <value>`
 
-The league code is not one of `lcapb`, `lidfpb`, `ctpb`.
+The league code is not one of `lcapb`, `lidfpb`, `ctpb`, `llpb`.
 
 ### `GRAPHQL_VALIDATION_FAILED` — `Cannot query field "..."`
 

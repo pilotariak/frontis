@@ -2,6 +2,7 @@ import type { Env, ScrapedResult } from "./types";
 import { CtpbScraper } from "./leagues/ctpb";
 import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
+import { LlpbScraper } from "./leagues/llpb";
 import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
 import { BadRequestError, checkIds, lookup, pick } from "./params";
 
@@ -13,6 +14,7 @@ export const scrapers: Record<string, LeagueScraper> = {
   lcapb: new LcapbScraper(),
   lidfpb: new LidfpbScraper(),
   ctpb: new CtpbScraper(),
+  llpb: new LlpbScraper(),
 };
 
 type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;

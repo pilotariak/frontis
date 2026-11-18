@@ -18,9 +18,9 @@ with the uppercase one (`CTPB`).
 
 - Wrangler is logged in to the Cloudflare account that holds the `pilotariak-*` databases: run
   `bunx wrangler whoami` to check.
-- The league's results site runs the euskalpilota.fr `resultats.php` application, like LCAPB, LIDFPB
-  and CTPB. A site built on another application needs its own scraper, which this guide does not
-  cover.
+- The league's results site runs the euskalpilota.fr `resultats.php` application, like the
+  [supported leagues](../reference/leagues.md). A site built on another application needs its own
+  scraper, which this guide does not cover.
 
 ---
 
@@ -37,7 +37,7 @@ Keep the `database_id` it prints. Steps 2 and 3 use it.
 
 ## 2. Bind the database in every worker
 
-Add this block to each of the 8 `wrangler.toml` files listed below, next to the existing
+Add this block to each of the 9 `wrangler.toml` files listed below, next to the existing
 `DB_LEAGUE_*` blocks:
 
 ```toml
@@ -56,6 +56,7 @@ migrations_dir = "../../database/migrations"
 | `subgraphs/categories/wrangler.toml`   | GraphQL reads                               |
 | `subgraphs/clubs/wrangler.toml`        | GraphQL reads                               |
 | `subgraphs/competitions/wrangler.toml` | GraphQL reads                               |
+| `subgraphs/rankings/wrangler.toml`     | GraphQL reads                               |
 | `subgraphs/results/wrangler.toml`      | GraphQL reads                               |
 | `subgraphs/specialties/wrangler.toml`  | GraphQL reads                               |
 
@@ -67,11 +68,12 @@ The `echo` subgraph and the gateway hold no D1 binding: leave them unchanged.
 
 ## 3. Declare the binding in the TypeScript `Env` types
 
-Add `DB_LEAGUE_<LEAGUE>: D1Database;` to the `Env` interface in these 7 files:
+Add `DB_LEAGUE_<LEAGUE>: D1Database;` to the `Env` interface in these 8 files:
 
 - `subgraphs/categories/db.ts`
 - `subgraphs/clubs/db.ts`
 - `subgraphs/competitions/db.ts`
+- `subgraphs/rankings/db.ts`
 - `subgraphs/results/db.ts`
 - `subgraphs/specialties/db.ts`
 - `workers/scheduler/src/types.ts`
@@ -164,13 +166,14 @@ bun run db:<league>:remote "SELECT name FROM sqlite_master WHERE type = 'table' 
 
 ## 7. Deploy
 
-The GraphQL schema does not change, so there is nothing to publish to Hive. Deploy the 5 subgraphs
+The GraphQL schema does not change, so there is nothing to publish to Hive. Deploy the 6 subgraphs
 and the 2 workers that gained the binding:
 
 ```bash
 make cloudflare-deploy SERVICE=subgraphs/categories
 make cloudflare-deploy SERVICE=subgraphs/clubs
 make cloudflare-deploy SERVICE=subgraphs/competitions
+make cloudflare-deploy SERVICE=subgraphs/rankings
 make cloudflare-deploy SERVICE=subgraphs/results
 make cloudflare-deploy SERVICE=subgraphs/specialties
 bun run setup-league:deploy
@@ -186,9 +189,11 @@ workers.
 
 Add the league code where the supported leagues are listed:
 
-- `AGENTS.md` (league codes)
+- `docs/reference/leagues.md` (a row in each table; **Nightly refresh** stays `no`)
+- `AGENTS.md` (league codes, and the `db:<league>:local` line under Database)
 - `docs/how-to/howto-database.md` (databases table)
 - `docs/how-to/howto-query-the-api.md` (supported `X-Pilotariak-League` values)
+- `docs/how-to/howto-scheduler.md` (`league` parameter values)
 - `docs/reference/graphql-schema.md` (supported `X-Pilotariak-League` values)
 - `docs/explanation/architecture.md` (D1 bindings)
 - `docs/reference/configuration.md` (D1 bindings)

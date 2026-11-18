@@ -141,8 +141,9 @@ invocation. After a full load every past season is enabled, and past seasons do 
    use it stop listing the seasons you disable. Their results stay in the database and are still
    returned by `competitions` without the argument.
 
-2. Add the league to `CRON_LEAGUES` in `workers/scheduler/src/index.ts`, run `bun test`, then deploy
-   the scheduler:
+2. Add the league to `CRON_LEAGUES` in `workers/scheduler/src/index.ts`, set its **Nightly refresh**
+   to `yes` in [Supported leagues](../reference/leagues.md), run `bun test`, then deploy the
+   scheduler:
 
    ```bash
    bun run scheduler:deploy

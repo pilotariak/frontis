@@ -62,6 +62,7 @@ function envWith(db: D1Database): Env {
     DB_LEAGUE_LCAPB: db,
     DB_LEAGUE_LIDFPB: db,
     DB_LEAGUE_CTPB: db,
+    DB_LEAGUE_LLPB: db,
     SELF: { fetch: async () => new Response("") } as unknown as Fetcher,
   };
 }

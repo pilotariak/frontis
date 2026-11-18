@@ -45,6 +45,7 @@ function envWith(parts: Partial<Env>): Env {
     DB_LEAGUE_LCAPB: none,
     DB_LEAGUE_LIDFPB: none,
     DB_LEAGUE_CTPB: none,
+    DB_LEAGUE_LLPB: none,
     SELF: { fetch: mock() } as unknown as Fetcher,
     ...parts,
   };
@@ -91,7 +92,7 @@ describe("/admin", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
     const html = await res.text();
-    expect(html).toContain(`<script type="application/json" id="leagues">["lcapb","lidfpb","ctpb"]</script>`);
+    expect(html).toContain(`<script type="application/json" id="leagues">["lcapb","lidfpb","ctpb","llpb"]</script>`);
     expect(html).toContain(`<div class="version">v${version}</div>`);
   });
 
