@@ -7,6 +7,9 @@ the league's D1 database.
 Run `/init` once when a new league is added, then run `/bootstrap` at the start of each
 season (or whenever you want to refresh the dropdown values from the upstream website).
 
+> The scheduler's admin page does both from a form, for every competition of the league in one run:
+> see [Bootstrap a league](howto-scheduler.md#bootstrap-a-league).
+
 ---
 
 ## Running locally

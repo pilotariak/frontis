@@ -13,6 +13,12 @@ table.
 
 In the commands below, replace `<league>` with the lowercase league code, for example `ctpb`.
 
+> **From a browser.** The scheduler's admin page runs steps 1 to 5 from a form: register the league,
+> save the site default competition, then save every competition. See
+> [Bootstrap a league](howto-scheduler.md#bootstrap-a-league). It works on the local state or, at
+> `https://frontis-scheduler.pilotariak.com/admin`, on production. The steps below do the same
+> with curl.
+
 ## Prerequisites
 
 - The league database exists and every worker has its binding:

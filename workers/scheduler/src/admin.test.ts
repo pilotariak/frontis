@@ -28,6 +28,10 @@ function fakeDb(rules: Rule[]) {
           queries.push({ sql, bindings });
           return { results: rowsFor(sql, bindings) };
         },
+        async run() {
+          queries.push({ sql, bindings });
+          return { meta: { changes: 1 } };
+        },
       });
       return { bind: (...bindings: unknown[]) => make(bindings), ...make([]) };
     },
@@ -47,6 +51,15 @@ function envWith(parts: Partial<Env>): Env {
 }
 
 const get = (path: string, env: Env) => worker.fetch(new Request(`https://scheduler.internal${path}`), env);
+const post = (path: string, payload: string, env: Env) =>
+  worker.fetch(
+    new Request(`https://scheduler.internal${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+    }),
+    env
+  );
 const body = (res: Response) => res.json() as Promise<Record<string, unknown>>;
 
 /** Competition 502 is source_id 20260501; specialty 146 and category 1575 are known. */
@@ -89,6 +102,26 @@ describe("/admin", () => {
     expect(html).not.toContain("${");
   });
 
+  test("offers one combination or every combination, the walk reading the counts headers", () => {
+    const html = renderAdminPage(["lcapb"], "1.0.0");
+    expect(html).toContain(`<input type="radio" name="mode" id="mode-one" value="one" checked />`);
+    expect(html).toContain(`<input type="radio" name="mode" id="mode-walk" value="walk" />`);
+    expect(html).toContain(`var found = res.headers.get("X-Scrape-Found");`);
+    expect(html).toContain(`} else if (reply.found === 0) {`);
+  });
+
+  test("offers a bootstrap card: the league row first, then /scrape_infos by source_id", () => {
+    const html = renderAdminPage(["lcapb"], "1.0.0");
+    expect(html).toContain(`<details class="card" id="bootstrap">`);
+    expect(html).toContain(`<input type="text" id="bs-name" required disabled`);
+    expect(html).toContain(`var row = await fetchJson(path, { name: register.name });`);
+    expect(html).toContain(`execute("infos", { league: bsLeague.acronym, competition: bsCompetitionEl.value }`);
+    expect(html).toContain(`return new Option(c.name, c.source_id);`);
+    expect(html).toContain(`var reply = await scrape("infos", { league: league, competition: competition.source_id }, false);`);
+    // /admin/competitions lists newest first; the walk saves oldest first so current labels win.
+    expect(html).toContain(`bootstrapAll(bsLeague.acronym, name, bsCompetitions.slice().reverse());`);
+  });
+
   test("escapes '<' in the leagues JSON island", () => {
     expect(renderAdminPage(["</script>"], "1.0.0")).toContain(`["\\u003c/script>"]`);
   });
@@ -105,16 +138,16 @@ describe("/admin/competitions", () => {
   test("lists scrapable competitions newest season first, with the nightly flag", async () => {
     const { db, queries } = fakeDb([
       [/FROM competitions/, () => [
-        { id: 545, name: "Championnat 2027", enabled: 1 },
-        { id: 476, name: "Championnat 2013", enabled: 0 },
+        { id: 545, source_id: "20270501", name: "Championnat 2027", enabled: 1 },
+        { id: 476, source_id: "20130501", name: "Championnat 2013", enabled: 0 },
       ]],
     ]);
     const res = await get("/admin/competitions?league=lcapb", envWith({ DB_LEAGUE_LCAPB: db }));
     expect(res.status).toBe(200);
     expect(await body(res)).toEqual({
       competitions: [
-        { id: 545, name: "Championnat 2027", enabled: true },
-        { id: 476, name: "Championnat 2013", enabled: false },
+        { id: 545, source_id: "20270501", name: "Championnat 2027", enabled: true },
+        { id: 476, source_id: "20130501", name: "Championnat 2013", enabled: false },
       ],
     });
     expect(queries[0]!.sql).toMatch(/WHERE source_id IS NOT NULL\s+ORDER BY source_id DESC/);
@@ -205,5 +238,61 @@ describe("/admin/options", () => {
     );
     expect(res.status).toBe(500);
     expect(await body(res)).toEqual({ error: "[LCAPB] Failed to fetch results form: Bad Gateway" });
+  });
+});
+
+// ── /admin/league ────────────────────────────────────────────────────────────
+
+describe("/admin/league", () => {
+  const URL_LCAPB = "https://lcapb.euskalpilota.fr/resultats.php";
+
+  test("GET reads the league's row, with the scraper's URL", async () => {
+    const { db, queries } = fakeDb([[/FROM leagues WHERE acronym = \?/, () => [{ name: "Comité Côte d'Argent" }]]]);
+    const res = await get("/admin/league?league=lcapb", envWith({ DB_LEAGUE_LCAPB: db }));
+    expect(res.status).toBe(200);
+    expect(await body(res)).toEqual({ acronym: "lcapb", url: URL_LCAPB, name: "Comité Côte d'Argent" });
+    expect(queries[0]!.bindings).toEqual(["lcapb"]);
+  });
+
+  test("GET answers a null name for a league not registered yet", async () => {
+    const res = await get("/admin/league?league=lcapb", envWith({ DB_LEAGUE_LCAPB: fakeDb([]).db }));
+    expect(await body(res)).toEqual({ acronym: "lcapb", url: URL_LCAPB, name: null });
+  });
+
+  test("POST registers the league as setup-league's /init does, the URL from the scraper", async () => {
+    const { db, queries } = fakeDb([]);
+    const res = await post("/admin/league?league=lcapb", `{"name":"  Comité Côte d'Argent  "}`, envWith({ DB_LEAGUE_LCAPB: db }));
+    expect(res.status).toBe(200);
+    expect(await body(res)).toEqual({ acronym: "lcapb", url: URL_LCAPB, name: "Comité Côte d'Argent" });
+    expect(queries).toHaveLength(1);
+    expect(queries[0]!.sql).toMatch(/INSERT INTO leagues \(name, acronym, url\)[\s\S]*ON CONFLICT\(acronym\) DO UPDATE/);
+    expect(queries[0]!.bindings).toEqual(["Comité Côte d'Argent", "lcapb", URL_LCAPB]);
+  });
+
+  test.each([
+    [`{"name":"   "}`],
+    [`{}`],
+    [`not json`],
+  ])("POST %s is a 400 and writes nothing", async (payload) => {
+    const { db, queries } = fakeDb([]);
+    const res = await post("/admin/league?league=lcapb", payload, envWith({ DB_LEAGUE_LCAPB: db }));
+    expect(res.status).toBe(400);
+    expect(await body(res)).toEqual({ error: "missing required parameter: name" });
+    expect(queries).toHaveLength(0);
+  });
+
+  test("requires a known league", async () => {
+    const res = await post("/admin/league?league=ccapb", `{"name":"CCAPB"}`, envWith({}));
+    expect(res.status).toBe(400);
+    expect(await body(res)).toEqual({ error: "Unsupported league: ccapb" });
+  });
+
+  test("a database without the leagues table is a 500", async () => {
+    const db = {
+      prepare: () => ({ bind: () => ({ run: () => Promise.reject(new Error("D1_ERROR: no such table: leagues")) }) }),
+    } as unknown as D1Database;
+    const res = await post("/admin/league?league=lcapb", `{"name":"LCAPB"}`, envWith({ DB_LEAGUE_LCAPB: db }));
+    expect(res.status).toBe(500);
+    expect(await body(res)).toEqual({ error: "D1_ERROR: no such table: leagues" });
   });
 });

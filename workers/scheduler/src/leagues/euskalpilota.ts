@@ -27,7 +27,7 @@ import type {
  *     selectors per cell, and nothing is logged per row.
  */
 export abstract class EuskalpilotaScraper implements LeagueScraper {
-  protected abstract readonly baseUrl: string;
+  abstract readonly baseUrl: string;
   protected abstract readonly leagueName: string;
 
   protected readonly userAgent =

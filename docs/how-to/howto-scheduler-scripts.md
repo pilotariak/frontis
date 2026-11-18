@@ -14,7 +14,8 @@ request per specialty and category, so they take much longer.
 
 To load one competition from a browser instead, use the scheduler's
 [admin page](howto-scheduler.md#use-the-admin-page): it lists only the specialties and categories
-the competition offers, and runs rankings too.
+the competition offers, and runs rankings too. Its **Every combination** mode does what
+`scrape-competition.sh --all` does: it previews each combination and asks before saving it.
 
 In the commands below, replace `<league>` with the lowercase league code, for example `lcapb`.
 
