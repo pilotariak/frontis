@@ -152,7 +152,7 @@ competition, specialty and category, as published by the league site.
 >
 > The champion is the rank-1 team of a ranking whose `final` is `true`; its `phase` is `Champion`.
 > There is no `champions` query: see
-> [The champions of a season](../how-to/howto-query-the-api.md#the-champions-of-a-season).
+> [The champions of a season](../how-to/howto-query-rankings.md#the-champions-of-a-season).
 
 ---
 

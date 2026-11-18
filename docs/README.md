@@ -35,7 +35,7 @@ Follow these three guides in order to add a new league, from an empty database t
 | Document                                                       | Description                                          |
 | -------------------------------------------------------------- | ---------------------------------------------------- |
 | [Develop and run Frontis](how-to/howto-dev.md)                 | Local dev, Docker, scheduler, deploy, port reference |
-| [Query the GraphQL API](how-to/howto-query-the-api.md)         | curl examples for all queries                        |
+| [Query the GraphQL API](how-to/howto-query-the-api.md)         | Setup and troubleshooting, one guide per subgraph    |
 | [Manage D1 databases](how-to/howto-database.md)                | Migrations, schema, adding leagues                   |
 | [Set up a league](how-to/howto-setup-league.md)                | Bootstrap competitions, specialties, and categories  |
 | [Use the scheduler](how-to/howto-scheduler.md)                 | Scrape results, discover source IDs, trigger cron    |
