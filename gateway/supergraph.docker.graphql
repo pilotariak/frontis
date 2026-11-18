@@ -91,6 +91,7 @@ enum join__Graph {
   CLUBS @join__graph(name: "clubs", url: "http://clubs_subgraph:4003/graphql") 
   COMPETITIONS @join__graph(name: "competitions", url: "http://competitions_subgraph:4002/graphql") 
   ECHO @join__graph(name: "echo", url: "http://echo_subgraph:4001/graphql") 
+  RANKINGS @join__graph(name: "rankings", url: "http://rankings_subgraph:4007/graphql") 
   RESULTS @join__graph(name: "results", url: "http://results_subgraph:4005/graphql") 
   SPECIALTIES @join__graph(name: "specialties", url: "http://specialties_subgraph:4004/graphql") 
 }
@@ -98,7 +99,7 @@ enum join__Graph {
 """
 A competition category (e.g. Seniors, Juniors, Vétérans).
 """
-type Category @join__type(graph: CATEGORIES, key: "id")  @join__type(graph: RESULTS, key: "id")  {
+type Category @join__type(graph: CATEGORIES, key: "id")  @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
   id: ID!
   """
   Human-readable name of the category.
@@ -114,7 +115,7 @@ type Category @join__type(graph: CATEGORIES, key: "id")  @join__type(graph: RESU
   results(limit: Int = 100, offset: Int = 0) : [Result!]! @join__field(graph: RESULTS) 
 }
 
-type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
+type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__type(graph: COMPETITIONS)  @join__type(graph: ECHO)  @join__type(graph: RANKINGS)  @join__type(graph: RESULTS)  @join__type(graph: SPECIALTIES)  {
   """
   Fetch a single category by its ID.
   """
@@ -150,6 +151,31 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
   """
   version: String! @join__field(graph: ECHO) 
   """
+  Fetch a single team ranking by its ID.
+  """
+  teamRanking(id: ID!) : TeamRanking @join__field(graph: RANKINGS) 
+  """
+  The end-of-championship ranking of one competition, specialty and category,
+  ordered by rank. Empty when the league site publishes none.
+  """
+  rankings(competitionId: ID!, specialtyId: ID!, categoryId: ID!) : [TeamRanking!]! @join__field(graph: RANKINGS) 
+  """
+  Every team ranking a player appears in, most recent season first. Give a
+  `licence` (exact match), a `name`, or both. A name matches regardless of
+  case, accents and word order, and every word given must appear in the
+  player's name: "ane etxeberri" and "Etxeberri" both find "ETXEBERRI Ane".
+  Words shorter than two characters are ignored. `limit` is clamped to 1..500.
+  """
+  playerRankings(
+    licence: String
+    name: String
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [TeamRanking!]! @join__field(graph: RANKINGS) 
+  """
   Fetch a single result by its ID.
   """
   result(id: ID!) : Result @join__field(graph: RESULTS) 
@@ -180,7 +206,7 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
 """
 A pelota club (e.g. Denek Bat, Noizbait, Bixintxo).
 """
-type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
+type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
   id: ID!
   """
   Official club name.
@@ -195,7 +221,7 @@ type Club @join__type(graph: CLUBS, key: "id")  @join__type(graph: RESULTS, key:
 """
 A competition (e.g. Championnat LCAPB 2025-2026).
 """
-type Competition @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
+type Competition @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESULTS, key: "id")  {
   id: ID!
   """
   External identifier used by the source league system.
@@ -273,6 +299,86 @@ type Result @join__type(graph: COMPETITIONS, key: "id")  @join__type(graph: RESU
 }
 
 """
+A player of a ranked team, as listed by the league site.
+"""
+type RankedPlayer @join__type(graph: RANKINGS)  {
+  """
+  Licence number, leading zeros kept (e.g. "000101"). Stable from one season to the next.
+  """
+  licence: String!
+  """
+  Player name as printed by the league site ("NAME Firstname"). Null when the site lists the licence alone.
+  """
+  name: String
+}
+
+"""
+One team's line in the end-of-championship ranking ("Classement à la fin du
+championnat") of a competition, specialty and category, as published by the
+league site.
+"""
+type TeamRanking @join__type(graph: RANKINGS, key: "id")  {
+  id: ID!
+  """
+  Competition (season) of the ranking.
+  """
+  competition: Competition!
+  """
+  Pelota discipline of the ranking.
+  """
+  specialty: Specialty!
+  """
+  Category (series or age group) of the ranking.
+  """
+  category: Category!
+  """
+  Club the team plays for.
+  """
+  club: Club!
+  """
+  Team number within the club (the site's "Equipe" column).
+  """
+  teamNumber: Int!
+  """
+  Final rank, 1 for the champion.
+  """
+  rank: Int!
+  """
+  Phase the team reached, as printed by the league site: Champion, Finale,
+  1/2 finale, 1/4 de finale, Barrage, Poules, FORFAIT…
+  """
+  phase: String!
+  """
+  True once the ranking has a champion. False while the championship is still
+  running: ranks and phases are then provisional.
+  """
+  final: Boolean!
+  """
+  Players of the team, in the league site's order (two or three).
+  """
+  players: [RankedPlayer!]!
+}
+
+"""
+Reference to a Specialty entity owned by the specialties subgraph.
+"""
+type Specialty @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESULTS, key: "id")  @join__type(graph: SPECIALTIES, key: "id")  {
+  id: ID!
+  """
+  Results played in this discipline, oldest first.
+  """
+  results(limit: Int = 100, offset: Int = 0) : [Result!]! @join__field(graph: RESULTS) 
+  """
+  Human-readable name of the discipline.
+  """
+  name: String! @join__field(graph: SPECIALTIES) 
+  """
+  Whether this specialty is enabled (opt-in; defaults to false).
+  """
+  enabled: Boolean! @join__field(graph: SPECIALTIES) 
+}
+
+"""
 A player participating in a match (from the results table).
 """
 type Player @join__type(graph: RESULTS)  {
@@ -312,24 +418,5 @@ type SetScore @join__type(graph: RESULTS)  {
   Points scored by club B in this set.
   """
   b: Int!
-}
-
-"""
-Reference to a Specialty entity owned by the specialties subgraph.
-"""
-type Specialty @join__type(graph: RESULTS, key: "id")  @join__type(graph: SPECIALTIES, key: "id")  {
-  id: ID!
-  """
-  Results played in this discipline, oldest first.
-  """
-  results(limit: Int = 100, offset: Int = 0) : [Result!]! @join__field(graph: RESULTS) 
-  """
-  Human-readable name of the discipline.
-  """
-  name: String! @join__field(graph: SPECIALTIES) 
-  """
-  Whether this specialty is enabled (opt-in; defaults to false).
-  """
-  enabled: Boolean! @join__field(graph: SPECIALTIES) 
 }
     

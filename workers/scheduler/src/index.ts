@@ -1,3 +1,4 @@
+import { scrapeRankings } from "./rankings";
 import { scrapeInfos, scrapeResults } from "./scraper";
 import type { Env } from "./types";
 import { version } from "../../../package.json";
@@ -257,6 +258,83 @@ export default {
       }
     }
 
+    // ── /scrape_rankings ───────────────────────────────────────────────────────
+    if (url.pathname === "/scrape_rankings") {
+      const league      = url.searchParams.get("league");
+      const competition = url.searchParams.get("competition");
+      const specialty   = url.searchParams.get("specialty");
+      const category    = url.searchParams.get("category");
+      const asJson      = url.searchParams.get("format") === "json";
+
+      const JSON_HEADERS = { "Content-Type": "application/json" };
+      const missing = [
+        !league      && "league",
+        !competition && "competition",
+        !specialty   && "specialty",
+        !category    && "category",
+      ].filter(Boolean) as string[];
+
+      if (missing.length > 0) {
+        return new Response(
+          JSON.stringify({ error: `missing required parameters: ${missing.join(", ")}` }),
+          { status: 400, headers: JSON_HEADERS }
+        );
+      }
+
+      try {
+        const summary = await scrapeRankings(
+          env,
+          { league: league!, competition: competition!, specialty: specialty!, category: category! },
+          dryRun
+        );
+
+        // Compact summary for the nightly cron (through the SELF binding).
+        if (asJson) {
+          return new Response(
+            JSON.stringify({
+              league,
+              competition,
+              pages: summary.pages.length,
+              found: summary.found,
+              saved: summary.saved,
+              dry_run: dryRun,
+            }),
+            { headers: JSON_HEADERS }
+          );
+        }
+
+        const statusLine = dryRun
+          ? `${summary.found} teams found — ${yellow("not saved (dry-run)")}`
+          : green(`${summary.saved} teams saved`);
+        const lines = [
+          `${bold(cyan("League     "))} : ${bold(league!.toUpperCase())}`,
+          `${bold(cyan("Competition"))} : ${competition} ${dim(`[${summary.competition}]`)}`,
+          `${bold(cyan("Filters    "))} : specialty=${specialty}  category=${category}`,
+          `${bold(cyan("Status     "))} : ${statusLine}`,
+        ];
+        if (summary.pages.length === 0) lines.push("", dim("  (no ranking offered for these filters)"));
+
+        for (const page of summary.pages) {
+          lines.push("", `  ${bold(page.specialty)} ${dim("—")} ${magenta(page.category)}  ${dim(`(${page.teams.length} teams)`)}`);
+          if (page.skipped) lines.push(`    ${dim(page.skipped)}`);
+          for (const t of page.teams) {
+            lines.push(`    ${String(t.rank).padStart(3)}  ${cyan(t.phase.padEnd(14))} ${bold(t.club)} ${t.teamNumber}`);
+            for (const p of t.players) {
+              lines.push(`${" ".repeat(25)}${white(p.name ?? "—")}  ${gray(`(${p.licence})`)}`);
+            }
+          }
+        }
+
+        return new Response(lines.join("\n") + "\n", TEXT);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (asJson) {
+          return new Response(JSON.stringify({ error: msg }), { status: 500, headers: JSON_HEADERS });
+        }
+        return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
+      }
+    }
+
     // ── help ───────────────────────────────────────────────────────────────────
     const base = url.origin;
     return new Response(
@@ -269,6 +347,10 @@ ${bold("/scrape_infos")}   — fetch form options (competitions, specialties, cl
 ${bold("/scrape_results")} — fetch and display match results (competition/specialty/category/phase are DB ids)
   ${gray(`${base}/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0`)}
   ${gray(`${base}/scrape_results?league=lcapb&competition=2&specialty=10&category=1&phase=0&dry_run=true`)}
+
+${bold("/scrape_rankings")} — fetch and save end-of-championship rankings (DB ids, 0 = every one the competition offers)
+  ${gray(`${base}/scrape_rankings?league=lcapb&competition=2&specialty=10&category=0`)}
+  ${gray(`${base}/scrape_rankings?league=lcapb&competition=2&specialty=10&category=1&dry_run=true`)}
 
 Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
 `,
@@ -285,7 +367,8 @@ Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
 const CRON_LEAGUES = ["lcapb", "lidfpb"];
 
 /**
- * Nightly job: refresh results for every enabled competition of each league.
+ * Nightly job: refresh results for every enabled competition of each league,
+ * then the rankings still in progress (see refreshRankings).
  *
  * `scrapeResults` requires a competition DB id; the upstream sites only filter
  * by competition, so there is no "all competitions" request. The cron therefore
@@ -317,65 +400,124 @@ async function runNightlyScrape(env: Env): Promise<void> {
       console.error(`[scheduler][${league}] No database binding, skipping`);
       continue;
     }
+    await refreshResults(env, league, db);
+    await refreshRankings(env, league, db);
+  }
+}
 
-    let competitions: { id: number; name: string }[];
-    try {
-      ({ results: competitions } = await db
-        .prepare("SELECT id, name FROM competitions WHERE enabled = 1 ORDER BY id")
-        .all<{ id: number; name: string }>());
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[scheduler][${league}] Failed to list enabled competitions: ${message}`);
-      continue;
-    }
+async function refreshResults(env: Env, league: string, db: D1Database): Promise<void> {
+  let competitions: { id: number; name: string }[];
+  try {
+    ({ results: competitions } = await db
+      .prepare("SELECT id, name FROM competitions WHERE enabled = 1 ORDER BY id")
+      .all<{ id: number; name: string }>());
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[scheduler][${league}] Failed to list enabled competitions: ${message}`);
+    return;
+  }
 
-    if (competitions.length === 0) {
-      console.log(
-        `[scheduler][${league}] No enabled competition; run /scrape_results once for a competition to enrol it`
-      );
-      continue;
-    }
-
-    let total = 0;
-    let failed = 0;
-    for (const competition of competitions) {
-      const label = `${competition.name} (#${competition.id})`;
-      try {
-        const { saved, found } = await scrapeViaSelf(env, league, competition.id);
-        total += saved;
-        console.log(`[scheduler][${league}] ${label}: found ${found}, saved ${saved} results`);
-      } catch (err: unknown) {
-        failed++;
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[scheduler][${league}] ${label}: ${message}`);
-      }
-    }
-
+  if (competitions.length === 0) {
     console.log(
-      `[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions (${failed} failed)`
+      `[scheduler][${league}] No enabled competition; run /scrape_results once for a competition to enrol it`
+    );
+    return;
+  }
+
+  let total = 0;
+  let failed = 0;
+  for (const competition of competitions) {
+    const label = `${competition.name} (#${competition.id})`;
+    try {
+      const { saved, found } = await scrapeViaSelf(env, "/scrape_results", {
+        league,
+        competition: String(competition.id),
+        specialty: "0",
+        category: "0",
+        phase: "0",
+      });
+      total += saved;
+      console.log(`[scheduler][${league}] ${label}: found ${found}, saved ${saved} results`);
+    } catch (err: unknown) {
+      failed++;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[scheduler][${league}] ${label}: ${message}`);
+    }
+  }
+
+  console.log(
+    `[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions (${failed} failed)`
+  );
+}
+
+/**
+ * Refresh the end-of-championship rankings that are still provisional.
+ *
+ * A ranking is final once it has a "Champion" row; until then the site keeps
+ * changing ranks and phases. Every (competition, specialty) holding at least
+ * one ranking without a champion is scraped again, one SELF call each, which
+ * keeps each call to a handful of pages (one per category). Final rankings and
+ * past seasons are never fetched again.
+ *
+ * Like results, the refresh is opt-in: a competition enters it the first time
+ * its rankings are saved, typically through a manual `/scrape_rankings` call.
+ */
+async function refreshRankings(env: Env, league: string, db: D1Database): Promise<void> {
+  let pairs: { competition_id: number; specialty_id: number }[];
+  try {
+    ({ results: pairs } = await db
+      .prepare(
+        `SELECT DISTINCT competition_id, specialty_id FROM rankings
+         GROUP BY competition_id, specialty_id, category_id
+         HAVING SUM(phase = 'Champion') = 0
+         ORDER BY competition_id, specialty_id`
+      )
+      .all<{ competition_id: number; specialty_id: number }>());
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[scheduler][${league}] Failed to list provisional rankings: ${message}`);
+    return;
+  }
+
+  let total = 0;
+  let failed = 0;
+  for (const { competition_id, specialty_id } of pairs) {
+    const label = `rankings of competition #${competition_id}, specialty #${specialty_id}`;
+    try {
+      const { saved } = await scrapeViaSelf(env, "/scrape_rankings", {
+        league,
+        competition: String(competition_id),
+        specialty: String(specialty_id),
+        category: "0",
+      });
+      total += saved;
+      console.log(`[scheduler][${league}] ${label}: saved ${saved} teams`);
+    } catch (err: unknown) {
+      failed++;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[scheduler][${league}] ${label}: ${message}`);
+    }
+  }
+
+  if (pairs.length > 0) {
+    console.log(
+      `[scheduler][${league}] Saved ${total} ranked teams across ${pairs.length} specialties (${failed} failed)`
     );
   }
 }
 
 /**
- * Scrape one competition in a fresh invocation of this worker via the SELF
- * service binding. The hostname is irrelevant for a service binding; only the
- * path and query are routed.
+ * Run one scrape in a fresh invocation of this worker via the SELF service
+ * binding. The hostname is irrelevant for a service binding; only the path and
+ * query are routed.
  */
 async function scrapeViaSelf(
   env: Env,
-  league: string,
-  competitionId: number
+  path: "/scrape_results" | "/scrape_rankings",
+  params: Record<string, string>
 ): Promise<{ found: number; saved: number }> {
-  const params = new URLSearchParams({
-    league,
-    competition: String(competitionId),
-    specialty: "0",
-    category: "0",
-    phase: "0",
-    format: "json",
-  });
-  const res = await env.SELF.fetch(`https://frontis-scheduler.internal/scrape_results?${params}`);
+  const query = new URLSearchParams({ ...params, format: "json" });
+  const res = await env.SELF.fetch(`https://frontis-scheduler.internal${path}?${query}`);
   const body = (await res.json().catch(() => null)) as
     | { found?: number; saved?: number; error?: string }
     | null;

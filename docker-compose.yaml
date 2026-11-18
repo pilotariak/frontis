@@ -168,6 +168,28 @@ services:
     networks:
       - graphql
 
+  rankings:
+    <<: *common
+    build:
+      context: .
+      dockerfile: subgraphs/Dockerfile
+      args:
+        SUBGRAPH: rankings
+    ports:
+      - "4007:4007"
+    environment:
+      PORT: "4007"
+      OTEL_SERVICE_NAME: frontis-rankings
+      <<: *subgraph-otel
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4007/health"]
+      <<: *subgraph-healthcheck
+    depends_on:
+      otel:
+        condition: service_started
+    networks:
+      - graphql
+
   specialties:
     <<: *common
     build:

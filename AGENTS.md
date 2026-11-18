@@ -5,7 +5,7 @@ Built with TypeScript, Bun, and Cloudflare Workers. Uses GraphQL Hive as the sch
 
 ## Architecture
 
-Frontis is a **Bun workspace monorepo**. The federation gateway routes to six subgraph workers:
+Frontis is a **Bun workspace monorepo**. The federation gateway routes to seven subgraph workers:
 
 ```
 frontis/
@@ -16,6 +16,7 @@ frontis/
 │   ├── clubs/        # Club directory per league
 │   ├── competitions/ # Competition listings
 │   ├── results/      # Match results
+│   ├── rankings/     # End-of-championship rankings
 │   ├── specialties/  # Basque pelota disciplines (trinquet, chistera…)
 │   └── echo/         # Health-check subgraph
 └── workers/          # Auxiliary Cloudflare Workers (scheduler, setup-league)
@@ -29,7 +30,7 @@ Requirements: [Bun](https://bun.sh) ≥ 1.1, [Wrangler](https://developers.cloud
 
 ```bash
 bun install          # install all workspace deps
-bun run dev          # start gateway + all subgraphs concurrently (7 processes)
+bun run dev          # start gateway + all subgraphs concurrently (8 processes)
 ```
 
 `bun run dev` uses `concurrently` to start every worker in one terminal. Individual workers:
@@ -40,6 +41,7 @@ bun run graphql:categories:local    # categories subgraph
 bun run graphql:clubs:local
 bun run graphql:competitions:local
 bun run graphql:results:local
+bun run graphql:rankings:local
 bun run graphql:specialties:local
 ```
 

@@ -40,6 +40,7 @@ Follow these three guides in order to add a new league, from an empty database t
 | [Set up a league](how-to/howto-setup-league.md)                | Bootstrap competitions, specialties, and categories  |
 | [Use the scheduler](how-to/howto-scheduler.md)                 | Scrape results, discover source IDs, trigger cron    |
 | [Use the scheduler scripts](how-to/howto-scheduler-scripts.md) | `scrape-competition.sh` and `scrape-all-results.sh`  |
+| [Test the rankings locally](how-to/howto-rankings-local.md)    | Scrape rankings, query the subgraph and the gateway  |
 | [Publish schemas to Hive](how-to/howto-hive-registry.md)       | Schema registry workflow                             |
 | [Add a new subgraph](how-to/howto-add-subgraph.md)             | Introduce a new federated service                    |
 

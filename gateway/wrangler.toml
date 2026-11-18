@@ -42,6 +42,10 @@ service = "frontis-categories"
 binding = "RESULTS"
 service = "frontis-results"
 
+[[services]]
+binding = "RANKINGS"
+service = "frontis-rankings"
+
 [vars]
 ENVIRONMENT = "dev"
 LOG_LEVEL = "debug"

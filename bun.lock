@@ -117,6 +117,28 @@
         "wrangler": "^4.72.0",
       },
     },
+    "subgraphs/rankings": {
+      "name": "rankings",
+      "dependencies": {
+        "@apollo/subgraph": "^2.9.0",
+        "@envelop/opentelemetry": "^9.1.0",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-metrics-otlp-grpc": "^0.57.0",
+        "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
+        "@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+        "@opentelemetry/resources": "^1.30.0",
+        "@opentelemetry/sdk-metrics": "^1.30.0",
+        "@opentelemetry/sdk-trace-base": "^1.30.0",
+        "@opentelemetry/sdk-trace-node": "^1.30.0",
+        "@opentelemetry/semantic-conventions": "^1.28.0",
+        "graphql": "^16.13.2",
+        "graphql-yoga": "^5.13.0",
+      },
+      "devDependencies": {
+        "wrangler": "^4.72.0",
+      },
+    },
     "subgraphs/results": {
       "name": "results",
       "dependencies": {
@@ -1302,6 +1324,8 @@
     "querystringify": ["querystringify@2.2.0", "", {}, "sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ=="],
 
     "queue-microtask": ["queue-microtask@1.2.3", "", {}, "sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A=="],
+
+    "rankings": ["rankings@workspace:subgraphs/rankings"],
 
     "readline-sync": ["readline-sync@1.4.10", "", {}, "sha512-gNva8/6UAe8QYepIQH/jQ2qn91Qj0B9sYjMBBs3QOB8F2CXcKgLxQaJRP76sWVRQt+QU+8fAkCbCvjjMFu7Ycw=="],
 

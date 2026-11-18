@@ -179,6 +179,65 @@ Status      : 3 results saved
 
 ---
 
+### `GET /scrape_rankings` — scrape and save end-of-championship rankings
+
+Fetches the end-of-championship rankings ("Classement à la fin du championnat") from the league
+website's `classements.php` and saves them to the `rankings` and `ranking_players` tables, read by
+the `rankings` subgraph.
+
+It takes the same parameters as `/scrape_results`, as **internal database IDs**, with `0` for every
+specialty or category the competition offers. `phase` does not apply: the ranking covers the whole
+championship.
+
+The site has no "every category" ranking, so the worker fetches the competition's form once, then
+one page per specialty × category pair. One call fetches at most 35 pages: on CTPB (about 20
+specialties and 10 categories per competition) pass a `specialty`.
+
+A ranking changes while its championship runs, so each fetched ranking **replaces** the stored one
+for that competition, specialty and category. A page that lists no team leaves the stored ranking
+untouched. A specialty or category missing from the database is reported and skipped: run
+`/scrape_infos` for the competition first. Clubs missing from the database are inserted.
+
+**Parameters**
+
+| Parameter     | Required | Description                                                            |
+| ------------- | -------- | ---------------------------------------------------------------------- |
+| `league`      | yes      | `lcapb`, `lidfpb` or `ctpb`                                            |
+| `competition` | yes      | Competition DB `id`                                                    |
+| `specialty`   | yes      | Specialty DB `id`; `0` means every specialty of the competition        |
+| `category`    | yes      | Category DB `id`; `0` means every category of the competition          |
+| `dry_run`     | no       | If `true`, scrape and display the rankings but do not save             |
+| `format`      | no       | `json` returns `{ league, competition, pages, found, saved, dry_run }` |
+| `no_color`    | no       | If `true`, strip ANSI escape codes                                     |
+
+**Examples**
+
+```bash
+# Every category of one specialty
+curl "http://127.0.0.1:8787/scrape_rankings?league=lcapb&competition=444&specialty=98&category=0"
+
+# One ranking, preview only
+curl "http://127.0.0.1:8787/scrape_rankings?league=lcapb&competition=444&specialty=98&category=881&dry_run=true"
+```
+
+**Sample output**
+
+```
+League      : LCAPB
+Competition : 444 [Championnat CCAPB 2025-2026]
+Filters     : specialty=98  category=881
+Status      : 12 teams saved
+
+  Trinquet / P.G. Pleine Masculin — 1ère Série  (12 teams)
+      1  Champion       CA BEGLAIS 1
+                         DUPONT Jean  (012345)
+                         MARTIN Paul  (067890)
+      2  Finale         CA BEGLAIS 2
+  …
+```
+
+---
+
 ## Recommended workflow
 
 To pick ids from menus and preview results before saving them, use the scripts in
@@ -233,6 +292,12 @@ competition through the `SELF` service binding (see `wrangler.toml`).
 A competition becomes enabled the first time results are saved for it, so to enrol one in
 the nightly refresh run `/scrape_results` for it once by hand (without `dry_run`). Competitions
 that were only discovered by `/scrape_infos` stay disabled and are never scraped by the cron.
+
+The same run then refreshes the rankings still in progress: every competition and specialty
+holding a ranking with no `Champion` row is scraped again through
+`/scrape_rankings?...&category=0&format=json`, one self-call each. Final rankings are never fetched
+again. A season enters this refresh the first time its rankings are saved, so run
+`/scrape_rankings` once by hand for a new season.
 
 ### CPU time budget
 

@@ -38,6 +38,9 @@ const DEMAND_CONTROL_COST_MAP: CostMap = {
     specialties: 15,
     competitions: 25,
     results: 60,
+    teamRanking: 10,
+    rankings: 30,
+    playerRankings: 60,
   },
   Competition: {
     // Triggers cross-subgraph entity resolution for every result item
@@ -52,6 +55,15 @@ const DEMAND_CONTROL_COST_MAP: CostMap = {
     clubALineup: 2,
     clubBLineup: 2,
   },
+  TeamRanking: {
+    // Each entity field triggers a cross-subgraph entity lookup; players is
+    // one batched statement per ranking page.
+    competition: 4,
+    specialty: 4,
+    category: 4,
+    club: 4,
+    players: 2,
+  },
 };
 
 // Maps worker names to their service binding keys in env
@@ -62,6 +74,7 @@ const SERVICE_BINDING_MAP: Record<string, string> = {
   "frontis-competitions": "COMPETITIONS",
   "frontis-categories": "CATEGORIES",
   "frontis-results": "RESULTS",
+  "frontis-rankings": "RANKINGS",
 };
 
 // Holds the env for the currently executing request.
@@ -174,12 +187,15 @@ export default {
       { type: "Query", field: "clubs",        max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "competitions", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "results",      max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+      { type: "Query", field: "rankings",       max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+      { type: "Query", field: "playerRankings", max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "specialties",  max: rateLimitMaxList, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       // Single-item queries — higher limit
       { type: "Query", field: "category",     max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "club",         max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "competition",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "result",       max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
+      { type: "Query", field: "teamRanking",  max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
       { type: "Query", field: "specialty",    max: rateLimitMaxItem, ttl: rateLimitWindowMs, identifier: clientIdentifier },
     ];
 

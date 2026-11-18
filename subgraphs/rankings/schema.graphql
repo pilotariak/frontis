@@ -1,0 +1,98 @@
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key"]
+  )
+
+"""
+A player of a ranked team, as listed by the league site.
+"""
+type RankedPlayer {
+  "Licence number, leading zeros kept (e.g. \"000101\"). Stable from one season to the next."
+  licence: String!
+  "Player name as printed by the league site (\"NAME Firstname\"). Null when the site lists the licence alone."
+  name: String
+}
+
+"""
+One team's line in the end-of-championship ranking ("Classement à la fin du
+championnat") of a competition, specialty and category, as published by the
+league site.
+"""
+type TeamRanking @key(fields: "id") {
+  id: ID!
+  "Competition (season) of the ranking."
+  competition: Competition!
+  "Pelota discipline of the ranking."
+  specialty: Specialty!
+  "Category (series or age group) of the ranking."
+  category: Category!
+  "Club the team plays for."
+  club: Club!
+  "Team number within the club (the site's \"Equipe\" column)."
+  teamNumber: Int!
+  "Final rank, 1 for the champion."
+  rank: Int!
+  """
+  Phase the team reached, as printed by the league site: Champion, Finale,
+  1/2 finale, 1/4 de finale, Barrage, Poules, FORFAIT…
+  """
+  phase: String!
+  """
+  True once the ranking has a champion. False while the championship is still
+  running: ranks and phases are then provisional.
+  """
+  final: Boolean!
+  "Players of the team, in the league site's order (two or three)."
+  players: [RankedPlayer!]!
+}
+
+# --- Entity stubs ---
+
+"Reference to a Competition entity owned by the competitions subgraph."
+type Competition @key(fields: "id") {
+  id: ID!
+}
+
+"Reference to a Specialty entity owned by the specialties subgraph."
+type Specialty @key(fields: "id") {
+  id: ID!
+}
+
+"Reference to a Category entity owned by the categories subgraph."
+type Category @key(fields: "id") {
+  id: ID!
+}
+
+"Reference to a Club entity owned by the clubs subgraph."
+type Club @key(fields: "id") {
+  id: ID!
+}
+
+# --- Queries ---
+
+type Query {
+  "Fetch a single team ranking by its ID."
+  teamRanking(id: ID!): TeamRanking
+  """
+  The end-of-championship ranking of one competition, specialty and category,
+  ordered by rank. Empty when the league site publishes none.
+  """
+  rankings(competitionId: ID!, specialtyId: ID!, categoryId: ID!): [TeamRanking!]!
+  """
+  Every team ranking a player appears in, most recent season first. Give a
+  `licence` (exact match), a `name`, or both. A name matches regardless of
+  case, accents and word order, and every word given must appear in the
+  player's name: "ane etxeberri" and "Etxeberri" both find "ETXEBERRI Ane".
+  Words shorter than two characters are ignored. `limit` is clamped to 1..500.
+  """
+  playerRankings(
+    licence: String
+    name: String
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [TeamRanking!]!
+}

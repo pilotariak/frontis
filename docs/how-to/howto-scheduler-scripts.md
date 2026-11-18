@@ -299,6 +299,22 @@ specialties and 8 categories, that is 3,168 requests and close to 16 minutes of 
 
 ---
 
+## Load every ranking in production
+
+`scrape-all-rankings.sh` loads the end-of-championship rankings the same way: one `/scrape_rankings`
+call per competition and specialty of the production database, every category at once. A specialty
+the competition does not offer costs one request to the league site and saves nothing.
+
+```bash
+../workers/scheduler/scripts/scrape-all-rankings.sh <league> --dry-run > rankings-all.log
+../workers/scheduler/scripts/scrape-all-rankings.sh <league> > rankings-all.log
+grep -c '!! failed' rankings-all.log
+```
+
+Rankings of a season still running stay in the nightly refresh until each has a champion.
+
+---
+
 ## After a load
 
 Saving results enables the competition, which puts it in the nightly refresh when the league is

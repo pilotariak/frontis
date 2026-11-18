@@ -45,6 +45,7 @@ jobs:
           - clubs
           - competitions
           - results
+          - rankings
           - specialties
           - categories
       fail-fast: false

@@ -8,7 +8,7 @@ export interface ScraperOptions extends ScrapeOptions {
   league: string;
 }
 
-const scrapers: Record<string, LeagueScraper> = {
+export const scrapers: Record<string, LeagueScraper> = {
   lcapb: new LcapbScraper(),
   lidfpb: new LidfpbScraper(),
   ctpb: new CtpbScraper(),
@@ -16,7 +16,7 @@ const scrapers: Record<string, LeagueScraper> = {
 
 type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;
 
-function getDatabase(env: Env, league: string): D1Database {
+export function getDatabase(env: Env, league: string): D1Database {
   const key = `DB_LEAGUE_${league.toUpperCase()}` as DatabaseBinding;
   const db: D1Database | undefined = env[key];
   if (!db) {

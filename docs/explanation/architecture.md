@@ -52,7 +52,7 @@ Hive Gateway is also designed to run on Cloudflare Workers via its edge-compatib
 Workers provide:
 
 - **Edge execution**: requests are served from the datacenter nearest to the client with no cold starts.
-- **Service bindings**: Workers can call other Workers directly, bypassing the public internet. In production, the gateway calls subgraphs via service bindings (`ECHO`, `CLUBS`, `COMPETITIONS`, `CATEGORIES`, `RESULTS`, `SPECIALTIES`), not HTTP.
+- **Service bindings**: Workers can call other Workers directly, bypassing the public internet. In production, the gateway calls subgraphs via service bindings (`ECHO`, `CLUBS`, `COMPETITIONS`, `CATEGORIES`, `RESULTS`, `RANKINGS`, `SPECIALTIES`), not HTTP.
 - **D1 (SQLite at the edge)**: each subgraph backed by data gets its own D1 database binding. Queries are executed locally to the Worker with low latency.
 - **KV**: used to cache the supergraph SDL from the Hive CDN, avoiding a remote fetch on every cold Worker startup.
 
@@ -62,7 +62,7 @@ The service binding architecture means there is no public endpoint for subgraphs
 
 ## The `X-Pilotariak-League` header
 
-Each D1-backed subgraph (`clubs`, `competitions`, `results`, `specialties`, `categories`) manages data for multiple leagues (LCAPB, LIDFPB, CTPB). Rather than deploying a separate Worker per league, each Worker holds multiple D1 bindings (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`) and selects the right database at request time based on the `X-Pilotariak-League` header.
+Each D1-backed subgraph (`clubs`, `competitions`, `results`, `rankings`, `specialties`, `categories`) manages data for multiple leagues (LCAPB, LIDFPB, CTPB). Rather than deploying a separate Worker per league, each Worker holds multiple D1 bindings (`DB_LEAGUE_LCAPB`, `DB_LEAGUE_LIDFPB`, `DB_LEAGUE_CTPB`) and selects the right database at request time based on the `X-Pilotariak-League` header.
 
 This keeps the number of deployed Workers small while supporting multiple leagues. The gateway forwards the header to all subgraphs transparently.
 
@@ -114,12 +114,15 @@ Gateway Worker (Hive Gateway)
   ├─── Service binding: RESULTS       → results Worker
   │                                      DB_LEAGUE_LCAPB (D1)
   │
+  ├─── Service binding: RANKINGS      → rankings Worker
+  │                                      DB_LEAGUE_LCAPB (D1)
+  │
   └─── Service binding: SPECIALTIES   → specialties Worker
                                          DB_LEAGUE_LCAPB (D1)
 
 Nightly (cron, 03:00 UTC):
   scheduler Worker
-    └─── scrapes league websites → writes to D1
+    └─── scrapes league websites (results, rankings) → writes to D1
 ```
 
 ---
