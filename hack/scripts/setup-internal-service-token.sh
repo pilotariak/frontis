@@ -24,6 +24,7 @@ declare -A WORKER_DIRS=(
   ["frontis-competitions"]="subgraphs/competitions"
   ["frontis-categories"]="subgraphs/categories"
   ["frontis-results"]="subgraphs/results"
+  ["frontis-rankings"]="subgraphs/rankings"
 )
 
 SECRET="$(openssl rand -hex 32)"
