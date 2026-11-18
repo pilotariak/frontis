@@ -239,8 +239,8 @@ phase the team reached. Compare it with the league site's ranking page: the rank
 and players must match.
 
 For more queries through the gateway (a whole ranking, a player by licence or by name, the champions
-of a season, the leaders of a running championship), see the
-[Rankings section of Query the GraphQL API](howto-query-the-api.md#rankings).
+of a season, the leaders of a running championship), see
+[Query the rankings subgraph](howto-query-rankings.md).
 
 ---
 
