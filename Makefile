@@ -68,13 +68,13 @@ typecheck: ## Type-check every workspace with tsc
 ##@ Design System
 
 .PHONY: tokens
-tokens: ## Generate the gateway/index.html :root tokens from DESIGN.md (single source of truth)
-	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Generating gateway/index.html tokens from DESIGN.md$(NO_COLOR)"
+tokens: ## Generate the :root tokens of gateway/index.html and the scheduler admin page from DESIGN.md
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Generating page tokens from DESIGN.md$(NO_COLOR)"
 	python3 hack/gen-design-tokens.py
 
 .PHONY: tokens-check
-tokens-check: ## Verify gateway/index.html tokens match DESIGN.md (no drift)
-	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Checking gateway/index.html is in sync with DESIGN.md$(NO_COLOR)"
+tokens-check: ## Verify the page tokens match DESIGN.md (no drift)
+	@echo -e "$(INFO)$(INFO_COLOR)[Tokens] Checking the pages are in sync with DESIGN.md$(NO_COLOR)"
 	python3 hack/gen-design-tokens.py --check
 
 .PHONY: tokens-lint
