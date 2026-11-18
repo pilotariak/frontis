@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.0](https://github.com/pilotariak/frontis/compare/v0.12.0...v0.13.0) (2026-11-18)
+
+
+### 🚀 Features
+
+* **leagues:** add the llpb league and a supported leagues reference ([#102](https://github.com/pilotariak/frontis/issues/102)) ([cb2b5ec](https://github.com/pilotariak/frontis/commit/cb2b5ecd8cbaa29e2f327423b9e99c96f0347ad3)), closes [#38](https://github.com/pilotariak/frontis/issues/38)
+* **scheduler:** add admin page to run results and rankings scrapes ([#99](https://github.com/pilotariak/frontis/issues/99)) ([d5fef0c](https://github.com/pilotariak/frontis/commit/d5fef0cf240668e7831060e822f50e7f96eefe55))
+* **scheduler:** add combination walk and league bootstrap to admin page ([#101](https://github.com/pilotariak/frontis/issues/101)) ([89b9b6e](https://github.com/pilotariak/frontis/commit/89b9b6e04d56ffa896ca6c8584f66a3e1b70bc66))
+
 ## [0.12.0](https://github.com/pilotariak/frontis/compare/v0.11.0...v0.12.0) (2026-11-18)
 
 
