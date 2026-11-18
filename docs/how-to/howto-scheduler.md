@@ -91,8 +91,10 @@ The card lists only the leagues the scheduler already supports: a scraper class 
 [Create the database](howto-league-create-database.md).
 
 1. Choose the league. The card shows whether it is registered and how many competitions D1 holds.
-2. Give its full name, prefilled when the league is registered. The URL saved with it is the
-   scraper's `baseUrl`, the page the scheduler reads.
+2. Give its full name, prefilled when the league is registered. **Site URL** shows the URL saved
+   with it, read-only: the scraper's `baseUrl`, the page the scheduler reads. To change it, change
+   the scraper class. **Init (register only)** writes the league row now and scrapes nothing,
+   like setup-league's `/init`. The save in step 4 writes it too, so Init is optional.
 3. Choose the scope:
 
    | Scope                                         | Request                                           |

@@ -114,6 +114,13 @@ describe("/admin", () => {
     const html = renderAdminPage(["lcapb"], "1.0.0");
     expect(html).toContain(`<details class="card" id="bootstrap">`);
     expect(html).toContain(`<input type="text" id="bs-name" required disabled`);
+    // The URL comes from the scraper's code, so the page shows it but never sends it.
+    expect(html).toContain(`<input type="url" id="bs-url" readonly`);
+    expect(html).toContain(`bsUrlEl.value = bsLeague.url;`);
+    // Init writes the league row alone, like setup-league's /init.
+    expect(html).toContain(`<button type="button" class="secondary push" id="bs-init" disabled`);
+    expect(html).toContain(`logEl.textContent = registeredLine(await fetchJson(path, { name: name }));`);
+    expect(html).toContain(`initLeague(bsLeague.acronym, bsNameEl.value.trim());`);
     expect(html).toContain(`var row = await fetchJson(path, { name: register.name });`);
     expect(html).toContain(`execute("infos", { league: bsLeague.acronym, competition: bsCompetitionEl.value }`);
     expect(html).toContain(`return new Option(c.name, c.source_id);`);

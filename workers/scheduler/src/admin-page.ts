@@ -15,8 +15,8 @@
  * A third card bootstraps a league, as setup-league's /init and /bootstrap do:
  * its save writes the league's row through POST /admin/league, then runs
  * /scrape_infos without dry run, for one competition or, like the loop of
- * howto-league-bootstrap.md, for every competition in D1. The cards share the
- * output panel.
+ * howto-league-bootstrap.md, for every competition in D1. Its Init button
+ * writes the row alone, like /init. The cards share the output panel.
  *
  * The `:root` block is generated from DESIGN.md: edit DESIGN.md and run
  * `make tokens`, never the block itself.
@@ -166,7 +166,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
       padding: 10px 12px;
     }
     select:focus-visible, .field input:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
-    select:disabled, .field input:disabled { color: var(--subtle); background: var(--surface-alt); }
+    select:disabled, .field input:disabled, .field input[readonly] { color: var(--subtle); background: var(--surface-alt); }
+    .field label small { font-weight: 400; color: var(--muted); }
     .field.wide { grid-column: 1 / -1; }
 
     details.card { padding: 0; }
@@ -221,6 +222,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
     .primary.save { background: var(--red); }
     .primary.save:hover:not(:disabled) { background: var(--red-dark); }
     .secondary { background: var(--white); color: var(--red); border-color: var(--red-border); }
+    .actions .push { margin-left: auto; }
+    .actions .push + .primary { margin-left: 0; }
     .danger { background: var(--red); color: var(--white); }
     .danger:hover:not(:disabled) { background: var(--red-dark); }
     kbd { font-family: var(--mono); font-size: 11px; font-weight: 600; opacity: 0.7; margin-left: 4px; }
@@ -285,7 +288,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
       details.card > summary { padding: 16px 20px; }
       .bootstrap-body { padding: 0 20px 20px; }
       .steps { grid-template-columns: 1fr; }
-      .primary { margin-left: 0; width: 100%; }
+      .primary, .actions .push { margin-left: 0; width: 100%; }
     }
   </style>
 </head>
@@ -367,6 +370,10 @@ export function renderAdminPage(leagues: string[], version: string): string {
               <input type="text" id="bs-name" required disabled autocomplete="off" spellcheck="false" placeholder="Comité Côte d'Argent de Pelote Basque" />
             </div>
             <div class="field wide">
+              <label for="bs-url">Site URL <small>set by the league's scraper, saved with the name</small></label>
+              <input type="url" id="bs-url" readonly placeholder="Choose a league first" />
+            </div>
+            <div class="field wide">
               <label for="bs-competition"><b>3</b>Scope</label>
               <select id="bs-competition" disabled></select>
             </div>
@@ -380,6 +387,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
             <input type="checkbox" id="bs-dry-run" checked />
             <span>Dry run</span> <small>— read the league site, save nothing</small>
           </label>
+          <button type="button" class="secondary push" id="bs-init" disabled title="Like setup-league's /init: write the league's row, scrape nothing">Init (register only)</button>
           <button type="submit" class="primary" id="bs-run" disabled>Preview</button>
         </div>
       </form>
@@ -446,9 +454,11 @@ export function renderAdminPage(leagues: string[], version: string): string {
       var bsSetupEl = el("bs-setup");
       var bsLeagueEl = el("bs-league");
       var bsNameEl = el("bs-name");
+      var bsUrlEl = el("bs-url");
       var bsCompetitionEl = el("bs-competition");
       var bsDryRunEl = el("bs-dry-run");
       var bsDryRunCheckEl = el("bs-dry-run-check");
+      var bsInitEl = el("bs-init");
       var bsRunEl = el("bs-run");
       var bsHintEl = el("bs-hint");
 
@@ -578,6 +588,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
         var bsDry = bsDryRunEl.checked && !bsAll;
         bsDryRunCheckEl.hidden = bsAll;
         bsRunEl.disabled = busy || !bsLeague || !bsNameEl.value.trim();
+        bsInitEl.disabled = bsRunEl.disabled;
         bsRunEl.textContent = bsAll
           ? "Save " + plural(bsCompetitions.length, "competition", "competitions")
           : bsDry ? "Preview" : "Bootstrap and save";
@@ -734,7 +745,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
             var path = "/admin/league?" + new URLSearchParams({ league: register.league });
             requestEl.textContent = "POST " + path;
             var row = await fetchJson(path, { name: register.name });
-            registered = "League " + row.acronym.toUpperCase() + " registered as " + row.name + " (" + row.url + ")\n\n";
+            registered = registeredLine(row) + "\n\n";
           }
           var answer = await scrape(scriptName, query, dryRun);
           var seconds = ((performance.now() - started) / 1000).toFixed(1) + " s";
@@ -762,6 +773,34 @@ export function renderAdminPage(leagues: string[], version: string): string {
 
       // ── Bootstrap a league ───────────────────────────────────────────────
 
+      function registeredLine(row) {
+        return "League " + row.acronym.toUpperCase() + " registered as " + row.name + " (" + row.url + ")";
+      }
+
+      // Like setup-league's /init: write the league's row, scrape nothing.
+      async function initLeague(league, name) {
+        setBusy(true);
+        forgetDryRun();
+        outputEl.hidden = false;
+        walkEl.hidden = true;
+        var path = "/admin/league?" + new URLSearchParams({ league: league });
+        requestEl.textContent = "POST " + path;
+        badge("", "Registering…");
+        logEl.textContent = "";
+        var registered = false;
+        try {
+          logEl.textContent = registeredLine(await fetchJson(path, { name: name }));
+          badge("ok", "Registered");
+          registered = true;
+        } catch (e) {
+          badge("fail", "Failed");
+          logEl.textContent = e.message;
+        } finally {
+          setBusy(false);
+        }
+        if (registered && bsLeagueEl.value === league) loadLeague(true);
+      }
+
       // The bootstrap card's league: its row, to prefill the name, and its
       // competitions, to scope /scrape_infos (which takes a source_id).
       // keepScope keeps the chosen competition when the league is the same.
@@ -772,6 +811,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
         bsCompetitions = [];
         bsNameEl.value = "";
         bsNameEl.disabled = true;
+        bsUrlEl.value = "";
         forgetDryRun();
         if (!bsLeagueEl.value) {
           reset(bsCompetitionEl, "Choose a league first");
@@ -793,6 +833,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
           bsCompetitions = answers[1].competitions;
           bsNameEl.value = bsLeague.name || "";
           bsNameEl.disabled = false;
+          bsUrlEl.value = bsLeague.url;
           var options = bsCompetitions.map(function (c) { return new Option(c.name, c.source_id); });
           if (options.length) {
             options.unshift(new Option("Every competition in D1, one request each", "*"));
@@ -803,8 +844,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
           });
           bsCompetitionEl.disabled = false;
           var count = plural(bsCompetitions.length, "competition", "competitions");
-          say(bsHintEl, (bsLeague.name ? "Registered." : "Not registered yet: give its full name.") + " " +
-            count + " in D1. Site: " + bsLeague.url + ". " + (bsCompetitions.length
+          say(bsHintEl, (bsLeague.name ? "Registered." : "Not registered yet: give its full name, then Init, or bootstrap straight away.") + " " +
+            count + " in D1. " + (bsCompetitions.length
               ? "The site offers every specialty and category of a competition only when scoped to it: save every competition once."
               : "Save the site default competition first: it lists every competition."));
         } catch (e) {
@@ -847,7 +888,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
           walkStepEl.textContent = "Registering the league";
           show();
           var row = await fetchJson(path, { name: name });
-          registered = "League " + row.acronym.toUpperCase() + " registered as " + row.name + " (" + row.url + ")\n\n";
+          registered = registeredLine(row) + "\n\n";
           for (var i = 0; i < competitions.length && !walk.stopped; i++) {
             var competition = competitions[i];
             walkStepEl.textContent = (i + 1) + " / " + competitions.length + " · " + competition.name;
@@ -1096,6 +1137,9 @@ export function renderAdminPage(leagues: string[], version: string): string {
       bsNameEl.addEventListener("input", function () { forgetDryRun(); refresh(); });
       bsCompetitionEl.addEventListener("change", function () { forgetDryRun(); refresh(); });
       bsDryRunEl.addEventListener("change", refresh);
+      bsInitEl.addEventListener("click", function () {
+        if (!bsInitEl.disabled) initLeague(bsLeague.acronym, bsNameEl.value.trim());
+      });
       bsFormEl.addEventListener("submit", function (event) {
         event.preventDefault();
         if (bsRunEl.disabled) return;
