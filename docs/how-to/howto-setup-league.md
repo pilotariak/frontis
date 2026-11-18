@@ -22,7 +22,7 @@ cd workers/setup-league
 bun run dev
 ```
 
-The worker starts on **`http://127.0.0.1:8788`**.
+The worker starts on **`http://127.0.0.1:8788`** (see the [Port reference](../reference/ports.md)).
 
 ---
 
@@ -56,11 +56,11 @@ Registers a new league in the database. Call this once before running `/bootstra
 
 **Required query parameters**
 
-| Parameter | Description                                  | Example                                        |
-| --------- | -------------------------------------------- | ---------------------------------------------- |
-| `acronym` | Short identifier (matches DB binding suffix) | `lcapb`                                        |
-| `name`    | Full display name of the league              | `Comité Cote d'Argent Pelote Basque`           |
-| `url`     | URL of the upstream results page             | `https://lcapb.euskalpilota.fr/resultats.php`  |
+| Parameter | Description                                  | Example                                       |
+| --------- | -------------------------------------------- | --------------------------------------------- |
+| `acronym` | Short identifier (matches DB binding suffix) | `lcapb`                                       |
+| `name`    | Full display name of the league              | `Comité Cote d'Argent Pelote Basque`          |
+| `url`     | URL of the upstream results page             | `https://lcapb.euskalpilota.fr/resultats.php` |
 
 **Response**
 

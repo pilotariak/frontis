@@ -16,7 +16,7 @@ cd workers/scheduler
 bun run dev
 ```
 
-The worker starts on **`http://127.0.0.1:8787`**.
+The worker starts on **`http://127.0.0.1:8787`** (see the [Port reference](../reference/ports.md)).
 
 The `--test-scheduled` flag (already in the `dev` script) enables the cron trigger endpoint
 so you can fire it manually without waiting for 03:00 UTC.

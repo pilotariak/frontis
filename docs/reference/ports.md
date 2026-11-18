@@ -1,5 +1,8 @@
 # Port Reference
 
+This page is the single source of truth for the local ports. Other pages link here instead of
+repeating the table.
+
 All Workers use unique ports in local development to avoid conflicts when running concurrently.
 
 ## Workers
@@ -12,10 +15,25 @@ All Workers use unique ports in local development to avoid conflicts when runnin
 | clubs        | 4003     | 9230           | http://localhost:4003/graphql      |
 | specialties  | 4004     | 9234           | http://localhost:4004/graphql      |
 | results      | 4005     | 9235           | http://localhost:4005/graphql      |
-| rankings     | 4007     | 9238           | http://localhost:4007/graphql      |
 | categories   | 4006     | 9236           | http://localhost:4006/graphql      |
+| rankings     | 4007     | 9238           | http://localhost:4007/graphql      |
 | scheduler    | 8787     | 9233           | http://localhost:8787 (no GraphQL) |
 | setup-league | 8788     | 9237           | http://localhost:8788 (no GraphQL) |
+
+The app port is set by the `--port` flag of the Worker's `dev` script (`package.json`), by
+`[dev] port` in its `wrangler.toml` (setup-league), or is wrangler's default 8787 (scheduler). The
+inspector port is `[dev] inspector_port` in its `wrangler.toml`. A new Worker takes the next free
+pair: update this table in the same change.
+
+## Observability stack (Docker Compose)
+
+`docker compose up -d otel` starts Grafana LGTM:
+
+| Service            | Port | URL                   |
+| ------------------ | ---- | --------------------- |
+| Grafana UI         | 3000 | http://localhost:3000 |
+| OTLP gRPC receiver | 4317 | localhost:4317        |
+| OTLP HTTP receiver | 4318 | http://localhost:4318 |
 
 ## Health check
 

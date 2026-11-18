@@ -73,6 +73,8 @@ database:
 | Local worker                   | Production  | `bun run scheduler:remote` | `http://127.0.0.1:8787` | none        |
 | Deployed worker, behind Access | Production  | nothing to start           | unset (the default)     | none        |
 
+The local worker's port comes from the [Port reference](../reference/ports.md).
+
 You can call the scripts from any directory: they move to `database/` first, where wrangler finds the
 D1 bindings and `--local` finds the state in `../.wrangler/state`.
 

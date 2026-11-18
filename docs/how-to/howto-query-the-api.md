@@ -1,14 +1,14 @@
 # How to query the Frontis GraphQL API
 
 This guide shows how to query the Frontis federated gateway using `curl`. The gateway
-stitches together the `echo`, `specialties`, `clubs`, `competitions`, `results`, and `categories`
-subgraphs behind a single endpoint.
+stitches together the `echo`, `specialties`, `clubs`, `competitions`, `results`, `categories` and
+`rankings` subgraphs behind a single endpoint.
 
 All examples below use the `FRONTIS_GW` environment variable so the same commands work
 against production and a local stack. See [Setup](#setup) to define it.
 
-All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`)
-require an **`X-Pilotariak-League` header** identifying the target database.
+All requests to subgraphs backed by D1 (`specialties`, `clubs`, `competitions`, `results`, `categories`,
+`rankings`) require an **`X-Pilotariak-League` header** identifying the target database.
 Supported values: `lcapb`, `lidfpb`, `ctpb`. Any other value returns `Unknown league: <value>`.
 
 > **About the IDs in the examples.** IDs are imported from each league's website and are
@@ -34,24 +34,15 @@ between the gateway and its subgraphs.
 
 ### Local development
 
-Started by `bun run dev` (see [howto-dev](howto-dev.md)). Each worker runs on a fixed port:
-
-| Service      | Worker                 | URL                             |
-| ------------ | ---------------------- | ------------------------------- |
-| gateway      | `frontis-gateway`      | `http://localhost:4000/graphql` |
-| echo         | `frontis-echo`         | `http://localhost:4001/graphql` |
-| competitions | `frontis-competitions` | `http://localhost:4002/graphql` |
-| clubs        | `frontis-clubs`        | `http://localhost:4003/graphql` |
-| specialties  | `frontis-specialties`  | `http://localhost:4004/graphql` |
-| results      | `frontis-results`      | `http://localhost:4005/graphql` |
-| categories   | `frontis-categories`   | `http://localhost:4006/graphql` |
+Started by `bun run dev` (see [howto-dev](howto-dev.md)). Each worker runs on a fixed port, listed
+in the [Port reference](../reference/ports.md); the gateway answers on `http://localhost:4000/graphql`.
 
 Every subgraph, including `echo`, checks the `x-internal-token` header against its
 `INTERNAL_SERVICE_TOKEN` variable. Locally this comes from a `.dev.vars` file in each
-subgraph directory (gitignored). Make sure all seven exist with the same value:
+subgraph directory (gitignored). Make sure all eight exist with the same value:
 
 ```bash
-for s in echo specialties clubs competitions categories results; do
+for s in echo specialties clubs competitions categories results rankings; do
   printf 'INTERNAL_SERVICE_TOKEN=dev-secret\n' > subgraphs/$s/.dev.vars
 done
 ```
@@ -382,6 +373,124 @@ curl -s -X POST "$FRONTIS_GW" \
 
 ---
 
+## Rankings
+
+The `rankings` subgraph serves the end-of-championship rankings ("Classement à la fin du
+championnat") the league sites publish: one `TeamRanking` per team of a competition, specialty and
+category, with its rank, the phase it reached and its players. The scheduler loads them with
+`/scrape_rankings` (see [Use the scheduler](howto-scheduler.md)).
+
+> **Not in production yet.** Until the `rankings` subgraph is deployed and published to Hive, the
+> production gateway answers `Cannot query field "rankings"`. Locally, start the gateway on the
+> local supergraph, as described in [Test the rankings locally](howto-rankings-local.md#5-query-through-the-gateway).
+>
+> **About the IDs below.** They come from a local `lcapb` database: competition `444` is
+> "Championnat CCAPB 2025-2026", specialty `98` is "Trinquet / P.G. Pleine Masculin", categories
+> `881`, `882` and `883` are the 1ère, 2ème and 3ème Série. Look yours up with the `competitions`,
+> `specialties` and `categories` queries.
+
+The long queries below are written to a shell variable and turned into the JSON body by `jq`, which
+saves escaping every quote:
+
+```bash
+gql() { # gql "<query>" ['<variables json>']
+  local vars="${2:-}"
+  [ -n "$vars" ] || vars='{}'
+  curl -s -X POST "$FRONTIS_GW" \
+    -H "Content-Type: application/json" \
+    -H "X-Pilotariak-League: lcapb" \
+    -d "$(jq -n --arg q "$1" --argjson v "$vars" '{query: $q, variables: $v}')"
+}
+```
+
+### About `rank`, `phase` and `final`
+
+| Field   | Meaning                                                                                                                                        |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rank`  | Final rank, as the site prints it. `rankings` returns the teams ordered by it.                                                                 |
+| `phase` | Phase the team reached, as printed: `Champion`, `Finale`, `1/2 finale`, `1/4 de finale`, `1/8ème de finale`, `Barrage …`, `Poules`, `FORFAIT`. |
+| `final` | `true` once the ranking has a `Champion` row. While the championship runs, the site already publishes a ranking: its ranks are provisional.    |
+
+The champion is therefore the rank-1 team of a ranking whose `final` is `true`; its `phase` is
+`Champion`. A rank-1 team with `final: false` only leads a championship that is still running.
+
+### Read a ranking
+
+```bash
+gql '{ rankings(competitionId: 444, specialtyId: 98, categoryId: 883) {
+  rank phase final teamNumber club { name } players { licence name } } }' | jq
+```
+
+The ranking is empty when the league site publishes none for that combination, or when it has not
+been scraped yet.
+
+### Find a player
+
+By exact licence number (leading zeros included):
+
+```bash
+gql 'query ($licence: String) { playerRankings(licence: $licence) {
+  rank phase final competition { name } specialty { name } category { name } club { name } } }' \
+  '{"licence": "<licence>"}' | jq
+```
+
+By name: every word must appear in the player's name, regardless of case, accents and word order,
+and words of one character are ignored. A word matches anywhere in the name, so a short first name
+can match longer ones.
+
+```bash
+gql 'query ($name: String) { playerRankings(name: $name) {
+  rank phase final competition { name } category { name } club { name } players { name } } }' \
+  '{"name": "<first name> <last name>"}' | jq
+```
+
+The rankings come most recent season first. `competitionId`, `specialtyId` and `categoryId` narrow
+the search, and `limit` (default 100, max 500) and `offset` page through it.
+
+### Fetch one team ranking by ID
+
+```bash
+gql '{ teamRanking(id: "1") { rank phase final club { name } players { name } } }' | jq
+```
+
+### The champions of a season
+
+There is no `champions` query: read the rankings of the season, one alias per category, and keep
+the rank-1 teams of the finished ones.
+
+```bash
+gql '{
+  premiere:  rankings(competitionId: 444, specialtyId: 98, categoryId: 881) { ...team }
+  deuxieme:  rankings(competitionId: 444, specialtyId: 98, categoryId: 882) { ...team }
+  troisieme: rankings(competitionId: 444, specialtyId: 98, categoryId: 883) { ...team }
+}
+fragment team on TeamRanking {
+  rank phase final teamNumber
+  competition { name } specialty { name } category { name } club { name }
+  players { licence name }
+}' | jq '[.data[][] | select(.rank == 1 and .final) | {
+  competition: .competition.name, category: .category.name,
+  champion: "\(.club.name) \(.teamNumber)",
+  players: [.players[] | "\(.name // "?") (\(.licence))"]
+}]'
+```
+
+`select(.phase == "Champion")` gives the same teams. A player listed without a name prints as `?`.
+
+### The leaders of a running championship
+
+Drop `and .final` to keep every rank-1 team. For a championship that is still running, such as
+competition `545` ("Championnat CCAPB 2026-2027"), these are the provisional leaders, whose phase is
+not `Champion` yet:
+
+```bash
+gql '{ rankings(competitionId: 545, specialtyId: 98, categoryId: 881) {
+  rank phase final club { name } teamNumber } }' \
+  | jq '.data.rankings[] | select(.rank == 1)'
+```
+
+---
+
 ## Cross-subgraph query (federation in action)
 
 This query spans multiple subgraphs: `results` come from the `results` subgraph,
@@ -481,6 +590,14 @@ and the subgraph deployed.
 
 IDs are not sequential. List the type first and use an ID from the response.
 
+### `BAD_USER_INPUT` — `Give a licence or a name`
+
+`playerRankings` needs `licence`, `name`, or both.
+
+### `BAD_USER_INPUT` — `name must contain a word of two characters or more`
+
+`playerRankings(name:)` ignores words of one character: give at least one longer word.
+
 ---
 
 ## Querying subgraphs directly
@@ -494,14 +611,17 @@ protects them from unauthenticated access. In local development the value is
 `dev-secret` (set in each subgraph's `.dev.vars`). The D1-backed subgraphs also
 require **`X-Pilotariak-League`** (`lcapb`, `lidfpb`, or `ctpb`).
 
-| Subgraph     | URL                             | League header | Internal token |
-| ------------ | ------------------------------- | ------------- | -------------- |
-| echo         | `http://localhost:4001/graphql` | no            | yes            |
-| specialties  | `http://localhost:4004/graphql` | yes           | yes            |
-| clubs        | `http://localhost:4003/graphql` | yes           | yes            |
-| competitions | `http://localhost:4002/graphql` | yes           | yes            |
-| results      | `http://localhost:4005/graphql` | yes           | yes            |
-| categories   | `http://localhost:4006/graphql` | yes           | yes            |
+| Subgraph     | League header | Internal token |
+| ------------ | ------------- | -------------- |
+| echo         | no            | yes            |
+| specialties  | yes           | yes            |
+| clubs        | yes           | yes            |
+| competitions | yes           | yes            |
+| results      | yes           | yes            |
+| categories   | yes           | yes            |
+| rankings     | yes           | yes            |
+
+Each subgraph's local URL is in the [Port reference](../reference/ports.md).
 
 ```bash
 # echo subgraph directly (token only, no league header)
@@ -537,6 +657,13 @@ curl -s -X POST http://localhost:4006/graphql \
   -H "x-internal-token: dev-secret" \
   -H "X-Pilotariak-League: lcapb" \
   -d '{"query": "{ categories { id name } }"}' | jq
+
+# rankings subgraph directly: club, competition, specialty and category come back as ids only
+curl -s -X POST http://localhost:4007/graphql \
+  -H "Content-Type: application/json" \
+  -H "x-internal-token: dev-secret" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ rankings(competitionId: 444, specialtyId: 98, categoryId: 883) { rank phase final club { id } players { licence name } } }"}' | jq
 ```
 
 > **Note:** Cross-subgraph fields (e.g. `clubA.name` on a `Result`) are only

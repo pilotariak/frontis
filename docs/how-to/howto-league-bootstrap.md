@@ -32,7 +32,8 @@ Pick the target database:
 | Local state | `bun run setup-league:local`  | `.wrangler/state` (shared locally) |
 | Production  | `bun run setup-league:remote` | Production D1                      |
 
-Both commands serve the worker on `http://127.0.0.1:8788`. Keep it running in its own terminal and
+Both commands serve the worker on `http://127.0.0.1:8788` (see the
+[Port reference](../reference/ports.md)). Keep it running in its own terminal and
 set the base URL in the terminal you run the next steps from:
 
 ```bash

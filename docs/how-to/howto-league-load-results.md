@@ -31,7 +31,8 @@ In the commands below, replace `<league>` with the lowercase league code, for ex
 | Local state | `bun run scheduler:local`  | `.wrangler/state` (shared locally) |
 | Production  | `bun run scheduler:remote` | Production D1                      |
 
-Both commands serve the worker on `http://127.0.0.1:8787`. Keep it running in its own terminal and
+Both commands serve the worker on `http://127.0.0.1:8787` (see the
+[Port reference](../reference/ports.md)). Keep it running in its own terminal and
 set the base URL in the terminal you run the next steps from:
 
 ```bash

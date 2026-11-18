@@ -106,7 +106,7 @@ curl "http://localhost:8787/scrape_infos?league=${LEAGUE}&competition=<competiti
 Start the scheduler in its own terminal:
 
 ```bash
-bun run scheduler:local          # http://localhost:8787
+bun run scheduler:local
 ```
 
 In another terminal (define the helpers and variables there too), preview one ranking without
@@ -156,7 +156,7 @@ site once per competition.
 Start the subgraph in its own terminal:
 
 ```bash
-bun run graphql:rankings:local   # http://localhost:4007
+bun run graphql:rankings:local
 ```
 
 A subgraph only answers requests that carry the internal token. Read it from `.dev.vars` into
@@ -205,13 +205,14 @@ starting the next. The workers share the SQLite files under `.wrangler/state`, a
 at once can fail with `SQLITE_BUSY`.
 
 ```bash
-bun run graphql:clubs:local          # :4003
-bun run graphql:competitions:local   # :4002
-bun run graphql:categories:local     # :4006
-bun run graphql:specialties:local    # :4004
-bun run graphql:rankings:local       # :4007
+bun run graphql:clubs:local
+bun run graphql:competitions:local
+bun run graphql:categories:local
+bun run graphql:specialties:local
+bun run graphql:rankings:local
 ```
 
+Their ports, used below as `query <port>`, are in the [Port reference](../reference/ports.md).
 Then start the gateway with an empty Hive token:
 
 ```bash
@@ -236,6 +237,10 @@ query 4000 'query ($n: String) { playerRankings(name: $n) {
 Each entry gives the season, the specialty, the category, the club and team, the final rank and the
 phase the team reached. Compare it with the league site's ranking page: the rank, phase, club, team
 and players must match.
+
+For more queries through the gateway (a whole ranking, a player by licence or by name, the champions
+of a season, the leaders of a running championship), see the
+[Rankings section of Query the GraphQL API](howto-query-the-api.md#rankings).
 
 ---
 

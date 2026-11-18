@@ -48,22 +48,14 @@ This file is the stitched schema that Hive Gateway reads at startup.
 
 ## Step 3 — Start all services
 
-Start the gateway and all five subgraphs with a single command:
+Start the gateway and every subgraph with a single command:
 
 ```bash
 bun run dev
 ```
 
-Wait until you see all six services report ready. Each one listens on its own port:
-
-| Service      | URL                           |
-| ------------ | ----------------------------- |
-| gateway      | http://localhost:4000/graphql |
-| echo         | http://localhost:4001/graphql |
-| competitions | http://localhost:4002/graphql |
-| clubs        | http://localhost:4003/graphql |
-| specialties  | http://localhost:4004/graphql |
-| results      | http://localhost:4005/graphql |
+Wait until every service reports ready. Each one listens on its own port, listed in the
+[Port reference](../reference/ports.md). The gateway answers on `http://localhost:4000/graphql`.
 
 ---
 
