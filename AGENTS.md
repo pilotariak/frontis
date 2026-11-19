@@ -26,7 +26,7 @@ Each subgraph is an independent Cloudflare Worker with its own `wrangler.toml` a
 
 ## Dev Setup
 
-Requirements: [Bun](https://bun.sh) ≥ 1.1, [Wrangler](https://developers.cloudflare.com/workers/wrangler/) ≥ 4
+Requirements: [Bun](https://bun.sh) ≥ 1.3.3, [Wrangler](https://developers.cloudflare.com/workers/wrangler/) ≥ 4
 
 ```bash
 bun install          # install all workspace deps

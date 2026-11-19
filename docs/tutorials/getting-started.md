@@ -10,7 +10,7 @@ In this tutorial we will set up the Frontis stack locally and run your first cro
 
 Before we start, make sure you have:
 
-- [Bun](https://bun.sh) >= 1.1 installed (`bun --version`)
+- [Bun](https://bun.sh) >= 1.3.3 installed (`bun --version`)
 - `curl` and `jq` available in your shell
 - The repository cloned locally
 
