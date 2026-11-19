@@ -8,32 +8,32 @@ import type { FormOption, FormOptions, LeagueScraper, RankingSource, ScrapeData,
  * Fédération Française de Pelote Basque. The site is a PC SOFT WebDev
  * application, not the euskalpilota.fr `resultats.php` of the other leagues.
  *
- * Every scrape opens its own anonymous session, as a browser does:
- *   1. GET /FFPB_COMPETITION/ sets the session cookies and returns the guest
- *      home page, whose form action carries a session token.
- *   2. POSTing the "Compétitions" link to that action returns the competitions
- *      page (about 690 KB), whose form action carries the next token.
- *   3. Each filter change is an AJAX POST to that action. It answers WAJAX
- *      XML: the new option lists of the filters, and the results table rows
- *      as HTML in CDATA sections.
+ * It follows what a browser does on the guest home page:
+ *   1. GET /FFPB_COMPETITION/ sets the session cookies and returns the home
+ *      page. Its search form holds the season, competition type, specialty and
+ *      category selects, and its action carries a session token.
+ *   2. Each choice is an AJAX POST to that action. It answers WAJAX XML with
+ *      the narrowed option lists only, in about 0.1 s: the season gives its
+ *      competition types, the type its specialties and categories, the
+ *      specialty its categories.
+ *   3. The search button (A32) posts the form and answers the competitions
+ *      page with the results table already filtered. That page takes about
+ *      11 s to build, whatever the filters.
  * A token from another session fails with HTTP 400 (CGI1910 ERR_BAD_URL), so
- * tokens are always read from the form actions, never stored.
+ * tokens are always read from the form action, never stored.
  *
  * A `<select>` is posted as the 1-based position of the chosen option in the
- * list the server holds for the session, and that list changes with the
- * season. Each option also carries `data-wb-valmem` (VALMEM in the XML), the
+ * list the server holds for the session, and the lists change with every
+ * choice. Each option also carries `data-wb-valmem` (VALMEM in the XML), the
  * site's own id, which does not change: source_ids are these ids, and the
  * scraper maps them to positions in the list it last received.
  *
  * A competition is a season and a competition type: source_id
  * `<season>-<type id>`, for example `2026-1`, named `CHAMPIONNAT DE FRANCE 2026`
- * as the results table heads it. The specialty, category and phase lists cover
- * the whole season, every type included.
+ * as the results table heads it.
  *
- * Changing the season makes the site reset every filter to TOUTES and answer
- * the first 50 rows of the whole season (about 630 KB), which no request can
- * avoid. Results are always asked for one specialty and one category: TOUTES
- * returns a very large page.
+ * Results are always asked for one specialty and one category: TOUTES makes
+ * the competitions page list every match of the competition.
  *
  * CPU budget: the pages are sliced with string searches and small regexes,
  * never loaded into a DOM.
@@ -52,23 +52,22 @@ const USER_AGENT =
  */
 export const WEBDEV = {
   homeForm: "PAGE_ACCUEIL_INVITE",
-  /** The home page's "Compétitions" link. */
-  competitionsLink: "A32",
   competitionsForm: "PAGE_COMPETITION_INVITE",
-  /** The AJAX event a filter runs on change: `_JAEE(_PAGE_, "<id>", 47, …)`. */
+  /** The home page's "Chercher rencontres / résultats" button. */
+  search: "A32",
+  /** The AJAX event a select runs on change: `_JAEE(_PAGE_, "<id>", 47, …)`. */
   changeEvent: "47",
-  season: "I5",
-  type: "I4",
+  /** Home page selects. */
+  season: "A34",
+  type: "A33",
   /**
-   * The page holds two specialty selects and two category selects with the
-   * same options. The browser posts both of each pair; the first one of each
-   * is the one the filter request changes.
+   * The home page holds two specialty selects (A38, A39) and two category
+   * selects (A36, A41). The browser changes the second of each pair and the
+   * server keeps the first in sync.
    */
-  specialties: ["I10", "I9"],
-  categories: ["I12", "I7"],
-  phase: "I227",
-  club: "I223",
-  /** The results table, and its "<shown> / <total> lignes" counter. */
+  specialty: "A39",
+  category: "A41",
+  /** The competitions page's results table and its "<shown> / <total> lignes" counter. */
   table: "I158",
   tableCount: "I164",
 } as const;
@@ -93,7 +92,7 @@ export const CELL = {
 export interface Choice {
   /** 1-based position: what the form posts. */
   position: string;
-  /** `data-wb-valmem`: the site's id. "0" (or "") for TOUTES / Tous. */
+  /** `data-wb-valmem`: the site's id. "0" (or "") for TOUTES. */
   id: string;
   label: string;
 }
@@ -114,10 +113,6 @@ function decode(s: string): string {
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 const textOf = (html: string): string => collapse(decode(html.replace(/<[^>]*>/g, " ")));
-
-/** Lowercase, accent- and punctuation-free form of a label. */
-const normalise = (s: string): string =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 function attr(tag: string, name: string): string | undefined {
   const m = new RegExp(`(?:^|\\s)${name}=(?:"([^"]*)"|'([^']*)'|([^\\s>"']*))`, "i").exec(tag);
@@ -149,7 +144,7 @@ interface PageForm {
   chosen: Map<string, string>;
 }
 
-/** The controls of the competitions page, as a browser would post them. */
+/** The controls of a page's form, as a browser would post them. */
 export function parsePageForm(page: string): PageForm {
   const fields: Field[] = [];
   const lists = new Map<string, Choice[]>();
@@ -167,11 +162,12 @@ export function parsePageForm(page: string): PageForm {
       const choices: Choice[] = [];
       let selected: string | undefined;
       for (const o of page.slice(start, page.indexOf("</select>", start)).matchAll(/<option\b([^>]*)>([^<]*)/gi)) {
-        const choice = { position: attr(o[1], "value") ?? "", id: attr(o[1], "data-wb-valmem") ?? "", label: collapse(decode(o[2])) };
-        choices.push(choice);
-        if (/\bselected\b/i.test(o[1])) selected = choice.position;
+        const position = attr(o[1], "value");
+        // Options without a value (the font menus of the comment editor) are not posted.
+        if (position === undefined) continue;
+        choices.push({ position, id: attr(o[1], "data-wb-valmem") ?? "", label: collapse(decode(o[2])) });
+        if (/\bselected\b/i.test(o[1])) selected = position;
       }
-      // A browser posts nothing for a select without options.
       if (choices.length === 0) continue;
       lists.set(name, choices);
       chosen.set(name, selected ?? choices[0].position);
@@ -190,35 +186,34 @@ export function parsePageForm(page: string): PageForm {
 
 // ── WAJAX parsing ─────────────────────────────────────────────────────────────
 
-/** The body of each `<CHAMP ALIAS="…" TYPE="…">` of a WAJAX answer. */
-function champs(xml: string, type: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const m of xml.matchAll(new RegExp(`<CHAMP ALIAS="([^"]+)" TYPE="${type}">([\\s\\S]*?)</CHAMP>`, "g"))) {
-    out.set(m[1], m[2]);
-  }
-  return out;
-}
-
-/** New option lists of the filters, and the position each one now shows. */
-export function parseAjaxLists(xml: string): Map<string, { choices: Choice[]; chosen: string }> {
-  const out = new Map<string, { choices: Choice[]; chosen: string }>();
-  for (const [alias, body] of champs(xml, "14")) {
-    const choices = [...body.matchAll(/<OPTION\b([^>]*)>([^<]*)<\/OPTION>/g)].map((o, i) => ({
-      position: String(i + 1),
-      id: attr(o[1], "VALMEM") ?? "",
-      label: collapse(decode(o[2])),
-    }));
+/**
+ * What a WAJAX answer changes in each select: a new option list, a new chosen
+ * position, or both. An answer can move a select's choice without sending its
+ * list again.
+ */
+export function parseAjaxLists(xml: string): Map<string, { choices?: Choice[]; chosen?: string }> {
+  const out = new Map<string, { choices?: Choice[]; chosen?: string }>();
+  for (const m of xml.matchAll(/<CHAMP ALIAS="([^"]+)" TYPE="14">([\s\S]*?)<\/CHAMP>/g)) {
+    const body = m[2];
+    const change: { choices?: Choice[]; chosen?: string } = {};
+    if (body.includes("<OPTIONS>")) {
+      change.choices = [...body.matchAll(/<OPTION\b([^>]*)>([^<]*)<\/OPTION>/g)].map((o, i) => ({
+        position: String(i + 1),
+        id: attr(o[1], "VALMEM") ?? "",
+        label: collapse(decode(o[2])),
+      }));
+    }
     // `.options[<0-based index>].selected=true`
     const selected = [...body.matchAll(/\.options\[(\d+)\]\.selected=true/g)].pop();
-    out.set(alias, { choices, chosen: String(selected ? Number(selected[1]) + 1 : 1) });
+    if (selected) change.chosen = String(Number(selected[1]) + 1);
+    out.set(m[1], change);
   }
   return out;
 }
 
-/** "<shown> / <total> lignes" of the results table, when the answer has it. */
-export function parseCount(xml: string): { shown: number; total: number } | null {
-  const body = champs(xml, "3").get(WEBDEV.tableCount);
-  const m = body ? /(\d+)\s*\/\s*(\d+)\s*lignes/.exec(body) : null;
+/** "<shown> / <total> lignes" of the results table, when the page has it. */
+export function parseCount(page: string): { shown: number; total: number } | null {
+  const m = /(\d+)\s*\/\s*(\d+)\s*lignes/.exec(page);
   return m ? { shown: Number(m[1]), total: Number(m[2]) } : null;
 }
 
@@ -251,34 +246,27 @@ export function parseScore(text: string): string | null {
   return sets ? sets.join(" ") : null;
 }
 
-/** One results row and the group headers it falls under. */
-export interface FfpbRow {
-  result: ScrapedResult;
-  /** The group's phase header (POULES, 1/4 DE FINALE…), before the pool is applied. */
-  phaseHeader: string;
-}
-
 /**
- * Rows of the results table of a WAJAX answer. Group headers (specialty,
+ * Rows of the results table of the competitions page. Cells are read in
+ * document order and grouped by their row number. Group headers (specialty,
  * category, competition, phase) are carried to the rows that follow them.
  * Under a POULES header the phase is the row's pool ("Poule 1"), otherwise
  * the header ("1/4 DE FINALE").
  */
-export function parseRows(xml: string, year: number): FfpbRow[] {
-  const rows: FfpbRow[] = [];
+export function parseRows(page: string, year: number): ScrapedResult[] {
+  const rows: Map<string, string>[] = [];
+  let row = "";
+  for (const m of page.matchAll(/id="zrl_(\d+)_ATT_(I\d+)_1"[^>]*>([\s\S]*?)<\/td>/g)) {
+    if (m[1] !== row) {
+      row = m[1];
+      rows.push(new Map());
+    }
+    rows[rows.length - 1].set(m[2], m[3]);
+  }
+
+  const results: ScrapedResult[] = [];
   const head = { specialty: "", category: "", competition: "", phase: "" };
-  const OPEN = "<CORPS><![CDATA[";
-  const CLOSE = "]]></CORPS>";
-
-  for (let at = xml.indexOf(OPEN); at !== -1; at = xml.indexOf(OPEN, at)) {
-    const end = xml.indexOf(CLOSE, at);
-    if (end === -1) break;
-    const corps = xml.slice(at + OPEN.length, end);
-    at = end;
-
-    const cells = new Map<string, string>();
-    for (const m of corps.matchAll(/id="zrl_\d+_ATT_(I\d+)_1"[^>]*>([\s\S]*?)<\/td>/g)) cells.set(m[1], m[2]);
-
+  for (const cells of rows) {
     const header = (id: string) => (cells.has(id) ? textOf(cells.get(id)!) : undefined);
     head.specialty = header(CELL.specialty) ?? head.specialty;
     head.category = header(CELL.category) ?? head.category;
@@ -288,45 +276,40 @@ export function parseRows(xml: string, year: number): FfpbRow[] {
     const team1 = cells.get(CELL.team1);
     const team2 = cells.get(CELL.team2);
     if (team1 === undefined || team2 === undefined) continue;
-
     const a = parseTeam(team1);
     const b = parseTeam(team2);
     if (!a.club || !b.club) continue;
-    const pool = textOf(cells.get(CELL.pool) ?? "");
-    const date = /\b\d{2}\/\d{2}\/\d{4}\b/.exec(textOf(cells.get(CELL.date) ?? ""));
 
-    rows.push({
-      phaseHeader: head.phase,
-      result: {
-        specialty: head.specialty,
-        competition: head.competition,
-        year,
-        category: head.category,
-        phase: normalise(head.phase) === "poules" && pool && pool !== "Poule 0" ? pool : head.phase,
-        date_match: date ? date[0] : "",
-        club_a: a.club,
-        club_a_player1_name: a.players[0]?.name,
-        club_a_player1_number: a.players[0]?.number,
-        club_a_player2_name: a.players[1]?.name,
-        club_a_player2_number: a.players[1]?.number,
-        club_b: b.club,
-        club_b_player1_name: b.players[0]?.name,
-        club_b_player1_number: b.players[0]?.number,
-        club_b_player2_name: b.players[1]?.name,
-        club_b_player2_number: b.players[1]?.number,
-        scores: parseScore(textOf(cells.get(CELL.score) ?? "")),
-      },
+    const pool = textOf(cells.get(CELL.pool) ?? "");
+    // "24/01/2026 reportée au 06/02/2026 à 18:30": a postponed match keeps its new date.
+    const dates = textOf(cells.get(CELL.date) ?? "").match(/\b\d{2}\/\d{2}\/\d{4}\b/g);
+    results.push({
+      specialty: head.specialty,
+      competition: head.competition,
+      year,
+      category: head.category,
+      phase: head.phase.toUpperCase() === "POULES" && pool && pool !== "Poule 0" ? pool : head.phase,
+      date_match: dates ? dates[dates.length - 1] : "",
+      club_a: a.club,
+      club_a_player1_name: a.players[0]?.name,
+      club_a_player1_number: a.players[0]?.number,
+      club_a_player2_name: a.players[1]?.name,
+      club_a_player2_number: a.players[1]?.number,
+      club_b: b.club,
+      club_b_player1_name: b.players[0]?.name,
+      club_b_player1_number: b.players[0]?.number,
+      club_b_player2_name: b.players[1]?.name,
+      club_b_player2_number: b.players[1]?.number,
+      scores: parseScore(textOf(cells.get(CELL.score) ?? "")),
     });
   }
-  return rows;
+  return results;
 }
 
 // ── Session ───────────────────────────────────────────────────────────────────
 
-/** One anonymous session, opened on the competitions page. */
+/** One anonymous session on the guest home page. */
 class Session {
-  private occurrences: string | undefined;
-
   private constructor(
     private readonly url: string,
     private readonly jar: Map<string, string>,
@@ -335,14 +318,8 @@ class Session {
 
   static async open(): Promise<Session> {
     const jar = new Map<string, string>();
-    const home = await send(`${ORIGIN}/FFPB_COMPETITION/`, jar);
-    const homeAction = formAction(await text(home, "home page"), WEBDEV.homeForm);
-
-    const body = new URLSearchParams({ WD_ACTION_: "", WD_BUTTON_CLICK_: WEBDEV.competitionsLink });
-    const page = await text(await send(ORIGIN + homeAction, jar, body), "competitions page");
-    const action = formAction(page, WEBDEV.competitionsForm);
-    console.log(`[${LEAGUE}] session opened: competitions page ${page.length}B, ${jar.size} cookies`);
-    return new Session(ORIGIN + action, jar, parsePageForm(page));
+    const home = await text(await send(`${ORIGIN}/FFPB_COMPETITION/`, jar), "home page");
+    return new Session(ORIGIN + formAction(home, WEBDEV.homeForm), jar, parsePageForm(home));
   }
 
   list(control: string): Choice[] {
@@ -354,52 +331,56 @@ class Session {
     return this.list(control).find((c) => c.position === position);
   }
 
-  /**
-   * Fire the change event of a filter with the given select positions, as a
-   * browser does when the filter changes, and apply the option lists the
-   * answer carries. Returns the WAJAX answer.
-   */
-  async change(control: string, positions: Record<string, string>): Promise<string> {
-    for (const [name, position] of Object.entries(positions)) this.form.chosen.set(name, position);
-
-    const body = new URLSearchParams({ WD_ACTION_: "AJAXPAGE", EXECUTE: WEBDEV.changeEvent, WD_CONTEXTE_: control });
+  /** The form fields in document order, with the given overrides. */
+  private body(head: Record<string, string>, overrides: Record<string, string>): URLSearchParams {
+    const body = new URLSearchParams(head);
     for (const field of this.form.fields) {
-      if (field.name === "WD_ACTION_") continue;
-      let value = field.value ?? this.form.chosen.get(field.name) ?? "";
-      // Posted empty, as in the browser request recorded in issue #107.
-      if (field.name === "WD_JSON_PROPRIETE_") value = "";
-      // How many rows the table already shows.
-      if (field.name === `_${WEBDEV.table}_OCC` && this.occurrences !== undefined) value = this.occurrences;
-      body.append(field.name, value);
+      if (field.name in head) continue;
+      // Posted empty, as in the browser's requests.
+      const value = field.name === "WD_JSON_PROPRIETE_" ? "" : field.value ?? this.form.chosen.get(field.name) ?? "";
+      body.append(field.name, overrides[field.name] ?? value);
     }
-
-    const xml = await text(await send(this.url, this.jar, body), `${control} change`);
-    if (!xml.includes("<WAJAX>")) {
-      throw new Error(`[${LEAGUE}] The ${control} change did not answer WAJAX XML`);
-    }
-    for (const [alias, { choices, chosen }] of parseAjaxLists(xml)) {
-      this.form.lists.set(alias, choices);
-      this.form.chosen.set(alias, chosen);
-    }
-    const lines = new RegExp(`<CHAMP ALIAS="${WEBDEV.table}"[^>]*><LIGNES\\b[^>]*\\bNOMBRE="(\\d+)"`).exec(xml);
-    if (lines) this.occurrences = lines[1];
-    console.log(`[${LEAGUE}] ${control} change: ${xml.length}B`);
-    return xml;
+    return body;
   }
 
   /**
-   * Show the given season, a VALMEM of the season select. False when the
-   * site does not list it. Changing the season resets every other filter.
+   * Choose an option, as a browser does: fire the select's change event and
+   * apply the lists and choices the answer carries.
    */
+  async choose(control: string, choice: Choice): Promise<void> {
+    this.form.chosen.set(control, choice.position);
+    const head = { WD_ACTION_: "AJAXPAGE", EXECUTE: WEBDEV.changeEvent, WD_CONTEXTE_: control };
+    const xml = await text(await send(this.url, this.jar, this.body(head, {})), `${control} change`);
+    if (!xml.includes("<WAJAX>")) {
+      throw new Error(`[${LEAGUE}] The ${control} change did not answer WAJAX XML`);
+    }
+    for (const [alias, change] of parseAjaxLists(xml)) {
+      if (change.choices) this.form.lists.set(alias, change.choices);
+      if (change.chosen) this.form.chosen.set(alias, change.chosen);
+    }
+  }
+
+  /** Show a season (VALMEM of the season select). False when the site does not list it. */
   async showSeason(season: string): Promise<boolean> {
     if (this.chosen(WEBDEV.season)?.id === season) return true;
     const choice = this.list(WEBDEV.season).find((c) => c.id === season);
     if (!choice) return false;
-    await this.change(WEBDEV.season, { [WEBDEV.season]: choice.position });
+    await this.choose(WEBDEV.season, choice);
     return true;
   }
 
-  /** What the shown season offers. */
+  /** Press the search button: the competitions page, filtered by the chosen options. */
+  async search(): Promise<string> {
+    const body = this.body({}, { WD_ACTION_: "", WD_BUTTON_CLICK_: WEBDEV.search });
+    const page = await text(await send(this.url, this.jar, body), "competitions page");
+    // An error or session page would otherwise read as a table without rows.
+    if (!page.includes(`<form name="${WEBDEV.competitionsForm}"`)) {
+      throw new Error(`[${LEAGUE}] The search did not answer the competitions page`);
+    }
+    return page;
+  }
+
+  /** What the shown season and type offer. */
   options(): FormOptions {
     const season = this.chosen(WEBDEV.season);
     const real = (control: string): Choice[] => this.list(control).filter(isReal);
@@ -408,11 +389,11 @@ class Session {
       competitions: season
         ? real(WEBDEV.type).map((t) => ({ sourceId: `${season.id}-${t.id}`, name: `${t.label} ${season.label}` }))
         : [],
-      specialties: real(WEBDEV.specialties[0]).map(plain),
-      // VALMEM "526:7611;6906;": the club id, then its teams.
-      clubs: real(WEBDEV.club).map((c) => ({ sourceId: c.id.split(":")[0], name: c.label })),
-      categories: real(WEBDEV.categories[0]).map(plain),
-      phases: real(WEBDEV.phase).map(plain),
+      specialties: real(WEBDEV.specialty).map(plain),
+      // The home page has no club or phase select.
+      clubs: [],
+      categories: real(WEBDEV.category).map(plain),
+      phases: [],
     };
   }
 }
@@ -478,10 +459,10 @@ function merge(all: FormOptions[]): FormOptions {
   };
 }
 
-function choose(session: Session, control: string, id: string, label: string): Choice {
+function offered(session: Session, control: string, id: string, label: string, scope: string): Choice {
   const choice = session.list(control).find((c) => c.id === id);
   if (!choice || !isReal(choice)) {
-    throw new BadRequestError(`${label} '${id}' is not offered by the ${LEAGUE} site for this season`);
+    throw new BadRequestError(`${label} '${id}' is not offered by the ${LEAGUE} site for ${scope}`);
   }
   return choice;
 }
@@ -497,7 +478,8 @@ export class FfpbScraper implements LeagueScraper {
 
   /**
    * The form values of one season, or of every season the site lists when no
-   * competition is given: one season change each, so a bootstrap needs one call.
+   * competition is given. The specialty and category lists cover the whole
+   * season, every competition type included.
    */
   private async fetchOptions(competition: string): Promise<FormOptions> {
     const session = await Session.open();
@@ -520,15 +502,18 @@ export class FfpbScraper implements LeagueScraper {
     return merge(all);
   }
 
+  /** The competitions of the season, and the specialties and categories the competition offers. */
   async fetchResultsForm(competition: string): Promise<FormOptions> {
     const wanted = parseCompetition(competition);
     if (!wanted) throw new BadRequestError(`Invalid ${LEAGUE} competition '${competition}'`);
     const session = await Session.open();
     if (session.list(WEBDEV.season).length === 0) {
-      throw new Error(`[${LEAGUE}] Season select not found on the competitions page`);
+      throw new Error(`[${LEAGUE}] Season select not found on the home page`);
     }
     // A season the site does not list offers no competition.
     if (!(await session.showSeason(wanted.season))) return EMPTY_FORM_OPTIONS;
+    const type = session.list(WEBDEV.type).find((c) => c.id === wanted.type);
+    if (type && isReal(type)) await session.choose(WEBDEV.type, type);
     return session.options();
   }
 
@@ -542,29 +527,28 @@ export class FfpbScraper implements LeagueScraper {
         `${LEAGUE} results are fetched for one specialty and one category at a time: pass both, not 0`
       );
     }
+    if (options.phase && options.phase !== "0") {
+      throw new BadRequestError(`${LEAGUE} results cannot be filtered by phase: pass phase=0`);
+    }
 
     const session = await Session.open();
     if (!(await session.showSeason(wanted.season))) {
       throw new BadRequestError(`The ${LEAGUE} site does not list season ${wanted.season}`);
     }
     const season = session.chosen(WEBDEV.season)!;
-    const type = choose(session, WEBDEV.type, wanted.type, "Competition type");
-    const [specialty, specialty2] = WEBDEV.specialties.map((c) => choose(session, c, options.specialty, "Specialty"));
-    const [category, category2] = WEBDEV.categories.map((c) => choose(session, c, options.category, "Category"));
-    const phase = options.phase && options.phase !== "0"
-      ? choose(session, WEBDEV.phase, options.phase, "Phase")
-      : null;
+    // Each choice narrows the next list, as on the site.
+    const type = offered(session, WEBDEV.type, wanted.type, "Competition type", `season ${season.label}`);
+    await session.choose(WEBDEV.type, type);
+    const competitionName = `${type.label} ${season.label}`;
+    const specialty = offered(session, WEBDEV.specialty, options.specialty, "Specialty", competitionName);
+    await session.choose(WEBDEV.specialty, specialty);
+    const category = offered(
+      session, WEBDEV.category, options.category, "Category", `${competitionName}, ${specialty.label}`
+    );
+    await session.choose(WEBDEV.category, category);
 
-    const xml = await session.change(WEBDEV.categories[0], {
-      [WEBDEV.season]: season.position,
-      [WEBDEV.type]: type.position,
-      [WEBDEV.specialties[0]]: specialty.position,
-      [WEBDEV.specialties[1]]: specialty2.position,
-      [WEBDEV.categories[0]]: category.position,
-      [WEBDEV.categories[1]]: category2.position,
-    });
-
-    const count = parseCount(xml);
+    const page = await session.search();
+    const count = parseCount(page);
     if (count && count.shown < count.total) {
       throw new Error(
         `[${LEAGUE}] The site lists ${count.total} matches but sent ${count.shown}: ` +
@@ -574,22 +558,15 @@ export class FfpbScraper implements LeagueScraper {
 
     // The group headers must name what was asked for: anything else means the
     // positions did not match the lists the server holds.
-    const competitionName = `${type.label} ${season.label}`;
-    const rows = parseRows(xml, Number(season.id));
-    for (const { result } of rows) {
+    const results = parseRows(page, Number(season.id));
+    for (const result of results) {
       const got = [result.competition, result.specialty, result.category];
       const want = [competitionName, specialty.label, category.label];
       if (got.some((g, i) => g !== want[i])) {
         throw new Error(`[${LEAGUE}] Asked for ${want.join(" / ")}, the site answered ${got.join(" / ")}`);
       }
     }
-
-    const results = phase
-      ? rows.filter((r) => normalise(r.phaseHeader) === normalise(phase.label)).map((r) => r.result)
-      : rows.map((r) => r.result);
-    console.log(
-      `[${LEAGUE}] ${competitionName} / ${specialty.label} / ${category.label}: ${rows.length} rows, ${results.length} kept`
-    );
+    console.log(`[${LEAGUE}] ${competitionName} / ${specialty.label} / ${category.label}: ${results.length} results`);
     return results;
   }
 

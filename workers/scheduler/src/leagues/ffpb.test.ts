@@ -12,70 +12,66 @@ import {
 } from "./ffpb";
 
 // Sanitized captures of competition.ffpb.net (site version 1.10.13): session
-// tokens replaced, secured properties emptied, option lists and rows trimmed,
-// players and licences synthetic, notes replaced. No cookies.
+// tokens replaced, secured properties emptied, result rows trimmed, players
+// and licences synthetic, notes replaced. No cookies.
 const fixture = (name: string) => Bun.file(new URL(`./fixtures/ffpb/${name}`, import.meta.url)).text();
+// The guest home page, on its default season 2027.
 const HOME = await fixture("home.html");
-// Default season 2027.
-const COMPETITIONS = await fixture("competitions.html");
-// Answer to the season change to 2026.
-const SEASON = await fixture("season-2026.xml");
-// CHAMPIONNAT DE FRANCE 2026, Trinquet Paleta Pelote de Gomme Pleine Masculin, M16.
-const RESULTS = await fixture("results.xml");
+// Answers to the home page choices: season 2026, CHAMPIONNAT DE FRANCE,
+// Trinquet Paleta Pelote de Gomme Pleine Masculin, Nationale A.
+const SEASON = await fixture("home-season.xml");
+const TYPE = await fixture("home-type.xml");
+const SPECIALTY = await fixture("home-specialty.xml");
+const CATEGORY = await fixture("home-category.xml");
+// The competitions page the search answers for those choices.
+const RESULTS = await fixture("results.html");
 
 const SITE = "https://competition.ffpb.net/FFPB_COMPETITION/";
 const HOME_ACTION = "https://competition.ffpb.net/FFPB_COMPETITION/PAGE_ACCUEIL_INVITE/SESSION-TOKEN-HOME";
-const AJAX_ACTION = "https://competition.ffpb.net/FFPB_COMPETITION/PAGE_COMPETITION_INVITE/SESSION-TOKEN-COMPETITIONS";
 
 // Source ids (VALMEM) of the fixtures' options.
+const CHAMPIONNAT_DE_FRANCE = "1";
 const TRINQUET_PALETA_GOMME_PLEINE = "55";
-const M16 = "7";
+const NATIONALE_A = "1";
 
 describe("parseRows", () => {
-  const rows = parseRows(RESULTS, 2026);
-  const results = rows.map((r) => r.result);
+  const results = parseRows(RESULTS, 2026);
 
   test("reads one result per row", () => {
-    expect(results).toHaveLength(4);
+    expect(results).toHaveLength(5);
   });
 
   test("carries the group headers to the rows that follow them", () => {
     for (const r of results) {
       expect(r.specialty).toBe("Trinquet Paleta Pelote de Gomme Pleine Masculin");
-      expect(r.category).toBe("M16 (moins de 16ans)");
+      expect(r.category).toBe("Nationale A");
       expect(r.competition).toBe("CHAMPIONNAT DE FRANCE 2026");
       expect(r.year).toBe(2026);
     }
   });
 
   test("names the phase by pool under POULES, by the header otherwise", () => {
-    expect(results.map((r) => r.phase)).toEqual(["Poule 1", "Poule 1", "1/4 DE FINALE", "FINALE"]);
-    expect(rows.map((r) => r.phaseHeader)).toEqual(["POULES", "POULES", "1/4 DE FINALE", "FINALE"]);
+    expect(results.map((r) => r.phase)).toEqual(["Poule 1", "Poule 1", "BARRAGES MAINTIEN", "1/4 DE FINALE", "FINALE"]);
   });
 
-  test("keeps the date without its time, empty when the match has none", () => {
-    expect(results.map((r) => r.date_match)).toEqual(["18/01/2026", "18/01/2026", "", "22/02/2026"]);
+  test("keeps the date without its time, the new one for a postponed match", () => {
+    expect(results.map((r) => r.date_match)).toEqual(["17/01/2026", "06/02/2026", "08/03/2026", "21/02/2026", "07/03/2026"]);
   });
 
-  test("keeps the team number on the club and splits the players", () => {
+  test("keeps the team number on the club and splits the players, marker dropped", () => {
     expect(results[0]).toMatchObject({
-      club_a: "AKITANIA PELOTE BASQUE 01",
+      club_a: "AVIRON BAYONNAIS 01",
       club_a_player1_name: "JOUEUR01 Prenom",
       club_a_player1_number: "900001",
       club_a_player2_name: "JOUEUR02 Prenom",
       club_a_player2_number: "900002",
-      club_b: "GAZTIAK GOTEIN 02",
+      club_b: "GOIZEKO IZARRA 01",
       club_b_player1_name: "JOUEUR03 Prenom",
     });
   });
 
-  test("drops the player marker from the name", () => {
-    expect(results[2].club_a_player2_name).toBe("JOUEUR10 Prenom");
-    expect(results[2].club_a_player2_number).toBe("900010");
-  });
-
   test("stores sets as scores, null for a forfeit", () => {
-    expect(results.map((r) => r.scores)).toEqual(["5/20", null, "40/15", "40/19"]);
+    expect(results.map((r) => r.scores)).toEqual(["40/13", null, "40/36", "24/40", "39/40"]);
   });
 });
 
@@ -107,40 +103,41 @@ describe("parseTeam", () => {
 
 describe("parseCount", () => {
   test("reads the shown and total rows", () => {
-    expect(parseCount(RESULTS)).toEqual({ shown: 4, total: 4 });
-    expect(parseCount(SEASON)).toEqual({ shown: 50, total: 3533 });
+    expect(parseCount(RESULTS)).toEqual({ shown: 5, total: 5 });
+    expect(parseCount("<html></html>")).toBeNull();
   });
 });
 
 describe("parsePageForm", () => {
-  const form = parsePageForm(COMPETITIONS);
+  const form = parsePageForm(HOME);
 
   test("reads each select's options with their position and id", () => {
-    expect(form.lists.get("I5")?.map((c) => c.id)).toEqual(["2027", "2026", "2025", "2024", "2023"]);
-    expect(form.lists.get("I10")?.[4]).toEqual({
-      position: "5",
-      id: TRINQUET_PALETA_GOMME_PLEINE,
-      label: "Trinquet Paleta Pelote de Gomme Pleine Masculin",
-    });
-    expect(form.chosen.get("I5")).toBe("1");
+    expect(form.lists.get("A34")?.map((c) => c.id)).toEqual(["2027", "2026", "2025", "2024", "2023"]);
+    expect(form.lists.get("A33")?.[1]).toEqual({ position: "2", id: CHAMPIONNAT_DE_FRANCE, label: "CHAMPIONNAT DE FRANCE" });
+    expect(form.chosen.get("A34")).toBe("1");
   });
 
-  test("lists what a browser posts: no unchecked checkbox, no empty select", () => {
-    const names = form.fields.map((f) => f.name);
-    expect(names.filter((n) => n === "I309")).toHaveLength(1);
-    expect(names).not.toContain("I206");
-    expect(names).toContain("M29");
-    expect(form.fields.find((f) => f.name === "WD_JSON_PROPRIETE_")?.value).toBe("");
+  test("lists what a browser posts, in document order", () => {
+    expect(form.fields.map((f) => f.name)).toEqual([
+      "WD_JSON_PROPRIETE_", "WD_BUTTON_CLICK_", "WD_ACTION_",
+      "A34", "A33", "A36", "A38", "A39", "A41",
+      "A3", "A3_DEB", "_A3_OCC", "M20", "M21", "M29", "A21", "A22",
+    ]);
   });
 });
 
 describe("parseAjaxLists", () => {
   test("reads the new lists, positions counted from 1", () => {
-    const lists = parseAjaxLists(SEASON);
-    const types = lists.get("I4")!;
-    expect(types.choices.map((c) => c.label)).toContain("TOURNOI FEDERAL");
-    expect(types.chosen).toBe("1");
-    expect(lists.get("I10")!.choices.find((c) => c.id === TRINQUET_PALETA_GOMME_PLEINE)?.position).toBe("7");
+    const lists = parseAjaxLists(TYPE);
+    expect(lists.get("A39")!.choices!.find((c) => c.id === TRINQUET_PALETA_GOMME_PLEINE)?.position).toBe("34");
+    expect(lists.get("A39")!.chosen).toBe("1");
+  });
+
+  test("moves a choice without a list when the answer sends none", () => {
+    const lists = parseAjaxLists(CATEGORY);
+    expect(lists.get("A36")).toEqual({ chosen: "9" });
+    expect(lists.get("A38")!.choices).toHaveLength(29);
+    expect(lists.get("A38")!.chosen).toBe("27");
   });
 });
 
@@ -160,8 +157,8 @@ type FetchMock = ReturnType<typeof mock<(url: string | URL | Request, init?: Req
 let fetchMock: FetchMock;
 const realFetch = globalThis.fetch;
 
-/** The fake site: the home page sets two cookies, the season change answers SEASON. */
-function fakeSite(answers: { results?: string; home?: () => Response } = {}) {
+/** The fake site: the home page sets two cookies, each choice answers its capture. */
+function fakeSite(answers: { results?: string; home?: () => Response; category?: string } = {}) {
   fetchMock = mock(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url === SITE) {
@@ -172,10 +169,17 @@ function fakeSite(answers: { results?: string; home?: () => Response } = {}) {
         ],
       });
     }
-    if (url === HOME_ACTION) return new Response(COMPETITIONS);
-    if (url === AJAX_ACTION) {
-      const context = new URLSearchParams(String(init?.body)).get("WD_CONTEXTE_");
-      return new Response(context === "I5" ? SEASON : (answers.results ?? RESULTS));
+    if (url === HOME_ACTION) {
+      const body = new URLSearchParams(String(init?.body));
+      if (body.get("WD_BUTTON_CLICK_") === "A32") return new Response(answers.results ?? RESULTS);
+      const byContext: Record<string, string> = {
+        A34: SEASON,
+        A33: TYPE,
+        A39: SPECIALTY,
+        A41: answers.category ?? CATEGORY,
+      };
+      const answer = byContext[body.get("WD_CONTEXTE_") ?? ""];
+      if (answer) return new Response(answer);
     }
     return new Response("not found", { status: 404, statusText: "Not Found" });
   });
@@ -183,14 +187,30 @@ function fakeSite(answers: { results?: string; home?: () => Response } = {}) {
 }
 
 const bodyOf = (call: number) => String(fetchMock.mock.calls[call][1]?.body);
-const paramsOf = (call: number) => new URLSearchParams(bodyOf(call));
 const contexts = () =>
   fetchMock.mock.calls
-    .filter(([url]) => String(url) === AJAX_ACTION)
+    .filter(([url, init]) => String(url) === HOME_ACTION && String(init?.body).startsWith("WD_ACTION_=AJAXPAGE"))
     .map(([, init]) => new URLSearchParams(String(init?.body)).get("WD_CONTEXTE_"));
+const searches = () =>
+  fetchMock.mock.calls.filter(([, init]) => new URLSearchParams(String(init?.body)).get("WD_BUTTON_CLICK_") === "A32");
 
 const scraper = new FfpbScraper();
-const results2026 = { competition: "2026-1", specialty: TRINQUET_PALETA_GOMME_PLEINE, category: M16, phase: "0" };
+const results2026 = {
+  competition: `2026-${CHAMPIONNAT_DE_FRANCE}`,
+  specialty: TRINQUET_PALETA_GOMME_PLEINE,
+  category: NATIONALE_A,
+  phase: "0",
+};
+
+// What the browser posted for these choices (issue #107 discussion), without
+// the unnamed fields it adds at the end.
+const TAIL = "&A3=1&A3_DEB=1&_A3_OCC=4&M20=&M21=&M29=&A21=&A22=";
+const BROWSER = [
+  "WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=A34&WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=M24&A34=2&A33=1&A36=1&A38=1&A39=1&A41=1" + TAIL,
+  "WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=A33&WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=M24&A34=2&A33=2&A36=1&A38=1&A39=1&A41=1" + TAIL,
+  "WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=A39&WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=M24&A34=2&A33=2&A36=1&A38=1&A39=34&A41=1" + TAIL,
+  "WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=A41&WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=M24&A34=2&A33=2&A36=1&A38=34&A39=34&A41=7" + TAIL,
+];
 
 beforeEach(() => {
   spyOn(console, "log").mockImplementation(() => {});
@@ -202,64 +222,44 @@ afterEach(() => {
 });
 
 describe("FfpbScraper.fetchData (results)", () => {
-  test("opens a session, shows the season, then asks for one specialty and category", async () => {
+  test("makes the browser's choices on the home page, then searches", async () => {
     fakeSite();
     const { results, formOptions } = await scraper.fetchData(results2026, true);
 
-    expect(results).toHaveLength(4);
+    expect(results).toHaveLength(5);
     expect(formOptions.competitions).toEqual([]);
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([SITE, HOME_ACTION, AJAX_ACTION, AJAX_ACTION]);
-
-    // The competitions link is clicked with the home page's cookies.
-    expect(bodyOf(1)).toBe("WD_ACTION_=&WD_BUTTON_CLICK_=A32");
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([SITE, ...Array(5).fill(HOME_ACTION)]);
+    // Each choice is posted as the browser posts it, positions from the lists the previous answer sent.
+    expect([1, 2, 3, 4].map(bodyOf)).toEqual(BROWSER);
     const headers = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
     expect(headers["Cookie"]).toBe("FFPB_COMPETITION_HOST=test-host; DYN_SECURITEd10=test-value");
-
-    expect(paramsOf(2).get("WD_CONTEXTE_")).toBe("I5");
-    expect(paramsOf(2).get("I5")).toBe("2");
   });
 
-  test("posts the positions of the season's lists, in the browser's field order", async () => {
+  test("searches with every field of the form, the choices the answers moved included", async () => {
     fakeSite();
     await scraper.fetchData(results2026, true);
-
-    // 2026 lists: CHAMPIONNAT DE FRANCE is 2nd, the specialty 7th, M16 3rd.
-    expect(bodyOf(3)).toStartWith(
-      "WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=I12&WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=M24" +
-        "&I5=2&I4=2&I7=3&I9=7&I10=7&I12=3&I40=-1&I40_DEB=1&_I40_OCC=0&I92=-1&I92_DEB=1&_I92_OCC=0&I309=" +
-        "&I223=1&I293=1&I227=1&I228=1&I215=&I234=&I158=1&I158_DEB=1&_I158_OCC=50"
+    expect(bodyOf(5)).toBe(
+      "WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=A32&WD_ACTION_=&A34=2&A33=2&A36=9&A38=27&A39=34&A41=7" + TAIL
     );
-    expect(bodyOf(3)).toEndWith("&M20=&M21=&M29=");
   });
 
   test("skips the season change for the season the page shows", async () => {
     fakeSite();
-    // The fixture rows belong to 2026, so the header check fails.
+    // The fixture answers belong to 2026, so the header check fails.
     await expect(scraper.fetchData({ ...results2026, competition: "2027-1" }, true)).rejects.toThrow(
-      "Asked for CHAMPIONNAT DE FRANCE 2027 / Trinquet Paleta Pelote de Gomme Pleine Masculin / M16 (moins de 16ans), " +
+      "Asked for CHAMPIONNAT DE FRANCE 2027 / Trinquet Paleta Pelote de Gomme Pleine Masculin / Nationale A, " +
         "the site answered CHAMPIONNAT DE FRANCE 2026"
     );
-    expect(contexts()).toEqual(["I12"]);
-    // 2027 lists: the specialty is 5th, M16 4th.
-    expect(paramsOf(2).get("I10")).toBe("5");
-    expect(paramsOf(2).get("I12")).toBe("4");
+    expect(contexts()).toEqual(["A33", "A39", "A41"]);
   });
 
-  test("keeps the rows of the requested phase", async () => {
-    fakeSite();
-    const quarterFinals = await scraper.fetchData({ ...results2026, phase: "10" }, true);
-    expect(quarterFinals.results.map((r) => r.phase)).toEqual(["1/4 DE FINALE"]);
-
-    const pools = await scraper.fetchData({ ...results2026, phase: "1" }, true);
-    expect(pools.results.map((r) => r.phase)).toEqual(["Poule 1", "Poule 1"]);
-  });
-
-  test("refuses every specialty or every category without calling the site", async () => {
+  test("refuses every specialty, every category or a phase without calling the site", async () => {
     fakeSite();
     await expect(scraper.fetchData({ ...results2026, specialty: "0" }, true)).rejects.toBeInstanceOf(BadRequestError);
     await expect(scraper.fetchData({ ...results2026, category: "0" }, true)).rejects.toThrow(
       "one specialty and one category at a time"
     );
+    await expect(scraper.fetchData({ ...results2026, phase: "10" }, true)).rejects.toThrow("pass phase=0");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -271,16 +271,26 @@ describe("FfpbScraper.fetchData (results)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("refuses a specialty the season does not offer", async () => {
+  test("refuses a category the specialty does not offer, before searching", async () => {
     fakeSite();
-    await expect(scraper.fetchData({ ...results2026, specialty: "999" }, true)).rejects.toThrow(
-      "Specialty '999' is not offered by the FFPB site for this season"
+    // Espoir (-22 ans): offered by the competition, not by this specialty.
+    await expect(scraper.fetchData({ ...results2026, category: "10" }, true)).rejects.toThrow(
+      "Category '10' is not offered by the FFPB site for CHAMPIONNAT DE FRANCE 2026, " +
+        "Trinquet Paleta Pelote de Gomme Pleine Masculin"
     );
+    expect(searches()).toHaveLength(0);
   });
 
   test("fails on a table the site cut short", async () => {
-    fakeSite({ results: RESULTS.replace("4 / 4 lignes", "4 / 60 lignes") });
-    await expect(scraper.fetchData(results2026, true)).rejects.toThrow("lists 60 matches but sent 4");
+    fakeSite({ results: RESULTS.replace("5 / 5 lignes", "5 / 60 lignes") });
+    await expect(scraper.fetchData(results2026, true)).rejects.toThrow("lists 60 matches but sent 5");
+  });
+
+  test("fails when the search does not answer the competitions page", async () => {
+    fakeSite({ results: "<html>Session expirée</html>" });
+    await expect(scraper.fetchData(results2026, true)).rejects.toThrow(
+      "The search did not answer the competitions page"
+    );
   });
 
   test("fails when the site answers an error", async () => {
@@ -291,15 +301,13 @@ describe("FfpbScraper.fetchData (results)", () => {
   });
 
   test("fails when a change does not answer WAJAX", async () => {
-    fakeSite({ results: "<html>CGI1910 ERR_BAD_URL</html>" });
-    await expect(scraper.fetchData({ ...results2026, competition: "2027-1" }, true)).rejects.toThrow(
-      "The I12 change did not answer WAJAX XML"
-    );
+    fakeSite({ category: "<html>CGI1910 ERR_BAD_URL</html>" });
+    await expect(scraper.fetchData(results2026, true)).rejects.toThrow("The A41 change did not answer WAJAX XML");
   });
 });
 
 describe("FfpbScraper.fetchResultsForm", () => {
-  test("lists the season's competitions, specialties, categories, phases and clubs", async () => {
+  test("lists the season's competitions, and what the competition offers", async () => {
     fakeSite();
     const form = await scraper.fetchResultsForm("2026-1");
 
@@ -310,11 +318,14 @@ describe("FfpbScraper.fetchResultsForm", () => {
       { sourceId: "2026-13", name: "COUPE DE FRANCE 2026" },
       { sourceId: "2026-14", name: "TOURNOI FEDERAL CORPORATIF 2026" },
     ]);
-    expect(form.specialties[0]).toEqual({ sourceId: "12", name: "Front Place Libre Chistera Joko Garbi" });
-    expect(form.categories.map((c) => c.sourceId)).toEqual(["20", "7", "1", "3", "13"]);
-    expect(form.phases).toContainEqual({ sourceId: "10", name: "1/4 de finale" });
-    expect(form.clubs).toContainEqual({ sourceId: "382", name: "AVIRON BAYONNAIS" });
-    expect(contexts()).toEqual(["I5"]);
+    // Narrowed to CHAMPIONNAT DE FRANCE: 35 specialties and 14 categories, not the season's 38 and 15.
+    expect(form.specialties).toHaveLength(35);
+    expect(form.categories).toHaveLength(14);
+    expect(form.specialties).toContainEqual({ sourceId: "55", name: "Trinquet Paleta Pelote de Gomme Pleine Masculin" });
+    expect(form.clubs).toEqual([]);
+    expect(form.phases).toEqual([]);
+    expect(contexts()).toEqual(["A34", "A33"]);
+    expect(searches()).toHaveLength(0);
   });
 
   test("offers nothing for a season the site does not list", async () => {
@@ -331,11 +342,9 @@ describe("FfpbScraper.fetchData (form options)", () => {
     const { formOptions, results } = await scraper.fetchData({ competition: "", specialty: "0", category: "0", phase: "0" }, false);
 
     expect(results).toEqual([]);
-    // One season change per season other than the one the page shows.
-    expect(contexts()).toEqual(["I5", "I5", "I5", "I5"]);
-    expect(["2", "3", "4", "5"]).toEqual(
-      fetchMock.mock.calls.slice(2).map(([, init]) => new URLSearchParams(String(init?.body)).get("I5")!)
-    );
+    // One season change per season other than the one the page shows, never a search.
+    expect(contexts()).toEqual(["A34", "A34", "A34", "A34"]);
+    expect(searches()).toHaveLength(0);
     const ids = formOptions.competitions.map((c) => c.sourceId);
     expect(ids).toContain("2027-13");
     expect(ids).toContain("2023-4");
@@ -346,7 +355,9 @@ describe("FfpbScraper.fetchData (form options)", () => {
     fakeSite();
     const { formOptions } = await scraper.fetchData({ competition: "2026", specialty: "0", category: "0", phase: "0" }, false);
     expect(formOptions.competitions).toHaveLength(5);
-    expect(contexts()).toEqual(["I5"]);
+    expect(formOptions.specialties).toHaveLength(38);
+    expect(formOptions.categories).toHaveLength(15);
+    expect(contexts()).toEqual(["A34"]);
   });
 
   test("refuses a competition that is not a season", async () => {

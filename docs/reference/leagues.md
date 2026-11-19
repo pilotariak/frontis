@@ -81,56 +81,59 @@ France, the Tournoi Fédéral and the Tournoi Fédéral Corporatif. It is a PC S
 
 ### Session flow
 
-Every scrape opens its own anonymous session, as a browser does. No login is needed.
+Every scrape opens its own anonymous session and makes the same choices as a browser on the guest home
+page. No login is needed.
 
 1. `GET /FFPB_COMPETITION/` sets the cookies `FFPB_COMPETITION_HOST`, `FFPB_COMPETITION_USER`,
-   `FFPB_COMPETITION_PERIMETRE` and `DYN_SECURITEd10`, and returns the guest home page. Its form action,
+   `FFPB_COMPETITION_PERIMETRE` and `DYN_SECURITEd10`, and returns the guest home page. Its search form
+   holds the season, competition type, specialty and category selects. Its action,
    `/FFPB_COMPETITION/PAGE_ACCUEIL_INVITE/<token>`, carries a session token.
-2. `POST <home form action>` with `WD_ACTION_=&WD_BUTTON_CLICK_=A32` (the home page's "Chercher
-   rencontres / résultats" button) returns the competitions page, about 690 KB. Its form action is
-   `/FFPB_COMPETITION/PAGE_COMPETITION_INVITE/<token>`.
-3. Each filter change is an AJAX `POST` to that action: `WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=<select>`
-   followed by every field of the form, as the browser posts it. The answer is `text/xml`
-   (`<WAJAX>`): the new option list of each filter (`<CHAMP … TYPE="14">`), the results table
-   (`<CHAMP ALIAS="I158">`, one row of HTML per CDATA section) and its counter (`<shown> / <total> lignes`).
+2. Each choice is an AJAX `POST` to that action: `WD_ACTION_=AJAXPAGE&EXECUTE=47&WD_CONTEXTE_=<select>`
+   followed by every field of the form, as the browser posts it. The answer is `text/xml` (`<WAJAX>`)
+   with the narrowed option lists only (`<CHAMP … TYPE="14">`), in about 0.1 s: the season gives its
+   competition types, the type its specialties and categories, the specialty its categories.
+3. The search button (`A32`) posts the form and answers the competitions page, its results table
+   already filtered, with its counter (`<shown> / <total> lignes`).
 
-A token from another session fails with HTTP 400 `CGI1910 ERR_BAD_URL`, so the scraper reads the tokens
-from the form actions and never stores them.
+A token from another session fails with HTTP 400 `CGI1910 ERR_BAD_URL`, so the scraper reads the token
+from the form action and never stores it.
 
-The page opens on the current season. To show another one, the scraper first changes the season. The
-site then resets every other filter to `TOUTES` and answers the first 50 rows of the whole season,
-about 630 KB, which no request can avoid. Results are then asked for with a category change that also
-sets the competition type, the specialty and the category. They are always asked for one specialty and
-one category: `/scrape_results` answers HTTP 400 to `specialty=0` or `category=0`, as `TOUTES` returns
-a very large page.
+Results are always asked for one specialty and one category: `/scrape_results` answers HTTP 400 to
+`specialty=0` or `category=0`, as `TOUTES` makes the competitions page list every match of the
+competition.
 
-Requests per call:
+Do not change the filters on the competitions page itself: each change there rebuilds its results
+table with the other filters on `TOUTES`, which took 13 to 26 s per change on 2026-11-19, against
+about 0.1 s on the home page.
 
-| Call                                  | Requests to the site                                            |
-| ------------------------------------- | --------------------------------------------------------------- |
-| `/scrape_infos` for one season        | 2, plus 1 season change for a past season                       |
-| `/scrape_infos` without `competition` | 2, plus 1 season change per past season (4 on 2026-11-19)       |
-| `/scrape_results`                     | two sessions: the results form check, then the results (5 to 7) |
-| `/scrape_rankings`                    | none                                                            |
+Requests per call, as measured on 2026-11-19:
+
+| Call                                  | Requests to the site                                                                                       | Time      |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------- |
+| `/scrape_infos` for one season        | home page, plus 1 season choice for a past season                                                          | about 1 s |
+| `/scrape_infos` without `competition` | home page, plus 1 season choice per past season (4 on 2026-11-19)                                          | about 2 s |
+| `/admin/options`                      | home page, season, competition type                                                                        | about 1 s |
+| `/scrape_results`                     | the `/admin/options` requests, then a second session: home page, season, type, specialty, category, search | 4 to 15 s |
+| `/scrape_rankings`                    | none                                                                                                       | —         |
+
+The search is the slow request: the competitions page took between 2 and 11 s to build.
 
 ### WebDev ids
 
 WebDev numbers its controls when the site is generated, so a new release can renumber them. `WEBDEV`
 and `CELL` in `workers/scheduler/src/leagues/ffpb.ts` hold every id the scraper relies on.
 
-| Id             | Control                                                   |
-| -------------- | --------------------------------------------------------- |
-| `A32`          | "Chercher rencontres / résultats" button of the home page |
-| `I5`           | Année sportive (season)                                   |
-| `I4`           | Compétition (competition type)                            |
-| `I10`, `I9`    | Spécialité (the page holds two, posted with one value)    |
-| `I12`, `I7`    | Catégorie (the page holds two, posted with one value)     |
-| `I227`         | Phases                                                    |
-| `I223`         | Nom du club                                               |
-| `I158`, `I164` | Results table, and its row counter                        |
+| Id             | Control                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
+| `A34`          | Année sportive (season), home page                                       |
+| `A33`          | Type de compétition, home page                                           |
+| `A39`, `A38`   | Spécialité, home page: the browser changes `A39`, the server syncs `A38` |
+| `A41`, `A36`   | Catégorie, home page: the browser changes `A41`, the server syncs `A36`  |
+| `A32`          | "Chercher rencontres / résultats" button of the home page                |
+| `I158`, `I164` | Results table of the competitions page, and its row counter              |
 
 A `<select>` is posted as the 1-based position of its option in the list the server holds for the
-session, and that list changes with the season. Each option also carries the site's own id,
+session, and each choice changes the next lists. Each option also carries the site's own id,
 `data-wb-valmem` in the page and `VALMEM` in the XML, which stays the same across seasons. The
 `source_id` of every lookup row is that id, and the scraper turns it into the position of the list
 it last received. It resolves options by id rather than by label, so a renamed option still
@@ -138,30 +141,33 @@ resolves.
 
 ### Mapping to the tables
 
-| Table          | FFPB concept                  | `source_id`              | `name`            | Example                                          |
-| -------------- | ----------------------------- | ------------------------ | ----------------- | ------------------------------------------------ |
-| `competitions` | A season and competition type | `<season>-<type id>`     | `<type> <season>` | `2026-1`, `CHAMPIONNAT DE FRANCE 2026`           |
-| `specialties`  | Spécialité                    | option id                | option label      | `23`, `Fronton mur à gauche Chistera Joko Garbi` |
-| `categories`   | Catégorie                     | option id                | option label      | `1`, `Nationale A`                               |
-| `phases`       | Phases                        | option id                | option label      | `10`, `1/4 de finale`                            |
-| `clubs`        | Nom du club                   | option id before its `:` | option label      | `382`, `AVIRON BAYONNAIS`                        |
+| Table          | FFPB concept                  | `source_id`          | `name`            | Example                                          |
+| -------------- | ----------------------------- | -------------------- | ----------------- | ------------------------------------------------ |
+| `competitions` | A season and competition type | `<season>-<type id>` | `<type> <season>` | `2026-1`, `CHAMPIONNAT DE FRANCE 2026`           |
+| `specialties`  | Spécialité                    | option id            | option label      | `23`, `Fronton mur à gauche Chistera Joko Garbi` |
+| `categories`   | Catégorie                     | option id            | option label      | `1`, `Nationale A`                               |
 
-The specialty, category and phase lists cover a whole season, every competition type included. A
-competition type can offer fewer: such a combination answers no results.
+The home page has no club or phase select, so `/scrape_infos` loads no club and no phase for `ffpb`.
+Saving results creates the clubs that play, without a `source_id`.
+
+`/scrape_infos` loads the specialties and categories of a whole season. `/admin/options` and the check
+before `/scrape_results` narrow them to what the competition offers, as the site does once the
+competition type is chosen.
 
 Each results row maps to a `results` row:
 
 - **Specialty, category, competition**: the group headers of the table, which must equal the labels of
   what was asked for. Any other header fails the scrape.
 - **Phase**: under a `POULES` header, the row's pool (`Poule 1`); otherwise the header
-  (`1/4 DE FINALE`). A `phase` filter keeps the rows whose header matches the phase label, case and
-  accents ignored.
+  (`1/4 DE FINALE`, `BARRAGES MAINTIEN`).
 - **Club**: the team name with its number (`AVIRON BAYONNAIS 02`); saving strips the number.
 - **Players**: `NAME Firstname (licence) (marker)` gives the name and the licence. The marker (`E`,
   `S`) is dropped.
-- **Date**: `DD/MM/YYYY`, without the time; empty for a match with no date yet.
+- **Date**: `DD/MM/YYYY`, without the time; the new date of a postponed match
+  (`24/01/2026 reportée au 06/02/2026` gives `06/02/2026`); empty for a match with no date yet.
 - **Scores**: the sets, space-separated (`15/7 - 7/15 - 9/10` gives `15/7 7/15 9/10`). A score with no
-  set, such as `40/P` or `Forfait général`, is stored as null, so the result of a forfeit is lost.
+  set, such as `40/P`, `P/40` or `Forfait général`, is stored as null, so the result of a forfeit is
+  lost.
 
 ### Transport
 
@@ -179,25 +185,23 @@ unit tests mock `fetch()`, it uses `fetch()`.
   rankings ("par poule", "général à l'issue des poules" and "général final"), chosen by a variable of
   the page script (`gnTypeClassement`) that the AJAX request does not post as a form field. Without it,
   the "général à l'issue des poules" request answered an empty table.
+- **Phases and clubs.** No phase or club is loaded, and `/scrape_results` answers HTTP 400 to a
+  `phase` other than `0`.
 - **Paging.** The table shows 50 rows, then an "Afficher plus" button. The scraper does not follow it:
   a specialty and category with more than 50 matches fails the scrape instead of saving part of them.
 - **setup-league.** `/bootstrap` reads the `InCompet` select of `resultats.php`, which this site does
   not have, so it finds nothing. Bootstrap `ffpb` with the scheduler.
 - **Every combination walk.** The admin page's walk runs one `/scrape_results` per specialty and
-  category, two sessions each. A season offers about 40 specialties and 15 categories: load `ffpb`
-  one combination at a time instead.
-- **Every competition bootstrap.** The admin page's "Bootstrap a league" card can run `/scrape_infos`
-  once per competition in D1. For `ffpb`, each run loads the competition's whole season again, one
-  session and usually one season change each, about 25 runs. Run `/scrape_infos` once without
-  `competition` instead.
+  category the competition offers, each with a search of 2 to 11 s. A category the specialty does not
+  offer fails at once, without a search.
 
 ### Bootstrap
 
 1. Register the league: the Init button of the admin page's "Bootstrap a league" card, or
    `POST /admin/league?league=ffpb` with `{"name":"Fédération Française de Pelote basque"}`.
-2. Load the competitions, specialties, categories, phases and clubs of every season with one call:
+2. Load the competitions, specialties and categories of every season with one call:
    `/scrape_infos?league=ffpb`. The lists are the same for every competition of a season, so the
-   per-competition loop of the bootstrap guide is not needed. `competition=2026` (or `2026-1`) loads
+   per-competition loop of the bootstrap guide adds nothing. `competition=2026` (or `2026-1`) loads
    one season.
 3. Load results one specialty and category at a time: `/scrape_results` with the database ids of the
    competition, specialty and category, or the admin page's "One combination" mode.

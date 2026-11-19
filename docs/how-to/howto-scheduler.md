@@ -167,8 +167,8 @@ Run this first to discover the IDs you need for `/scrape_results`.
 | `dry_run`     | `false` | If `true`, fetch and display results but do not save   |
 
 For `ffpb`, `competition` is a season (`2026`) or a competition `source_id` (`2026-1`), and its
-season's values are loaded. Without it, every season the site lists is loaded. See
-[FFPB](../reference/leagues.md#ffpb).
+season's values are loaded. Without it, every season the site lists is loaded. `ffpb` loads no club
+and no phase. See [FFPB](../reference/leagues.md#ffpb).
 
 **Examples**
 
@@ -270,7 +270,8 @@ HTTP 500.
 | `dry_run`   | `false` | If `true`, scrape and display results but do not save    |
 | `no_color`  | `false` | If `true`, strip ANSI escape codes — useful for browsers |
 
-`ffpb` takes one specialty and one category: it answers HTTP 400 to `specialty=0` or `category=0`.
+`ffpb` takes one specialty and one category: it answers HTTP 400 to `specialty=0`, `category=0` or a
+`phase` other than `0`.
 
 **Examples**
 
