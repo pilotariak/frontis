@@ -1,5 +1,6 @@
 import type { Env, ScrapedResult } from "./types";
 import { CtpbScraper } from "./leagues/ctpb";
+import { FfpbScraper } from "./leagues/ffpb";
 import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
 import { LlpbScraper } from "./leagues/llpb";
@@ -15,6 +16,7 @@ export const scrapers: Record<string, LeagueScraper> = {
   lidfpb: new LidfpbScraper(),
   ctpb: new CtpbScraper(),
   llpb: new LlpbScraper(),
+  ffpb: new FfpbScraper(),
 };
 
 type DatabaseBinding = Extract<keyof Env, `DB_LEAGUE_${string}`>;

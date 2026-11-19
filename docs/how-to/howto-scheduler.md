@@ -155,9 +155,9 @@ Run this first to discover the IDs you need for `/scrape_results`.
 
 **Required parameters**
 
-| Parameter | Description                         |
-| --------- | ----------------------------------- |
-| `league`  | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
+| Parameter | Description                                 |
+| --------- | ------------------------------------------- |
+| `league`  | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb` |
 
 **Optional parameters**
 
@@ -165,6 +165,10 @@ Run this first to discover the IDs you need for `/scrape_results`.
 | ------------- | ------- | ------------------------------------------------------ |
 | `competition` | `""`    | Filter dropdowns to a specific competition `source_id` |
 | `dry_run`     | `false` | If `true`, fetch and display results but do not save   |
+
+For `ffpb`, `competition` is a season (`2026`) or a competition `source_id` (`2026-1`), and its
+season's values are loaded. Without it, every season the site lists is loaded. See
+[FFPB](../reference/leagues.md#ffpb).
 
 **Examples**
 
@@ -251,10 +255,10 @@ HTTP 500.
 
 **Required parameters**
 
-| Parameter     | Description                         |
-| ------------- | ----------------------------------- |
-| `league`      | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
-| `competition` | Competition DB `id`                 |
+| Parameter     | Description                                 |
+| ------------- | ------------------------------------------- |
+| `league`      | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb` |
+| `competition` | Competition DB `id`                         |
 
 **Optional parameters**
 
@@ -265,6 +269,8 @@ HTTP 500.
 | `phase`     | `0`     | Phase DB `id`; `0` means all phases                      |
 | `dry_run`   | `false` | If `true`, scrape and display results but do not save    |
 | `no_color`  | `false` | If `true`, strip ANSI escape codes — useful for browsers |
+
+`ffpb` takes one specialty and one category: it answers HTTP 400 to `specialty=0` or `category=0`.
 
 **Examples**
 
@@ -342,7 +348,7 @@ reported in the output and skipped: run `/scrape_infos` for the competition firs
 
 | Parameter     | Required | Description                                                            |
 | ------------- | -------- | ---------------------------------------------------------------------- |
-| `league`      | yes      | `lcapb`, `lidfpb`, `ctpb` or `llpb`                                    |
+| `league`      | yes      | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb`                            |
 | `competition` | yes      | Competition DB `id`                                                    |
 | `specialty`   | yes      | Specialty DB `id`; `0` means every specialty of the competition        |
 | `category`    | yes      | Category DB `id`; `0` means every category of the competition          |

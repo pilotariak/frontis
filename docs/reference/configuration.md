@@ -104,6 +104,7 @@ All D1-backed subgraphs (`clubs`, `competitions`, `results`, `specialties`) bind
 | `DB_LEAGUE_LIDFPB` | `pilotariak_lidfpb` | LIDFPB |
 | `DB_LEAGUE_CTPB`   | `pilotariak-ctpb`   | CTPB   |
 | `DB_LEAGUE_LLPB`   | `pilotariak-llpb`   | LLPB   |
+| `DB_LEAGUE_FFPB`   | `pilotariak-ffpb`   | FFPB   |
 
 The active binding is selected at runtime based on the `X-Pilotariak-League` request header.
 [Supported leagues](leagues.md) lists every league's binding, database name and ID.
@@ -120,6 +121,7 @@ Used exclusively for running migrations. Not deployed as a Worker.
 | `DB_LEAGUE_LIDFPB` | `pilotariak_lidfpb` | LIDFPB league data |
 | `DB_LEAGUE_CTPB`   | `pilotariak-ctpb`   | CTPB league data   |
 | `DB_LEAGUE_LLPB`   | `pilotariak-llpb`   | LLPB league data   |
+| `DB_LEAGUE_FFPB`   | `pilotariak-ffpb`   | FFPB league data   |
 
 ---
 
