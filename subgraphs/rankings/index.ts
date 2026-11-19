@@ -146,6 +146,14 @@ const resolvers = {
     },
   },
 
+  // The gateway hands us `{ licence }` representations; no __resolveReference
+  // is needed because @apollo/subgraph returns the representation as-is.
+  Player: {
+    rankings(ref: { licence: string }, args: Omit<PlayerFilters, "licence" | "name">, { db }: Context): Promise<RankingRow[]> {
+      return queryPlayerRankings(db, { ...args, licence: ref.licence });
+    },
+  },
+
   TeamRanking: {
     // `async` so an invalid id rejects this entity only, instead of throwing
     // synchronously out of the whole `_entities` list.

@@ -1,6 +1,6 @@
 # Reusable fragments
 
-fragment PlayerInfo on Player {
+fragment PlayerInfo on LineupPlayer {
   name
   number
 }

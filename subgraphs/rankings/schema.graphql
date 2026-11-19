@@ -47,6 +47,25 @@ type TeamRanking @key(fields: "id") {
   players: [RankedPlayer!]!
 }
 
+"""
+A player, identified by licence number. The results subgraph owns the player's
+name and statistics; this subgraph adds the rankings.
+"""
+type Player @key(fields: "licence") {
+  licence: String!
+  """
+  Every team ranking the player appears in, most recent season first, as
+  `playerRankings(licence: …)` returns them. `limit` is clamped to 1..500.
+  """
+  rankings(
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [TeamRanking!]!
+}
+
 # --- Entity stubs ---
 
 "Reference to a Competition entity owned by the competitions subgraph."

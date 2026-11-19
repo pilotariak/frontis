@@ -220,3 +220,21 @@ describe("TeamRanking entity", () => {
     expect(statements[0].sql).toEndWith("FROM rankings r WHERE id IN (?, ?)");
   });
 });
+
+describe("Player entity", () => {
+  test("adds the rankings of the player's licence, with the playerRankings filters", async () => {
+    const { db, statements } = fakeDb([ranking()]);
+    const { body } = await graphql(
+      envWith(db),
+      `query ($r: [_Any!]!) {
+        _entities(representations: $r) { ... on Player { licence rankings(specialtyId: 98, limit: 5) { id rank } } }
+      }`,
+      { r: [{ __typename: "Player", licence: "000101" }] }
+    );
+
+    expect(body.data._entities).toEqual([{ licence: "000101", rankings: [{ id: "1", rank: 1 }] }]);
+    expect(statements[0].sql).toContain("r.id IN (SELECT p.ranking_id FROM ranking_players p WHERE p.licence = ?)");
+    expect(statements[0].sql).toContain("AND r.specialty_id = ?");
+    expect(statements[0].bindings).toEqual(["000101", 98, 5, 0]);
+  });
+});

@@ -208,6 +208,19 @@ type Query @join__type(graph: CATEGORIES)  @join__type(graph: CLUBS)  @join__typ
     offset: Int = 0
   ): [Result!]! @join__field(graph: RESULTS) 
   """
+  A player by licence (exact match). Null when the licence appears in no result
+  and no ranking of the league.
+  """
+  player(licence: String!) : Player @join__field(graph: RESULTS) 
+  """
+  Players whose name matches, in name order. A name matches regardless of case,
+  accents and word order, and every word given must appear in the player's
+  name: "ane etxeberri" and "Etxeberri" both find "ETXEBERRI Ane". Words
+  shorter than two characters are ignored. Only players with results are
+  found. `limit` is clamped to 1..500.
+  """
+  players(name: String!, limit: Int = 100, offset: Int = 0) : [Player!]! @join__field(graph: RESULTS) 
+  """
   Fetch a single specialty by its ID.
   """
   specialty(id: ID!) : Specialty @join__field(graph: SPECIALTIES) 
@@ -375,6 +388,56 @@ type TeamRanking @join__type(graph: RANKINGS, key: "id")  {
 }
 
 """
+A player, identified by licence number. The results subgraph owns the player's
+name and statistics; this subgraph adds the rankings.
+"""
+type Player @join__type(graph: RANKINGS, key: "licence")  @join__type(graph: RESULTS, key: "licence")  {
+  """
+  Licence number, leading zeros kept (e.g. "059063").
+  """
+  licence: String!
+  """
+  Every team ranking the player appears in, most recent season first, as
+  `playerRankings(licence: …)` returns them. `limit` is clamped to 1..500.
+  """
+  rankings(
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [TeamRanking!]! @join__field(graph: RANKINGS) 
+  """
+  Name as printed in the player's results, marker stripped. Falls back to the
+  latest ranking for a player without results.
+  """
+  name: String @join__field(graph: RESULTS) 
+  """
+  Match statistics, optionally restricted to a competition, a specialty and a
+  category.
+  """
+  stats(competitionId: ID, specialtyId: ID, categoryId: ID) : PlayerStats! @join__field(graph: RESULTS) 
+  """
+  Players met on the same side, most matches first.
+  """
+  partners(competitionId: ID, specialtyId: ID, categoryId: ID) : [PlayerMatchup!]! @join__field(graph: RESULTS) 
+  """
+  Players met on the other side, most matches first.
+  """
+  opponents(competitionId: ID, specialtyId: ID, categoryId: ID) : [PlayerMatchup!]! @join__field(graph: RESULTS) 
+  """
+  The player's matches, most recent first. `limit` is clamped to 1..500.
+  """
+  results(
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [Result!]! @join__field(graph: RESULTS) 
+}
+
+"""
 Reference to a Specialty entity owned by the specialties subgraph.
 """
 type Specialty @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESULTS, key: "id")  @join__type(graph: SPECIALTIES, key: "id")  {
@@ -394,17 +457,21 @@ type Specialty @join__type(graph: RANKINGS, key: "id")  @join__type(graph: RESUL
 }
 
 """
-A player participating in a match (from the results table).
+A player of a match lineup, as the league site prints it.
 """
-type Player @join__type(graph: RESULTS)  {
+type LineupPlayer @join__type(graph: RESULTS)  {
   """
-  Player display name.
+  Player name as printed by the league site, marker included ("PRADERE Bastien (S)").
   """
   name: String!
   """
-  Jersey number or licence number.
+  Licence number, optionally followed by the licence club ("097866 - 01-641-015").
   """
   number: String
+  """
+  The player, for their statistics. Null when the lineup gives no licence.
+  """
+  player: Player
 }
 
 """
@@ -414,11 +481,81 @@ type ClubLineup @join__type(graph: RESULTS)  {
   """
   First player.
   """
-  player1: Player
+  player1: LineupPlayer
   """
   Second player (doubles).
   """
-  player2: Player
+  player2: LineupPlayer
+}
+
+"""
+Match statistics of a player. A match with no score, or with as many sets won
+by each side, counts as played but neither won nor lost.
+"""
+type PlayerStats @join__type(graph: RESULTS)  {
+  """
+  Matches played.
+  """
+  played: Int!
+  """
+  Matches won.
+  """
+  won: Int!
+  """
+  Matches lost.
+  """
+  lost: Int!
+  """
+  Sets won, over every match.
+  """
+  setsWon: Int!
+  """
+  Sets lost, over every match.
+  """
+  setsLost: Int!
+  """
+  Points scored by the player's side, over every set.
+  """
+  pointsFor: Int!
+  """
+  Points scored by the other side, over every set.
+  """
+  pointsAgainst: Int!
+  """
+  The same statistics for each competition, specialty and category the player
+  has matches in, most recent season first.
+  """
+  breakdown: [PlayerStatsLine!]!
+}
+
+"""
+Match statistics of a player in one competition, specialty and category.
+"""
+type PlayerStatsLine @join__type(graph: RESULTS)  {
+  competition: Competition!
+  specialty: Specialty!
+  category: Category
+  played: Int!
+  won: Int!
+  lost: Int!
+  setsWon: Int!
+  setsLost: Int!
+  pointsFor: Int!
+  pointsAgainst: Int!
+}
+
+"""
+Another player and the matches shared with them, as partner or as opponent.
+`won` and `lost` are those of the player queried.
+"""
+type PlayerMatchup @join__type(graph: RESULTS)  {
+  player: Player!
+  """
+  Matches played with (partners) or against (opponents) this player.
+  """
+  played: Int!
+  won: Int!
+  lost: Int!
 }
 
 """

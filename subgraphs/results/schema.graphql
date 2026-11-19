@@ -5,13 +5,15 @@ extend schema
   )
 
 """
-A player participating in a match (from the results table).
+A player of a match lineup, as the league site prints it.
 """
-type Player {
-  "Player display name."
+type LineupPlayer {
+  "Player name as printed by the league site, marker included (\"PRADERE Bastien (S)\")."
   name: String!
-  "Jersey number or licence number."
+  "Licence number, optionally followed by the licence club (\"097866 - 01-641-015\")."
   number: String
+  "The player, for their statistics. Null when the lineup gives no licence."
+  player: Player
 }
 
 """
@@ -19,9 +21,95 @@ The two players representing a club in a match.
 """
 type ClubLineup {
   "First player."
-  player1: Player
+  player1: LineupPlayer
   "Second player (doubles)."
-  player2: Player
+  player2: LineupPlayer
+}
+
+"""
+A player, identified by licence number. Statistics are computed from the match
+results of the league selected by `X-Pilotariak-League`; the rankings subgraph
+adds the player's rankings.
+"""
+type Player @key(fields: "licence") {
+  "Licence number, leading zeros kept (e.g. \"059063\")."
+  licence: String!
+  """
+  Name as printed in the player's results, marker stripped. Falls back to the
+  latest ranking for a player without results.
+  """
+  name: String
+  """
+  Match statistics, optionally restricted to a competition, a specialty and a
+  category.
+  """
+  stats(competitionId: ID, specialtyId: ID, categoryId: ID): PlayerStats!
+  "Players met on the same side, most matches first."
+  partners(competitionId: ID, specialtyId: ID, categoryId: ID): [PlayerMatchup!]!
+  "Players met on the other side, most matches first."
+  opponents(competitionId: ID, specialtyId: ID, categoryId: ID): [PlayerMatchup!]!
+  "The player's matches, most recent first. `limit` is clamped to 1..500."
+  results(
+    competitionId: ID
+    specialtyId: ID
+    categoryId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [Result!]!
+}
+
+"""
+Match statistics of a player. A match with no score, or with as many sets won
+by each side, counts as played but neither won nor lost.
+"""
+type PlayerStats {
+  "Matches played."
+  played: Int!
+  "Matches won."
+  won: Int!
+  "Matches lost."
+  lost: Int!
+  "Sets won, over every match."
+  setsWon: Int!
+  "Sets lost, over every match."
+  setsLost: Int!
+  "Points scored by the player's side, over every set."
+  pointsFor: Int!
+  "Points scored by the other side, over every set."
+  pointsAgainst: Int!
+  """
+  The same statistics for each competition, specialty and category the player
+  has matches in, most recent season first.
+  """
+  breakdown: [PlayerStatsLine!]!
+}
+
+"""
+Match statistics of a player in one competition, specialty and category.
+"""
+type PlayerStatsLine {
+  competition: Competition!
+  specialty: Specialty!
+  category: Category
+  played: Int!
+  won: Int!
+  lost: Int!
+  setsWon: Int!
+  setsLost: Int!
+  pointsFor: Int!
+  pointsAgainst: Int!
+}
+
+"""
+Another player and the matches shared with them, as partner or as opponent.
+`won` and `lost` are those of the player queried.
+"""
+type PlayerMatchup {
+  player: Player!
+  "Matches played with (partners) or against (opponents) this player."
+  played: Int!
+  won: Int!
+  lost: Int!
 }
 
 """
@@ -121,4 +209,17 @@ type Query {
     limit: Int = 100
     offset: Int = 0
   ): [Result!]!
+  """
+  A player by licence (exact match). Null when the licence appears in no result
+  and no ranking of the league.
+  """
+  player(licence: String!): Player
+  """
+  Players whose name matches, in name order. A name matches regardless of case,
+  accents and word order, and every word given must appear in the player's
+  name: "ane etxeberri" and "Etxeberri" both find "ETXEBERRI Ane". Words
+  shorter than two characters are ignored. Only players with results are
+  found. `limit` is clamped to 1..500.
+  """
+  players(name: String!, limit: Int = 100, offset: Int = 0): [Player!]!
 }

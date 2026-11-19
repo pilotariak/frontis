@@ -1,5 +1,6 @@
 import { GraphQLError } from "graphql";
 import type { Loader } from "./loader.js";
+import type { ParticipationRow } from "./players.js";
 
 export interface Env {
   DB_LEAGUE_LCAPB: D1Database;
@@ -13,6 +14,8 @@ export interface Context {
   db: D1Database;
   /** Per-request batching loader for `Result.__resolveReference`. */
   results: Loader<ResultRow>;
+  /** Per-request batching loader of a player's matches, by licence. */
+  participations: { load(licence: string): Promise<ParticipationRow[]> };
 }
 
 export interface ResultRow {
