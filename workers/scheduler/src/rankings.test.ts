@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { BadRequestError } from "./params";
-import { nameKey, scrapeRankings } from "./rankings";
+import { nameKey } from "./players";
+import { scrapeRankings } from "./rankings";
 import type { Env } from "./types";
 
 // ── Fake D1 ──────────────────────────────────────────────────────────────────

@@ -38,7 +38,8 @@ database/
     ├── 0009_categories_enabled.sql   ← add enabled flag (INTEGER 0/1, default 0) to categories
     ├── 0010_specialties_enabled.sql  ← add enabled flag (INTEGER 0/1, default 0) to specialties
     ├── 0011_indexes.sql              ← secondary indexes on results filters and source_id lookups
-    └── 0012_rankings.sql             ← end-of-championship rankings (rankings, ranking_players)
+    ├── 0012_rankings.sql             ← end-of-championship rankings (rankings, ranking_players)
+    └── 0013_result_players.sql       ← players of the results, one row each (result_players)
 ```
 
 ---
@@ -200,7 +201,8 @@ UNION ALL SELECT 'categories',      count(*) FROM categories
 UNION ALL SELECT 'phases',          count(*) FROM phases
 UNION ALL SELECT 'results',         count(*) FROM results
 UNION ALL SELECT 'rankings',        count(*) FROM rankings
-UNION ALL SELECT 'ranking_players', count(*) FROM ranking_players;
+UNION ALL SELECT 'ranking_players', count(*) FROM ranking_players
+UNION ALL SELECT 'result_players', count(*) FROM result_players;
 
 -- Last 10 scraped results (scores is a single TEXT column since 0007, e.g. "15/10 15/13")
 SELECT r.date_match, ca.name AS club_a, r.scores, cb.name AS club_b

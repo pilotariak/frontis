@@ -2,6 +2,7 @@ import { getDatabase, scrapers } from "./scraper";
 import type { Env } from "./types";
 import type { RankingPage, ScrapedRanking } from "./leagues/types";
 import { BadRequestError, checkIds, idsBySourceId, lookup, pick } from "./params";
+import { nameKey } from "./players";
 
 /** Same arguments as /scrape_results: DB ids, "0" for every one. */
 export interface RankingOptions {
@@ -26,20 +27,6 @@ export interface RankingSummary {
   found: number;
   /** Teams written; 0 on a dry run. */
   saved: number;
-}
-
-/**
- * Upper-case, accent- and punctuation-free form of a player name, stored as
- * `ranking_players.name_key` for the rankings subgraph's name search. The
- * subgraph normalises the searched text the same way.
- */
-export function nameKey(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim();
 }
 
 /**

@@ -1,4 +1,6 @@
 import { Database } from "bun:sqlite";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { BadRequestError } from "./params";
 import { scrapeInfos, scrapeResults } from "./scraper";
@@ -77,7 +79,7 @@ const RESULTS_HTML = `
   <tr>
     <td><strong>Finale</strong></td><td>12/01/2026</td>
     <td>CA BEGLAIS <span class="small">(01)</span><ul><li>(1) DUPONT Jean</li></ul></td>
-    <td>URRUGNE PILOTA</td>
+    <td>URRUGNE PILOTA<ul><li>(097866 - 01-641-015) PRADERE Bastien (S)</li></ul></td>
     <td>15/10 15/13</td>
   </tr>
   <tr>
@@ -324,16 +326,57 @@ describe("scrapeResults", () => {
       ["INSERT OR IGNORE INTO categories (name) VALUES (?)", ["Cadets"]],
     ]);
 
-    // Batch 2: one INSERT per result, then the three `enabled` flips.
-    const [insertA, insertB, insertC, ...flags] = batches[1];
+    // Batch 2: one INSERT per result, one for the players of the only result
+    // that lists any, then the three `enabled` flips.
+    const [insertA, insertB, insertC, insertPlayers, ...flags] = batches[1];
     expect(insertA.bindings.slice(0, 8)).toEqual([2, 10, 3, "12/01/2026", 100, 200, "15/10 15/13", "Finale"]);
     expect(insertA.bindings.slice(8, 10)).toEqual(["DUPONT Jean", "1"]);
     expect(insertB.bindings.slice(0, 6)).toEqual([2, 10, 3, "05/01/2026", 300, 400]);
     expect(insertC.bindings.slice(0, 6)).toEqual([2, 11, 5, "06/01/2026", 500, 600]);
+    expect(insertPlayers.sql).toStartWith("INSERT OR IGNORE INTO result_players");
+    expect(insertPlayers.bindings).toEqual([
+      "A", 1, "1", null, "DUPONT Jean", "DUPONT JEAN", null,
+      "B", 1, "097866", "01-641-015", "PRADERE Bastien", "PRADERE BASTIEN", "S",
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      2, 10, 3, "12/01/2026", 100, 200, "Finale",
+    ]);
     expect(flags.map((s) => [s.sql, s.bindings])).toEqual([
       ["UPDATE competitions SET enabled = 1 WHERE id = ? AND enabled = 0", [2]],
       ["UPDATE specialties SET enabled = 1 WHERE id IN (?, ?) AND enabled = 0", [10, 11]],
       ["UPDATE categories SET enabled = 1 WHERE id IN (?, ?) AND enabled = 0", [3, 5]],
+    ]);
+  });
+
+  test("writes each result's players under the id of the result they belong to", async () => {
+    const { db, batches } = fakeDb(LOOKUPS);
+    await scrapeResults(envWith(db), ALL, false);
+
+    // Replay the batch on real SQLite, with the tables as the migrations leave them.
+    const sqlite = new Database(":memory:");
+    const migrations = join(import.meta.dir, "../../../database/migrations");
+    for (const file of readdirSync(migrations).sort()) sqlite.exec(readFileSync(join(migrations, file), "utf8"));
+    sqlite.exec(`
+      INSERT INTO competitions (id, source_id, name) VALUES (2, '20260501', 'Championnat 2026');
+      INSERT INTO specialties (id, name) VALUES (10, 'Trinquet'), (11, 'Main Nue');
+      INSERT INTO categories (id, source_id, name) VALUES (3, 'C3', 'Seniors'), (5, 'C5', 'Cadets');
+      INSERT INTO clubs (id, name) VALUES (100, 'A'), (200, 'B'), (300, 'C'), (400, 'D'), (500, 'E'), (600, 'F');
+      -- An older result, so the new ids do not start at 1.
+      INSERT INTO results (id, competition_id, specialty_id, category_id, club_a_id, club_b_id, date_match, phase)
+        VALUES (40, 2, 10, 3, 100, 200, '01/01/2025', 'Poule');
+    `);
+    for (const s of batches[1]) sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[]));
+    // Replaying twice changes nothing: the result and its players are kept.
+    for (const s of batches[1]) sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[]));
+
+    expect(
+      sqlite.query(
+        `SELECT r.date_match, p.side, p.position, p.licence, p.licence_club, p.name, p.marker
+         FROM result_players p JOIN results r ON r.id = p.result_id ORDER BY p.result_id, p.side`
+      ).all()
+    ).toEqual([
+      { date_match: "12/01/2026", side: "A", position: 1, licence: "1", licence_club: null, name: "DUPONT Jean", marker: null },
+      { date_match: "12/01/2026", side: "B", position: 1, licence: "097866", licence_club: "01-641-015", name: "PRADERE Bastien", marker: "S" },
     ]);
   });
 

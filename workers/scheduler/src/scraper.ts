@@ -5,6 +5,7 @@ import { LidfpbScraper } from "./leagues/lidfpb";
 import { LlpbScraper } from "./leagues/llpb";
 import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
 import { BadRequestError, checkIds, lookup, pick } from "./params";
+import { nameKey, resultPlayers } from "./players";
 
 export interface ScraperOptions extends ScrapeOptions {
   league: string;
@@ -153,9 +154,10 @@ async function resolveSourceIds(
  * keeps the subrequest count flat and small:
  *   1. one SELECT per lookup table to preload name → id maps,
  *   2. one db.batch() to INSERT OR IGNORE any missing clubs/categories,
- *   3. one db.batch() of INSERT OR IGNORE statements for the results, plus
- *      the UPDATEs flipping `enabled` on the competition, specialties and
- *      categories those results belong to.
+ *   3. one db.batch() of INSERT OR IGNORE statements for the results, then
+ *      for their players (`result_players`), plus the UPDATEs flipping
+ *      `enabled` on the competition, specialties and categories those
+ *      results belong to.
  * The results table carries a UNIQUE(competition_id, specialty_id,
  * category_id, date_match, club_a_id, club_b_id, phase) constraint, so
  * INSERT OR IGNORE replaces the former SELECT-then-INSERT existence check.
@@ -231,7 +233,25 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
+  // A result's players, up to four slots of seven values; a slot whose licence
+  // is NULL is skipped. The result id is found through the result's UNIQUE
+  // key, since a batch cannot carry ids from one statement to the next. `IS`
+  // so a NULL date or phase still matches. INSERT OR IGNORE keeps the players
+  // first written for a result, as the result row itself is kept.
+  const playerSlot = "SELECT ? AS side, ? AS position, ? AS licence, ? AS licence_club, ? AS name, ? AS name_key, ? AS marker";
+  const insertPlayers = db.prepare(
+    `INSERT OR IGNORE INTO result_players (result_id, side, position, licence, licence_club, name, name_key, marker)
+     SELECT r.id, p.side, p.position, p.licence, p.licence_club, p.name, p.name_key, p.marker
+     FROM (${playerSlot} UNION ALL ${playerSlot} UNION ALL ${playerSlot} UNION ALL ${playerSlot}) p
+     JOIN results r
+       ON r.competition_id = ? AND r.specialty_id = ? AND r.category_id = ? AND r.date_match IS ?
+      AND r.club_a_id = ? AND r.club_b_id = ? AND r.phase IS ?
+     WHERE p.licence IS NOT NULL`
+  );
+  const emptySlot = [null, null, null, null, null, null, null];
+
   const statements: D1PreparedStatement[] = [];
+  const playerStatements: D1PreparedStatement[] = [];
   // Distinct specialties/categories that actually receive a result row, so the
   // matching `enabled` flags can be flipped in the same batch below.
   const usedSpecialtyIds = new Set<number>();
@@ -261,6 +281,24 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
         res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
       )
     );
+
+    const players = resultPlayers(res);
+    if (players.length > 0) {
+      const slots = [0, 1, 2, 3].flatMap((i) => {
+        const p = players[i];
+        if (!p) return emptySlot;
+        return [
+          p.side, p.position, p.licence, p.licenceClub ?? null,
+          p.name ?? null, p.name ? nameKey(p.name) : null, p.marker ?? null,
+        ];
+      });
+      playerStatements.push(
+        insertPlayers.bind(
+          ...slots,
+          competition.id, specialtyId, categoryId, res.date_match, clubAId, clubBId, res.phase
+        )
+      );
+    }
   }
 
   if (statements.length === 0) return 0;
@@ -287,8 +325,8 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
 
   // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
   // rows that already existed, so meta.changes sums to the newly inserted count.
-  // The trailing UPDATEs are excluded from that sum.
-  const batchResults = await db.batch([...statements, ...enableFlags]);
+  // The player inserts and the trailing UPDATEs are excluded from that sum.
+  const batchResults = await db.batch([...statements, ...playerStatements, ...enableFlags]);
   return batchResults
     .slice(0, statements.length)
     .reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);

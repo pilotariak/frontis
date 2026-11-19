@@ -7,6 +7,7 @@
 
 PRAGMA foreign_keys = OFF;
 
+DELETE FROM result_players;
 DELETE FROM results;
 DELETE FROM ranking_players;
 DELETE FROM rankings;

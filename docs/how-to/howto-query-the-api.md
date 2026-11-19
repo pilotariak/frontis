@@ -13,15 +13,16 @@ environment variable so the same commands work against production and a local st
 
 ## Queries by subgraph
 
-| Subgraph     | Guide                                                          | Serves                                                       |
-| ------------ | -------------------------------------------------------------- | ------------------------------------------------------------ |
-| echo         | [Query the echo subgraph](howto-query-echo.md)                 | Liveness check and the Frontis version                       |
-| clubs        | [Query the clubs subgraph](howto-query-clubs.md)               | Club directory                                               |
-| competitions | [Query the competitions subgraph](howto-query-competitions.md) | Competitions, with their results                             |
-| categories   | [Query the categories subgraph](howto-query-categories.md)     | Player categories (series, age groups)                       |
-| specialties  | [Query the specialties subgraph](howto-query-specialties.md)   | Basque pelota disciplines                                    |
-| results      | [Query the results subgraph](howto-query-results.md)           | Match results: filters, phases, pagination, sets and winner  |
-| rankings     | [Query the rankings subgraph](howto-query-rankings.md)         | End-of-championship rankings, players, champions of a season |
+| Subgraph          | Guide                                                          | Serves                                                        |
+| ----------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| echo              | [Query the echo subgraph](howto-query-echo.md)                 | Liveness check and the Frontis version                        |
+| clubs             | [Query the clubs subgraph](howto-query-clubs.md)               | Club directory                                                |
+| competitions      | [Query the competitions subgraph](howto-query-competitions.md) | Competitions, with their results                              |
+| categories        | [Query the categories subgraph](howto-query-categories.md)     | Player categories (series, age groups)                        |
+| specialties       | [Query the specialties subgraph](howto-query-specialties.md)   | Basque pelota disciplines                                     |
+| results           | [Query the results subgraph](howto-query-results.md)           | Match results: filters, phases, pagination, sets and winner   |
+| rankings          | [Query the rankings subgraph](howto-query-rankings.md)         | End-of-championship rankings, players, champions of a season  |
+| results, rankings | [Query player statistics](howto-query-players.md)              | A player's statistics, partners, opponents, matches, rankings |
 
 Queries that span several subgraphs are in [Cross-subgraph query](#cross-subgraph-query-federation-in-action).
 
@@ -150,6 +151,18 @@ curl -s -X POST "$FRONTIS_GW" \
 
 The rankings subgraph federates the same way: see
 [The champions of a season](howto-query-rankings.md#the-champions-of-a-season).
+
+A `Player` is split across two subgraphs on its `licence` key: `stats` comes from `results`,
+`rankings` from `rankings`, in one query:
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{"query": "{ player(licence: \"059063\") { name stats { played won lost } rankings { rank phase } } }"}' | jq
+```
+
+See [Query player statistics](howto-query-players.md).
 
 ---
 

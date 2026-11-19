@@ -4,7 +4,18 @@ import { GraphQLError, parse } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { getDatabase } from "./db.js";
 import type { Context, Env, ResultRow } from "./db.js";
-import { createRowLoader } from "./loader.js";
+import { createGroupLoader, createRowLoader } from "./loader.js";
+import {
+  breakdown,
+  filterMatches,
+  lineupPlayer,
+  matchups,
+  nameKey,
+  tally,
+  toMatches,
+} from "./players.js";
+import type { Match, MatchFilters, Matchup, ParticipationRow, StatsLine } from "./players.js";
+import { parseSets, winnerSide } from "./scores.js";
 import schema from "./schema.graphql" with { type: "text" };
 import { useSubgraphMetrics, withHttpMetrics } from "./metrics.js";
 import { setupTracing } from "./tracing.js";
@@ -25,22 +36,33 @@ interface PageArgs {
   offset?: number | null;
 }
 
-interface ResultFilters extends PageArgs {
+interface PlayerFilters {
   competitionId?: string | null;
   specialtyId?: string | null;
   categoryId?: string | null;
+}
+
+interface ResultFilters extends PageArgs, PlayerFilters {
   clubId?: string | null;
   phase?: string | null;
+  /** Only the results this licence played in. */
+  licence?: string;
+}
+
+/** A `Player` as resolvers pass it around: the licence, and the name once known. */
+interface PlayerRef {
+  licence: string;
+  name: string | null;
+}
+
+function badInput(message: string): GraphQLError {
+  return new GraphQLError(message, { extensions: { code: "BAD_USER_INPUT" } });
 }
 
 /** Parse a GraphQL ID into an integer primary key, rejecting garbage early. */
 function toId(value: string, name: string): number {
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
-    throw new GraphQLError(`Invalid ${name}: ${value}`, {
-      extensions: { code: "BAD_USER_INPUT" },
-    });
-  }
+  if (!Number.isInteger(n) || n < 0) throw badInput(`Invalid ${name}: ${value}`);
   return n;
 }
 
@@ -53,10 +75,23 @@ function page({ limit, offset }: PageArgs): { limit: number; offset: number } {
   };
 }
 
-async function queryResults(db: D1Database, filters: ResultFilters): Promise<ResultRow[]> {
+const BY_ID = "id";
+/** `date_match` is DD/MM/YYYY: compare it as YYYYMMDD. */
+const MOST_RECENT_FIRST =
+  "substr(date_match, 7, 4) || substr(date_match, 4, 2) || substr(date_match, 1, 2) DESC, id DESC";
+
+async function queryResults(
+  db: D1Database,
+  filters: ResultFilters,
+  orderBy: string = BY_ID
+): Promise<ResultRow[]> {
   const conditions: string[] = [];
   const bindings: (string | number)[] = [];
 
+  if (filters.licence !== undefined) {
+    conditions.push("id IN (SELECT result_id FROM result_players WHERE licence = ?)");
+    bindings.push(filters.licence);
+  }
   if (filters.competitionId) {
     conditions.push("competition_id = ?");
     bindings.push(toId(filters.competitionId, "competitionId"));
@@ -81,43 +116,82 @@ async function queryResults(db: D1Database, filters: ResultFilters): Promise<Res
 
   const { limit, offset } = page(filters);
   const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
-  const sql = `SELECT * FROM results${where} ORDER BY id LIMIT ? OFFSET ?`;
+  const sql = `SELECT * FROM results${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
   bindings.push(limit, offset);
 
   const { results } = await db.prepare(sql).bind(...bindings).all<ResultRow>();
   return results;
 }
 
-// ---------------------------------------------------------------------------
-// Score parsing
-// ---------------------------------------------------------------------------
-
-interface SetScore {
-  a: number;
-  b: number;
-}
-
-/** "15/10 15/13" → [{a:15,b:10},{a:15,b:13}]. Malformed tokens are skipped. */
-function parseSets(scores: string | null): SetScore[] {
-  if (!scores) return [];
-  const sets: SetScore[] = [];
-  for (const token of scores.trim().split(/\s+/)) {
-    const m = /^(\d+)\/(\d+)$/.exec(token);
-    if (!m) continue;
-    sets.push({ a: Number(m[1]), b: Number(m[2]) });
-  }
-  return sets;
-}
-
 function winnerRef(row: ResultRow): { __typename: "Club"; id: string } | null {
-  let a = 0;
-  let b = 0;
-  for (const set of parseSets(row.scores)) {
-    if (set.a > set.b) a++;
-    else if (set.b > set.a) b++;
-  }
-  if (a === b) return null;
-  return { __typename: "Club", id: String(a > b ? row.club_a_id : row.club_b_id) };
+  const side = winnerSide(row.scores);
+  if (side === null) return null;
+  return { __typename: "Club", id: String(side === "A" ? row.club_a_id : row.club_b_id) };
+}
+
+// ---------------------------------------------------------------------------
+// Players
+// ---------------------------------------------------------------------------
+
+/**
+ * A player known to the league: in a result, or failing that in a ranking
+ * (both tables live in the league's D1). The name is that of the latest result,
+ * else of the latest ranking.
+ */
+const PLAYER_SQL = `SELECT ?1 AS licence, coalesce(
+    (SELECT name FROM result_players WHERE licence = ?1 AND name IS NOT NULL ORDER BY result_id DESC LIMIT 1),
+    (SELECT name FROM ranking_players WHERE licence = ?1 AND name IS NOT NULL ORDER BY ranking_id DESC LIMIT 1)
+  ) AS name
+  WHERE EXISTS (SELECT 1 FROM result_players WHERE licence = ?1)
+     OR EXISTS (SELECT 1 FROM ranking_players WHERE licence = ?1)`;
+
+async function findPlayer(db: D1Database, licence: string): Promise<PlayerRef | null> {
+  const trimmed = licence.trim();
+  if (!trimmed) throw badInput("licence must not be empty");
+  return db.prepare(PLAYER_SQL).bind(trimmed).first<PlayerRef>();
+}
+
+async function searchPlayers(db: D1Database, name: string, args: PageArgs): Promise<PlayerRef[]> {
+  // Name words are [A-Z0-9]+ after normalisation, so they need no LIKE escaping.
+  const words = nameKey(name).split(" ").filter((w) => w.length >= 2);
+  if (words.length === 0) throw badInput("name must contain a word of two characters or more");
+  const { limit, offset } = page(args);
+  // `name` is a bare column next to max(): SQLite takes it from the latest result.
+  const sql = `SELECT licence, name, max(result_id) AS latest FROM result_players
+    WHERE ${words.map(() => "name_key LIKE ?").join(" AND ")}
+    GROUP BY licence
+    ORDER BY name, licence
+    LIMIT ? OFFSET ?`;
+  const { results } = await db
+    .prepare(sql)
+    .bind(...words.map((w) => `%${w}%`), limit, offset)
+    .all<PlayerRef & { latest: number }>();
+  return results.map(({ licence, name }) => ({ licence, name }));
+}
+
+/**
+ * Every match of the players loaded, with the other players of each match.
+ * Callers append `WHERE me.licence IN (...)`.
+ */
+const PARTICIPATION_SELECT = `SELECT me.licence, me.side, r.id AS result_id, r.competition_id, r.specialty_id,
+    r.category_id, r.scores, c.source_id AS season,
+    o.licence AS other_licence, o.name AS other_name, o.side AS other_side
+  FROM result_players me
+  JOIN results r ON r.id = me.result_id
+  JOIN competitions c ON c.id = r.competition_id
+  LEFT JOIN result_players o ON o.result_id = me.result_id AND o.licence <> me.licence`;
+
+function matchFilters(args: PlayerFilters): MatchFilters {
+  return {
+    competitionId: args.competitionId ? toId(args.competitionId, "competitionId") : undefined,
+    specialtyId: args.specialtyId ? toId(args.specialtyId, "specialtyId") : undefined,
+    categoryId: args.categoryId ? toId(args.categoryId, "categoryId") : undefined,
+  };
+}
+
+async function playerMatches(player: PlayerRef, args: PlayerFilters, ctx: Context): Promise<Match[]> {
+  const filters = matchFilters(args);
+  return filterMatches(toMatches(await ctx.participations.load(player.licence)), filters);
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +213,14 @@ const resolvers = {
 
     results(_: unknown, args: ResultFilters, { db }: Context): Promise<ResultRow[]> {
       return queryResults(db, args);
+    },
+
+    player(_: unknown, { licence }: { licence: string }, { db }: Context): Promise<PlayerRef | null> {
+      return findPlayer(db, licence);
+    },
+
+    players(_: unknown, { name, ...args }: { name: string } & PageArgs, { db }: Context): Promise<PlayerRef[]> {
+      return searchPlayers(db, name, args);
     },
   },
 
@@ -190,6 +272,46 @@ const resolvers = {
     },
   },
 
+  LineupPlayer: {
+    player: (p: { name: string; number: string | null }): PlayerRef | null => lineupPlayer(p.name, p.number),
+  },
+
+  Player: {
+    // Only reached if another subgraph returns a Player: every Player of this
+    // subgraph's own fields already carries its name.
+    async __resolveReference(ref: { licence: string }, { db }: Context): Promise<PlayerRef | null> {
+      return findPlayer(db, ref.licence);
+    },
+
+    async stats(player: PlayerRef, args: PlayerFilters, ctx: Context) {
+      const matches = await playerMatches(player, args, ctx);
+      return { ...tally(matches), breakdown: breakdown(matches) };
+    },
+
+    async partners(player: PlayerRef, args: PlayerFilters, ctx: Context): Promise<Matchup[]> {
+      return matchups(await playerMatches(player, args, ctx), "partners");
+    },
+
+    async opponents(player: PlayerRef, args: PlayerFilters, ctx: Context): Promise<Matchup[]> {
+      return matchups(await playerMatches(player, args, ctx), "opponents");
+    },
+
+    results(player: PlayerRef, args: ResultFilters, { db }: Context): Promise<ResultRow[]> {
+      return queryResults(db, { ...args, licence: player.licence }, MOST_RECENT_FIRST);
+    },
+  },
+
+  PlayerStatsLine: {
+    competition: (line: StatsLine) => ({ __typename: "Competition", id: String(line.competitionId) }),
+    specialty: (line: StatsLine) => ({ __typename: "Specialty", id: String(line.specialtyId) }),
+    category: (line: StatsLine) =>
+      line.categoryId != null ? { __typename: "Category", id: String(line.categoryId) } : null,
+  },
+
+  PlayerMatchup: {
+    player: (m: Matchup): PlayerRef => ({ licence: m.licence, name: m.name }),
+  },
+
   // Reverse edges contributed to entities owned by other subgraphs. The
   // gateway hands us `{ id }` representations; no __resolveReference is
   // needed because @apollo/subgraph returns the representation as-is.
@@ -229,6 +351,14 @@ const yoga = createYoga<{ env: Env } & ExecutionContext>({
     return {
       db,
       results: createRowLoader<ResultRow>(db, "SELECT * FROM results"),
+      participations: createGroupLoader<ParticipationRow, string>(async (licences) => {
+        const placeholders = licences.map(() => "?").join(", ");
+        const { results } = await db
+          .prepare(`${PARTICIPATION_SELECT} WHERE me.licence IN (${placeholders}) ORDER BY r.id`)
+          .bind(...licences)
+          .all<ParticipationRow>();
+        return results;
+      }, (row) => row.licence),
     };
   },
 });

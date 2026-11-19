@@ -109,21 +109,84 @@ One set of a match, parsed from `Result.scores`.
 
 The two players representing a club in a match (doubles format).
 
-| Field     | Type     | Description                  |
-| --------- | -------- | ---------------------------- |
-| `player1` | `Player` | First player                 |
-| `player2` | `Player` | Second player (doubles only) |
+| Field     | Type           | Description                  |
+| --------- | -------------- | ---------------------------- |
+| `player1` | `LineupPlayer` | First player                 |
+| `player2` | `LineupPlayer` | Second player (doubles only) |
+
+---
+
+### `LineupPlayer`
+
+A player of a match lineup, as the league site prints it. Named `Player` before the `Player` entity
+existed; the fields are unchanged.
+
+| Field    | Type      | Description                                                                      |
+| -------- | --------- | -------------------------------------------------------------------------------- |
+| `name`   | `String!` | Name as printed, marker included (`PRADERE Bastien (S)`)                         |
+| `number` | `String`  | Licence, optionally followed by the licence club (`097866 - 01-641-015`)         |
+| `player` | `Player`  | The player of that licence, for their statistics; `null` when there is no number |
 
 ---
 
 ### `Player`
 
-A player participating in a match.
+A player, identified by licence number. Statistics come from the match results of the league selected
+by `X-Pilotariak-League`.
 
-| Field    | Type      | Description                     |
-| -------- | --------- | ------------------------------- |
-| `name`   | `String!` | Player display name             |
-| `number` | `String`  | Jersey number or licence number |
+**Owned by**: `results` subgraph (`name`, `stats`, `partners`, `opponents`, `results`) and `rankings`
+subgraph (`rankings`), joined on the `licence` key.
+
+| Field       | Type                | Description                                                                                 |
+| ----------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| `licence`   | `String!`           | Licence number, leading zeros kept (`059063`)                                               |
+| `name`      | `String`            | Name as printed in the player's results, marker stripped; else in their latest ranking      |
+| `stats`     | `PlayerStats!`      | Match statistics; takes `competitionId`, `specialtyId`, `categoryId`                        |
+| `partners`  | `[PlayerMatchup!]!` | Players met on the same side, most matches first; same filters as `stats`                   |
+| `opponents` | `[PlayerMatchup!]!` | Players met on the other side, most matches first; same filters as `stats`                  |
+| `results`   | `[Result!]!`        | The player's matches, most recent first; same filters as `stats`, plus `limit` and `offset` |
+| `rankings`  | `[TeamRanking!]!`   | Team rankings the player appears in, as `playerRankings(licence: …)` _(cross-subgraph)_     |
+
+`rankings` takes the `competitionId`, `specialtyId`, `categoryId`, `limit` and `offset` arguments of
+`playerRankings`.
+
+---
+
+### `PlayerStats`
+
+Match statistics of a player. A match with no score, or with as many sets won by each side, counts as
+played but neither won nor lost, so `won + lost` can be less than `played`.
+
+| Field           | Type                  | Description                                                                        |
+| --------------- | --------------------- | ---------------------------------------------------------------------------------- |
+| `played`        | `Int!`                | Matches played                                                                     |
+| `won`           | `Int!`                | Matches won (the player's side won the most sets)                                  |
+| `lost`          | `Int!`                | Matches lost                                                                       |
+| `setsWon`       | `Int!`                | Sets won, over every match                                                         |
+| `setsLost`      | `Int!`                | Sets lost, over every match                                                        |
+| `pointsFor`     | `Int!`                | Points scored by the player's side, over every set                                 |
+| `pointsAgainst` | `Int!`                | Points scored by the other side, over every set                                    |
+| `breakdown`     | `[PlayerStatsLine!]!` | The same figures per competition, specialty and category, most recent season first |
+
+---
+
+### `PlayerStatsLine`
+
+The statistics of a player in one competition, specialty and category: the `PlayerStats` counters plus
+`competition: Competition!`, `specialty: Specialty!` and `category: Category` _(cross-subgraph)_.
+
+---
+
+### `PlayerMatchup`
+
+Another player and the matches shared with them. `won` and `lost` are those of the player queried.
+
+| Field    | Type      | Description                                                    |
+| -------- | --------- | -------------------------------------------------------------- |
+| `player` | `Player!` | The other player                                               |
+| `played` | `Int!`    | Matches played together (partners) or against them (opponents) |
+| `won`    | `Int!`    | Of those, matches won                                          |
+| `lost`   | `Int!`    | Of those, matches lost                                         |
 
 ---
 
@@ -286,6 +349,39 @@ Lists results ordered by `id` with optional filters. All filters are combinable.
 | `offset`        | `Int`    | Number of results to skip (default 0)                |
 
 The same `limit`/`offset` arguments are available on `Club.results`, `Specialty.results` and `Category.results`.
+
+---
+
+### `player` — results subgraph
+
+```graphql
+player(licence: String!): Player
+```
+
+A player by exact licence number, leading zeros included. Returns `null` when the licence appears in no
+result and no ranking of the league. An empty licence returns a `BAD_USER_INPUT` error.
+
+```graphql
+{
+  player(licence: "059063") {
+    name
+    stats { played won lost setsWon setsLost }
+    rankings { rank phase }
+  }
+}
+```
+
+---
+
+### `players` — results subgraph
+
+```graphql
+players(name: String!, limit: Int = 100, offset: Int = 0): [Player!]!
+```
+
+Players whose name matches, in name order, with the same matching as `playerRankings(name:)`: every
+word must appear in the name, ignoring case, accents and order, and words of one character are ignored.
+Only players with results are found. `limit` is clamped to 1..500.
 
 ---
 
