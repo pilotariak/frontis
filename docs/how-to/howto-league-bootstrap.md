@@ -19,6 +19,9 @@ In the commands below, replace `<league>` with the lowercase league code, for ex
 > `https://frontis-scheduler.pilotariak.com/admin`, on production. The steps below do the same
 > with curl.
 
+> **FFPB.** setup-league reads the `resultats.php` form, which `ffpb`'s site does not have. Bootstrap
+> `ffpb` with the scheduler instead: see [FFPB bootstrap](../reference/leagues.md#bootstrap).
+
 ## Prerequisites
 
 - The league database exists and every worker has its binding:

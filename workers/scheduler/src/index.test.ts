@@ -87,6 +87,7 @@ function envWith(parts: Partial<Env>): Env {
     DB_LEAGUE_LIDFPB: none,
     DB_LEAGUE_CTPB: none,
     DB_LEAGUE_LLPB: none,
+    DB_LEAGUE_FFPB: none,
     SELF: fakeSelf(() => json({})).self,
     ...parts,
   };
@@ -245,6 +246,18 @@ describe("scheduled", () => {
 
     expect(calls).toEqual([]);
     expect(ctpb.queries).toEqual([]);
+  });
+
+  test("does not call FFPB, whose results are scraped one specialty and category at a time", async () => {
+    const ffpb = fakeDb(enabled([{ id: 1, name: "CHAMPIONNAT DE FRANCE 2026" }]));
+    const { self, calls } = fakeSelf(() => json({ found: 0, saved: 0 }));
+    const { ctx, settled } = fakeCtx();
+
+    await worker.scheduled(event, envWith({ DB_LEAGUE_FFPB: ffpb.db, SELF: self }), ctx);
+    await settled();
+
+    expect(calls).toEqual([]);
+    expect(ffpb.queries).toEqual([]);
   });
 
   test("a failing competition is logged and does not stop the others", async () => {

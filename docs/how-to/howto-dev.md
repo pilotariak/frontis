@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) >= 1.1
+- [Bun](https://bun.sh) >= 1.3.3
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (installed automatically via `bun install`)
 
 ---

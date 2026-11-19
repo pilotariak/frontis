@@ -26,7 +26,7 @@ Each subgraph is an independent Cloudflare Worker with its own `wrangler.toml` a
 
 ## Dev Setup
 
-Requirements: [Bun](https://bun.sh) ≥ 1.1, [Wrangler](https://developers.cloudflare.com/workers/wrangler/) ≥ 4
+Requirements: [Bun](https://bun.sh) ≥ 1.3.3, [Wrangler](https://developers.cloudflare.com/workers/wrangler/) ≥ 4
 
 ```bash
 bun install          # install all workspace deps
@@ -53,6 +53,7 @@ bun run db:lcapb:local              # seed LCAPB league data
 bun run db:lidfpb:local             # seed LIDFPB league data
 bun run db:ctpb:local               # seed CTPB league data
 bun run db:llpb:local               # seed LLPB league data
+bun run db:ffpb:local               # seed FFPB league data
 ```
 
 Remote (production D1):
@@ -92,7 +93,7 @@ make cloudflare-deploy SERVICE=gateway      # deploy a single worker
 ## Key Conventions
 
 - All workers use **TypeScript** with `@cloudflare/workers-types`
-- League codes: `lcapb`, `lidfpb`, `ccapb`, `ctpb`, `llpb` (passed as query variables); see
+- League codes: `lcapb`, `lidfpb`, `ccapb`, `ctpb`, `llpb`, `ffpb` (passed as query variables); see
   `docs/reference/leagues.md` for each league's site, D1 database and scraper
 - GraphQL endpoint in production: `https://frontis-gateway.pilotariak.com/graphql`
 - Formatting: `dprint` (config in `.dprint.json`)
