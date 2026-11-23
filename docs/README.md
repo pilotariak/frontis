@@ -67,3 +67,13 @@ Read these to deepen your understanding of how and why Frontis works the way it 
 | --------------------------------------------------------- | -------------------------------------------------------------- |
 | [Architecture](explanation/architecture.md)               | System design, Cloudflare Workers, service bindings, data flow |
 | [Federation concepts](explanation/federation-concepts.md) | Entities, `@key`, supergraph SDL, Hive environments            |
+
+---
+
+## Architecture decisions
+
+Records of the decisions that shape Frontis, with the options that were weighed.
+
+| Decision                                                                             | Status   |
+| ------------------------------------------------------------------------------------ | -------- |
+| [ADR-0001: Keep slot data out of Frontis](adr/0001-keep-slot-data-out-of-frontis.md) | Accepted |
