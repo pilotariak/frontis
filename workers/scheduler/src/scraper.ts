@@ -159,8 +159,11 @@ async function resolveSourceIds(
  * The results table carries a UNIQUE(competition_id, specialty_id,
  * category_id, date_match, club_a_id, club_b_id, phase) constraint, so the
  * upsert replaces the former SELECT-then-INSERT existence check. A row already
- * stored only gets its pool and pool phase refreshed: rows saved before
- * migration 0014 have none. Scores and lineups are left as stored.
+ * stored gets the pool and pool phase the site gives (rows saved before
+ * migration 0014 have none), and the score and lineup the site gives: a row
+ * saved before its match was played gets its score on the next re-scrape. A
+ * score or player the site no longer gives is kept as stored, never erased.
+ * The upsert counts a stored row only when one of those columns changes.
  *
  * SQLite treats NULLs as distinct in a UNIQUE key, so a row whose date_match
  * or phase is NULL never conflicts. The parser always binds strings ("" when
@@ -228,7 +231,9 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   // Only needed when no single specialty was requested; resolve per row by name.
   const specialtyIds = sharedSpecialty ? null : await buildMap("specialties");
 
-  // The WHERE keeps an unchanged row unchanged, so meta.changes stays 0 for it.
+  // COALESCE keeps a stored score or player when the site gives none. The WHERE
+  // compares each stored value with the value the SET would write, so an
+  // unchanged row stays unchanged and meta.changes stays 0 for it.
   const insertResult = db.prepare(
     `INSERT INTO results (
       competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
@@ -237,8 +242,29 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
       club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
-    DO UPDATE SET pool = excluded.pool, pool_phase = excluded.pool_phase
-      WHERE results.pool IS NOT excluded.pool OR results.pool_phase IS NOT excluded.pool_phase`
+    DO UPDATE SET
+      scores = COALESCE(excluded.scores, results.scores),
+      pool = excluded.pool,
+      pool_phase = excluded.pool_phase,
+      club_a_player1_name = COALESCE(excluded.club_a_player1_name, results.club_a_player1_name),
+      club_a_player1_number = COALESCE(excluded.club_a_player1_number, results.club_a_player1_number),
+      club_a_player2_name = COALESCE(excluded.club_a_player2_name, results.club_a_player2_name),
+      club_a_player2_number = COALESCE(excluded.club_a_player2_number, results.club_a_player2_number),
+      club_b_player1_name = COALESCE(excluded.club_b_player1_name, results.club_b_player1_name),
+      club_b_player1_number = COALESCE(excluded.club_b_player1_number, results.club_b_player1_number),
+      club_b_player2_name = COALESCE(excluded.club_b_player2_name, results.club_b_player2_name),
+      club_b_player2_number = COALESCE(excluded.club_b_player2_number, results.club_b_player2_number)
+    WHERE results.pool IS NOT excluded.pool
+      OR results.pool_phase IS NOT excluded.pool_phase
+      OR results.scores IS NOT COALESCE(excluded.scores, results.scores)
+      OR results.club_a_player1_name IS NOT COALESCE(excluded.club_a_player1_name, results.club_a_player1_name)
+      OR results.club_a_player1_number IS NOT COALESCE(excluded.club_a_player1_number, results.club_a_player1_number)
+      OR results.club_a_player2_name IS NOT COALESCE(excluded.club_a_player2_name, results.club_a_player2_name)
+      OR results.club_a_player2_number IS NOT COALESCE(excluded.club_a_player2_number, results.club_a_player2_number)
+      OR results.club_b_player1_name IS NOT COALESCE(excluded.club_b_player1_name, results.club_b_player1_name)
+      OR results.club_b_player1_number IS NOT COALESCE(excluded.club_b_player1_number, results.club_b_player1_number)
+      OR results.club_b_player2_name IS NOT COALESCE(excluded.club_b_player2_name, results.club_b_player2_name)
+      OR results.club_b_player2_number IS NOT COALESCE(excluded.club_b_player2_number, results.club_b_player2_number)`
   );
 
   const statements: D1PreparedStatement[] = [];
@@ -296,9 +322,9 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   ];
 
   // One subrequest for the whole batch; the upsert reports changes=0 for rows
-  // that already existed with the same pool, so meta.changes sums to the rows
-  // inserted plus the rows whose pool or pool phase changed. The trailing
-  // UPDATEs are excluded from that sum.
+  // that already existed with nothing new, so meta.changes sums to the rows
+  // inserted plus the rows whose score, lineup, pool or pool phase changed.
+  // The trailing UPDATEs are excluded from that sum.
   const batchResults = await db.batch([...statements, ...enableFlags]);
   return batchResults
     .slice(0, statements.length)

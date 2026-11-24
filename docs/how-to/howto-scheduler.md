@@ -77,9 +77,11 @@ To save every combination without previews, uncheck **Ask before each save** and
 between combinations, as the script does, to spare the league site.
 
 Match results already in D1 are not inserted twice, so saving them again reports `0 saved`. A
-stored result whose pool changed on the site gets the new pool and counts as saved: the first save
-after migration `0014` counts every stored result it gives a pool. Scores and lineups of a stored
-result are never updated.
+stored result is updated in place when the site gives it a new score, lineup, pool or pool phase,
+and then counts as saved: a match saved before it was played gets its score the next time its
+combination is saved, and the first save after migration `0014` counts every stored result it
+gives a pool. A score or player the site no longer gives is kept as stored and does not count as
+saved.
 
 ### Bootstrap a league
 

@@ -202,6 +202,49 @@ const LOOKUPS: Rule[] = [
 
 const ALL = { league: "lcapb", competition: "2", specialty: "0", category: "0", phase: "0" };
 
+// ── Replaying the upserts on real SQLite ─────────────────────────────────────
+
+/** The results upserts saveResults sends for one scrape of `html`. */
+async function upsertsFor(html: string): Promise<Statement[]> {
+  serveSite(SITE_FORM_HTML, html);
+  const { db, batches } = fakeDb(LOOKUPS);
+  await scrapeResults(envWith(db), ALL, false);
+  return batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
+}
+
+/** An in-memory results table, as the migrations leave it. */
+function resultsTable(): Database {
+  const sqlite = new Database(":memory:");
+  sqlite.run(`CREATE TABLE results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    competition_id INTEGER NOT NULL, specialty_id INTEGER NOT NULL, category_id INTEGER NOT NULL,
+    club_a_id INTEGER NOT NULL, club_b_id INTEGER NOT NULL, date_match TEXT, phase TEXT,
+    club_a_player1_name TEXT, club_a_player1_number TEXT, club_a_player2_name TEXT, club_a_player2_number TEXT,
+    club_b_player1_name TEXT, club_b_player1_number TEXT, club_b_player2_name TEXT, club_b_player2_number TEXT,
+    scores TEXT, pool INTEGER, pool_phase INTEGER,
+    UNIQUE(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
+  )`);
+  return sqlite;
+}
+
+/** Runs the upserts and sums their changes, as saveResults computes `saved`. */
+function replay(sqlite: Database, upserts: Statement[]): number {
+  return upserts.reduce(
+    (sum, s) => sum + sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[])).changes,
+    0
+  );
+}
+
+/** The stored rows, with the first player of club A. */
+function stored(sqlite: Database): unknown[] {
+  return sqlite
+    .query(
+      `SELECT phase, scores, pool, pool_phase, club_a_player1_name AS player, club_a_player1_number AS number
+       FROM results ORDER BY id`
+    )
+    .all();
+}
+
 describe("scrapeResults", () => {
   test("rejects an unsupported league before touching the database or network", async () => {
     const { db, statements } = fakeDb(LOOKUPS);
@@ -326,7 +369,7 @@ describe("scrapeResults", () => {
 
   test("persists results in two batches and reports only new or changed rows", async () => {
     const { db, batches } = fakeDb(LOOKUPS, (s) =>
-      // Pretend the HASPARREN/ANGLET row already existed with the same pool.
+      // Pretend the HASPARREN/ANGLET row already existed, unchanged.
       s.sql.startsWith("INSERT INTO results") && s.bindings[4] === 300 ? 0 : 1
     );
 
@@ -375,47 +418,88 @@ describe("scrapeResults", () => {
     ]);
   });
 
-  test("a re-scrape fills the pool of a stored row and leaves its other columns as stored", async () => {
-    serveSite(SITE_FORM_HTML, POOL_HTML);
-    const { db, batches } = fakeDb(LOOKUPS);
-    await scrapeResults(envWith(db), ALL, false);
-    const upserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
-
-    // Replay the upserts on real SQLite, with the table as the migrations leave it.
-    const sqlite = new Database(":memory:");
-    sqlite.run(`CREATE TABLE results (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      competition_id INTEGER NOT NULL, specialty_id INTEGER NOT NULL, category_id INTEGER NOT NULL,
-      club_a_id INTEGER NOT NULL, club_b_id INTEGER NOT NULL, date_match TEXT, phase TEXT,
-      club_a_player1_name TEXT, club_a_player1_number TEXT, club_a_player2_name TEXT, club_a_player2_number TEXT,
-      club_b_player1_name TEXT, club_b_player1_number TEXT, club_b_player2_name TEXT, club_b_player2_number TEXT,
-      scores TEXT, pool INTEGER, pool_phase INTEGER,
-      UNIQUE(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
-    )`);
+  test("a re-scrape fills the pool and score of a stored row and keeps its stored lineup", async () => {
+    const upserts = await upsertsFor(POOL_HTML);
+    const sqlite = resultsTable();
     // Stored before migration 0014, and before the match was played: no score, no pool.
     sqlite.run(
       `INSERT INTO results (competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase, club_a_player1_name)
        VALUES (2, 10, 3, '05/01/2026', 300, 400, 'P 1', 'DUPONT Jean')`
     );
-    const replay = () =>
-      upserts.reduce(
-        (sum, s) => sum + sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[])).changes,
-        0
-      );
-    const stored = () =>
-      sqlite.query("SELECT phase, scores, pool, pool_phase, club_a_player1_name AS player FROM results ORDER BY id").all();
 
-    // Two new rows, and the stored one gets its pool.
-    expect(replay()).toBe(3);
-    expect(stored()).toEqual([
-      { phase: "P 1", scores: null, pool: 2, pool_phase: 1, player: "DUPONT Jean" },
-      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null },
-      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null },
+    // Two new rows, and the stored one gets its pool and score. The site lists
+    // no player for it, so the stored one stays.
+    expect(replay(sqlite, upserts)).toBe(3);
+    expect(stored(sqlite)).toEqual([
+      { phase: "P 1", scores: "15/08 15/11", pool: 2, pool_phase: 1, player: "DUPONT Jean", number: null },
+      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null, number: null },
+      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null, number: null },
     ]);
 
     // Nothing changed on the site: nothing is reported as saved.
-    expect(replay()).toBe(0);
-    expect(stored()).toHaveLength(3);
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(stored(sqlite)).toHaveLength(3);
+  });
+
+  test("a stored result saved before its match was played gets the score and counts as saved", async () => {
+    const sqlite = resultsTable();
+    // First save: the HASPARREN/ANGLET pool match is not played yet.
+    expect(replay(sqlite, await upsertsFor(POOL_HTML.replace("15/08 15/11", "")))).toBe(3);
+    expect(stored(sqlite)).toMatchObject([{ phase: "P 1", scores: null, pool: 2, pool_phase: 1 }, {}, {}]);
+
+    // The site now gives the score: same date, phase and clubs, so the stored
+    // row is updated in place. Its pool is unchanged, so only the score counts.
+    const played = await upsertsFor(POOL_HTML);
+    expect(replay(sqlite, played)).toBe(1);
+    expect(stored(sqlite)).toEqual([
+      { phase: "P 1", scores: "15/08 15/11", pool: 2, pool_phase: 1, player: null, number: null },
+      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null, number: null },
+      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null, number: null },
+    ]);
+    expect(replay(sqlite, played)).toBe(0);
+  });
+
+  test("a lineup missing at first is filled by a later scrape", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML.replace("<ul><li>(1) DUPONT Jean</li></ul>", "")))).toBe(3);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", player: null, number: null }, {}, {}]);
+
+    const withLineup = await upsertsFor(RESULTS_HTML);
+    expect(replay(sqlite, withLineup)).toBe(1);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/13", player: "DUPONT Jean", number: "1" }, {}, {}]);
+    expect(replay(sqlite, withLineup)).toBe(0);
+  });
+
+  test("saving an unchanged page again changes nothing and counts 0", async () => {
+    const upserts = await upsertsFor(RESULTS_HTML);
+    const sqlite = resultsTable();
+    expect(replay(sqlite, upserts)).toBe(3);
+    const before = sqlite.query("SELECT * FROM results ORDER BY id").all();
+
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(sqlite.query("SELECT * FROM results ORDER BY id").all()).toEqual(before);
+  });
+
+  test("a stored score or player is kept when a later scrape gives none", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML))).toBe(3);
+
+    // The site drops the score and the lineup of the final: nothing is erased,
+    // and nothing counts as saved.
+    const blank = RESULTS_HTML.replace("15/10 15/13", "").replace("<ul><li>(1) DUPONT Jean</li></ul>", "");
+    const upserts = await upsertsFor(blank);
+    expect(upserts[0].bindings[6]).toBeNull(); // scores
+    expect(upserts[0].bindings.slice(10, 12)).toEqual([null, null]); // club A player 1 name, number
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/13", player: "DUPONT Jean", number: "1" }, {}, {}]);
+  });
+
+  test("a score corrected on the site replaces the stored one", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML))).toBe(3);
+
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML.replace("15/10 15/13", "15/10 15/14")))).toBe(1);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/14", player: "DUPONT Jean" }, {}, {}]);
   });
 
   test("uses the requested specialty for every row instead of matching by name", async () => {

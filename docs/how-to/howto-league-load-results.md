@@ -96,7 +96,8 @@ Against local state, replace `--remote` with `--local --persist-to ../.wrangler/
 
 Each line prints `found` and `saved` for one competition. Saving is idempotent: a result that is
 already stored is not inserted again, so running the loop again saves `0` and is safe after a
-failure. Only its pool is refreshed, and a result whose pool changed counts as saved.
+failure. A stored result gets the score, lineup, pool and pool phase the site now gives, and counts
+as saved when one of them changed. A score or player the site no longer gives is kept as stored.
 
 Saving results for a competition sets its `enabled` flag, and the flags of the specialties and
 categories that received results.
