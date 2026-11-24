@@ -117,6 +117,142 @@ describe("parseResults", () => {
   test("returns an empty list for a page without result blocks", () => {
     expect(parseResults(load("<html><body><p>rien</p></body></html>"), "LCAPB")).toEqual([]);
   });
+
+  test("has no pool outside a \"Poules N\" section", () => {
+    expect(results.map((r) => [r.pool, r.pool_phase])).toEqual([[null, null], [null, null], [null, null]]);
+  });
+});
+
+// Markup modelled on the real resultats.php (names and licences made up):
+// row 0 holds the CSV and share links, row 1 the block header, whose second
+// span names the group and the pool phase, and each run of matches follows a
+// `td.mTitreSmall` section title, the first one at row 2. CTPB repeats the
+// block header inside the same table for each group and pool phase.
+const blockHeader = (specialty: string, category: string, heading?: string) => `
+  <tr><td colspan="7">
+    ${specialty}\t\t\t<span style="padding-left:1em;">\n\t\t\t    ${category}\t\t\t</span>
+    ${heading ? `<span style="padding-left:1em;">\n\t\t\t    ${heading}\t\t\t</span>` : ""}
+  </td></tr>`;
+const section = (title: string) => `
+  <tr>
+    <td class="mTitreSmall" colspan="2">${title}</td><td class="mTitreSmall">Club 1</td>
+    <td class="mTitreSmall">Club 2</td><td class="mTitreSmall">Score</td><td class="mTitreSmall">Commentaire</td>
+  </tr>`;
+const match = (code: string, n: number) => `
+  <tr>
+    <td class="L0"><a href="./resultats2.php?no_renc=${n}"><img src="./images/edit.gif"></a>
+      <strong>&nbsp;\n\t\t\t    ${code}  \t\t\t    ${n}\t\t\t    &nbsp;</strong></td>
+    <td class="L0">18/01/2026&nbsp;</td>
+    <td class="L0">PILOTA CLUB TEST&nbsp;<span class="small">(01)<br /><li>&nbsp;(000101)&nbsp;ETXEBERRI Ane </li></span></td>
+    <td class="L0">ZAHARRAK PILOTARI&nbsp;<span class="small">(02)<br /><li>&nbsp;(000106)&nbsp;SALLABERRY Jon </li></span></td>
+    <td class="L0">15/10<br />15/07<br /></td>
+    <td class="L0 small"></td>
+  </tr>`;
+const resultsPage = (...blocks: string[]) => `
+<html><body>
+${
+  blocks.map((rows) => `
+<table class="mBloc">
+  <tr><td colspan="7" align="right"><a href="csv.php">Télécharger <img src="./images/save.png" /><a></td></tr>
+  ${rows}
+</table>`).join("")
+}
+</body></html>`;
+
+/** phase, pool and pool_phase of each parsed row. */
+const pools = (html: string) => parseResults(load(html), "CTPB").map((r) => [r.phase, r.pool, r.pool_phase]);
+
+describe("parseResults pools", () => {
+  test("a pool section gives its number to the matches below it, knockout rounds have none", () => {
+    // lcapb 502, Trinquet / P.G. Creuse Masculin, 3ème Série: one pool phase.
+    const html = resultsPage(
+      blockHeader("Trinquet/P.G. Creuse Masculin", "3ème Série", "GROUPE A\t\t\t    Poule phase 1") +
+        section("Poules 1") + match("P", 1) + match("P", 2) +
+        section("Poules 2") + match("P", 7) +
+        section("1/2 finale ") + match("D", 1) +
+        section("Finale ") + match("F", 1)
+    );
+
+    expect(pools(html)).toEqual([
+      ["P 1", 1, null],
+      ["P 2", 1, null],
+      ["P 7", 2, null],
+      ["D 1", null, null],
+      ["F 1", null, null],
+    ]);
+    expect(parseResults(load(html), "LCAPB")[0]).toMatchObject({
+      specialty: "Trinquet/P.G. Creuse Masculin",
+      category: "3ème Série",
+      date_match: "18/01/2026",
+      club_a: "PILOTA CLUB TEST 01",
+      scores: "15/10 15/07",
+    });
+  });
+
+  test("a page without a pool section has no pool", () => {
+    const html = resultsPage(
+      blockHeader("Trinquet/P.G. Pleine Masculin", "1ère Série") +
+        section("Barrage 1er tour ") + match("BT", 1) +
+        section("1/4 de finale ") + match("Q", 1) +
+        section("Finale ") + match("F", 1)
+    );
+
+    expect(pools(html)).toEqual([
+      ["BT 1", null, null],
+      ["Q 1", null, null],
+      ["F 1", null, null],
+    ]);
+  });
+
+  test("several pool phases: each match keeps its phase, read from the repeated block header", () => {
+    // ctpb 137, Mur à Gauche / Main nue Tête à Tête - Groupe B, M14: pool
+    // numbers start again in each phase, and in each group.
+    const specialty = "Mur à Gauche/Main nue Tête à Tête - Groupe B";
+    const html = resultsPage(
+      blockHeader(specialty, "M14 - Benjamins - Kimuak", "GROUPE B Poule phase 1") +
+        section("Poules 1") + match("P", 1) +
+        section("Poules 2") + match("P", 2) +
+        blockHeader(specialty, "M14 - Benjamins - Kimuak", "GROUPE C Poule phase 1") +
+        section("Poules 1") + match("P", 1) +
+        blockHeader(specialty, "M14 - Benjamins - Kimuak", "GROUPE B Poule phase 2") +
+        section("Poules 1") + match("P", 1) +
+        section("Finale ") + match("F", 1),
+      // Another category of the same page names a single phase.
+      blockHeader(specialty, "M12 - Poussins - Umetxoak", "GROUPE A Poule phase 1") +
+        section("Poules 1") + match("P", 1)
+    );
+
+    expect(pools(html)).toEqual([
+      ["P 1", 1, 1],
+      ["P 2", 2, 1],
+      ["P 1", 1, 1],
+      ["P 1", 1, 2],
+      ["F 1", null, null],
+      ["P 1", 1, null],
+    ]);
+    const parsed = parseResults(load(html), "CTPB");
+    expect(parsed.map((r) => r.category)).toEqual([
+      ...Array(5).fill("M14 - Benjamins - Kimuak"),
+      "M12 - Poussins - Umetxoak",
+    ]);
+    expect(parsed.every((r) => r.specialty === specialty)).toBe(true);
+  });
+
+  test("two groups with a single pool phase share pool numbers and have no pool phase", () => {
+    // ctpb 137, Trinquet / Main Nue - Groupe B, M16: GROUPE A and GROUPE B,
+    // both "Poule phase 1". The group is not stored, so their pools collide.
+    const html = resultsPage(
+      blockHeader("Trinquet/Main Nue - Groupe B", "M16 - Minimes - Gaztetxoak", "GROUPE A Poule phase 1") +
+        section("Poules 1") + match("P", 1) +
+        blockHeader("Trinquet/Main Nue - Groupe B", "M16 - Minimes - Gaztetxoak", "GROUPE B Poule phase 1") +
+        section("Poules 1") + match("P", 1)
+    );
+
+    expect(pools(html)).toEqual([
+      ["P 1", 1, null],
+      ["P 1", 1, null],
+    ]);
+  });
 });
 
 describe("parseFormOptions", () => {

@@ -76,7 +76,10 @@ To save every combination without previews, uncheck **Ask before each save** and
 **Save N combinations**: each one is scraped and saved in one request. The page waits 300 ms
 between combinations, as the script does, to spare the league site.
 
-Match results already in D1 are not inserted twice, so saving them again reports `0 saved`.
+Match results already in D1 are not inserted twice, so saving them again reports `0 saved`. A
+stored result whose pool changed on the site gets the new pool and counts as saved: the first save
+after migration `0014` counts every stored result it gives a pool. Scores and lineups of a stored
+result are never updated.
 
 ### Bootstrap a league
 

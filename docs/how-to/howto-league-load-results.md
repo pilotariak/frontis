@@ -95,7 +95,8 @@ The loop reads one id per line, so it works in bash and zsh alike.
 Against local state, replace `--remote` with `--local --persist-to ../.wrangler/state`.
 
 Each line prints `found` and `saved` for one competition. Saving is idempotent: a result that is
-already stored is ignored, so running the loop again saves `0` and is safe after a failure.
+already stored is not inserted again, so running the loop again saves `0` and is safe after a
+failure. Only its pool is refreshed, and a result whose pool changed counts as saved.
 
 Saving results for a competition sets its `enabled` flag, and the flags of the specialties and
 categories that received results.

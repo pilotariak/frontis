@@ -33,6 +33,10 @@ export interface ScrapedResult {
   club_b_player2_name?: string;
   club_b_player2_number?: string;
   scores: string | null;
+  /** N of the "Poules N" section title above the match; null in any other section. */
+  pool: number | null;
+  /** N of the block heading "Poule phase N"; null when the page names a single pool phase. */
+  pool_phase: number | null;
 }
 
 export interface Env {

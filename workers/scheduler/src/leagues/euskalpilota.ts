@@ -232,31 +232,61 @@ function extractClubData(col: Element): { name: string; players: { name: string;
   return { name: `${fullText} ${teamNumber}`.trim(), players };
 }
 
+/** "Poules 2" → 2; any other section title ("1/4 de finale", "Barrage 1er tour") → null. */
+const POOL_TITLE = /^Poules?\s+(\d+)$/i;
+/** "GROUPE B Poule phase 2" → 2. */
+const POOL_PHASE = /\bPoule\s+phase\s+(\d+)\b/i;
+
+/**
+ * Rows of the resultats.php results table. Each `.mBloc` table holds:
+ *   - a block header row: one cell, "<specialty> <span>category</span>
+ *     <span>GROUPE A Poule phase 1</span>". CTPB repeats it inside the same
+ *     table for each group and pool phase of the category;
+ *   - section title rows (`td.mTitreSmall`): "Poules 1", "Poules 2", then the
+ *     knockout rounds ("1/4 de finale", "Finale"), each followed by its matches;
+ *   - match rows with five cells or more: phase | date | club A | club B | score.
+ *
+ * `pool` is the N of the "Poules N" section a match sits in, and `pool_phase`
+ * the N of the heading's "Poule phase N". A knockout match sits under the last
+ * heading too, so both are null outside a "Poules N" section. When the page
+ * names a single pool phase for a specialty and category, its `pool_phase` is
+ * null: it only matters when pool numbers start again in a later phase.
+ */
 export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[] {
   const results: ScrapedResult[] = [];
   const year = new Date().getFullYear();
   const competition = `Championnat ${leagueName}`;
+  // Pool phases named by the page, per specialty and category.
+  const poolPhases = new Map<string, Set<number>>();
+  const blockKey = (specialty: string, category: string) => `${specialty}\u0000${category}`;
 
   for (const table of $(".mBloc").toArray()) {
-    const rows = descendants(table, "tr");
-
-    // Row 1 carries the block header: "<specialty> <span>category</span>".
-    const infoRow = rows[1];
     let specialtyText = "";
     let categoryText = "";
-    if (infoRow) {
-      const firstTd = descendants(infoRow, "td")[0];
-      if (firstTd) {
-        specialtyText = firstTd.children.filter(isText).map(textOf).join("").trim();
-      }
-      const firstSpan = descendants(infoRow, "span")[0];
-      if (firstSpan) categoryText = textOf(firstSpan).trim();
-    }
+    let poolPhase: number | null = null;
+    let pool: number | null = null;
 
-    for (let i = 3; i < rows.length; i++) {
-      const row = rows[i];
+    for (const row of descendants(table, "tr")) {
       const cols = descendants(row, "td");
-      if (cols.some((td) => hasClass(td, "mTitreSmall"))) continue;
+
+      // Block header: a single cell holding the category and heading spans.
+      // The first row (CSV and share links) has a single cell but no span.
+      const spans = cols.length === 1 ? descendants(cols[0], "span") : [];
+      if (spans.length > 0) {
+        specialtyText = cols[0].children.filter(isText).map(textOf).join("").trim();
+        categoryText = textOf(spans[0]).trim();
+        const phase = spans[1] ? POOL_PHASE.exec(collapse(textOf(spans[1]))) : null;
+        poolPhase = phase ? Number(phase[1]) : null;
+        pool = null;
+        continue;
+      }
+
+      const title = cols.find((td) => hasClass(td, "mTitreSmall"));
+      if (title) {
+        const match = POOL_TITLE.exec(collapse(textOf(title)));
+        pool = match ? Number(match[1]) : null;
+        continue;
+      }
       if (cols.length < 5) continue;
 
       const phase = descendants(cols[0], "strong")
@@ -272,8 +302,16 @@ export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[]
       const clubAData = extractClubData(cols[2]);
       const clubBData = extractClubData(cols[3]);
 
+      const specialty = specialtyText || "Trinquet/P.G. Pleine Masculin";
+      if (pool !== null && poolPhase !== null) {
+        const key = blockKey(specialty, categoryText);
+        const phases = poolPhases.get(key) ?? new Set<number>();
+        phases.add(poolPhase);
+        poolPhases.set(key, phases);
+      }
+
       results.push({
-        specialty: specialtyText || "Trinquet/P.G. Pleine Masculin",
+        specialty,
         competition,
         year,
         category: categoryText,
@@ -290,7 +328,17 @@ export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[]
         club_b_player2_name: clubBData.players[1]?.name,
         club_b_player2_number: clubBData.players[1]?.number,
         scores,
+        pool,
+        pool_phase: pool === null ? null : poolPhase,
       });
+    }
+  }
+
+  // A single pool phase tells nothing: keep pool_phase only where the page
+  // names several for the specialty and category.
+  for (const r of results) {
+    if (r.pool_phase !== null && (poolPhases.get(blockKey(r.specialty, r.category))?.size ?? 0) < 2) {
+      r.pool_phase = null;
     }
   }
 

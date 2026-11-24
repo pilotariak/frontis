@@ -153,12 +153,18 @@ async function resolveSourceIds(
  * keeps the subrequest count flat and small:
  *   1. one SELECT per lookup table to preload name → id maps,
  *   2. one db.batch() to INSERT OR IGNORE any missing clubs/categories,
- *   3. one db.batch() of INSERT OR IGNORE statements for the results, plus
- *      the UPDATEs flipping `enabled` on the competition, specialties and
- *      categories those results belong to.
+ *   3. one db.batch() of upserts for the results, plus the UPDATEs flipping
+ *      `enabled` on the competition, specialties and categories those
+ *      results belong to.
  * The results table carries a UNIQUE(competition_id, specialty_id,
- * category_id, date_match, club_a_id, club_b_id, phase) constraint, so
- * INSERT OR IGNORE replaces the former SELECT-then-INSERT existence check.
+ * category_id, date_match, club_a_id, club_b_id, phase) constraint, so the
+ * upsert replaces the former SELECT-then-INSERT existence check. A row already
+ * stored only gets its pool and pool phase refreshed: rows saved before
+ * migration 0014 have none. Scores and lineups are left as stored.
+ *
+ * SQLite treats NULLs as distinct in a UNIQUE key, so a row whose date_match
+ * or phase is NULL never conflicts. The parser always binds strings ("" when
+ * the cell is empty), so only rows stored that way by older code are affected.
  */
 async function saveResults(db: D1Database, options: ScraperOptions, results: ScrapedResult[]): Promise<number> {
   if (results.length === 0) return 0;
@@ -222,13 +228,17 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   // Only needed when no single specialty was requested; resolve per row by name.
   const specialtyIds = sharedSpecialty ? null : await buildMap("specialties");
 
+  // The WHERE keeps an unchanged row unchanged, so meta.changes stays 0 for it.
   const insertResult = db.prepare(
-    `INSERT OR IGNORE INTO results (
+    `INSERT INTO results (
       competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
-      scores, phase,
+      scores, phase, pool, pool_phase,
       club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
       club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
+    DO UPDATE SET pool = excluded.pool, pool_phase = excluded.pool_phase
+      WHERE results.pool IS NOT excluded.pool OR results.pool_phase IS NOT excluded.pool_phase`
   );
 
   const statements: D1PreparedStatement[] = [];
@@ -254,7 +264,7 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     statements.push(
       insertResult.bind(
         competition.id, specialtyId, categoryId, res.date_match,
-        clubAId, clubBId, res.scores ?? null, res.phase,
+        clubAId, clubBId, res.scores ?? null, res.phase, res.pool, res.pool_phase,
         res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
         res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
         res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
@@ -285,9 +295,10 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     enableWhereIdIn("categories", usedCategoryIds),
   ];
 
-  // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
-  // rows that already existed, so meta.changes sums to the newly inserted count.
-  // The trailing UPDATEs are excluded from that sum.
+  // One subrequest for the whole batch; the upsert reports changes=0 for rows
+  // that already existed with the same pool, so meta.changes sums to the rows
+  // inserted plus the rows whose pool or pool phase changed. The trailing
+  // UPDATEs are excluded from that sum.
   const batchResults = await db.batch([...statements, ...enableFlags]);
   return batchResults
     .slice(0, statements.length)

@@ -87,10 +87,17 @@ A single match result between two clubs.
 | `sets`        | `[SetScore!]!` | `scores` parsed into per-set integers; empty when unparseable                  |
 | `winner`      | `Club`         | Club with the most sets won; `null` on tie or missing score _(cross-subgraph)_ |
 | `phase`       | `String`       | Tournament phase code (e.g. `P 8`, `D 1`, `F 1`)                               |
+| `pool`        | `Int`          | N of the site's "Poules N" section; `null` outside the pool round              |
+| `poolPhase`   | `Int`          | N of the site's "Poule phase N"; `null` for a single phase or outside pools    |
 | `clubALineup` | `ClubLineup`   | Players lineup for club A                                                      |
 | `clubBLineup` | `ClubLineup`   | Players lineup for club B                                                      |
 
 Fields marked _(cross-subgraph)_ are resolved via entity federation — the gateway fetches them from their owning subgraphs.
+
+> `phase` numbers a match within its round: `P 10` is the tenth pool match, not pool 10. Read the
+> pool from `pool`, and `poolPhase` when pool numbers start again in a later pool phase. Pool numbers
+> also start again in each group of a category (`GROUPE A`, `GROUPE B` on the site), which Frontis
+> does not store. See [About `pool` and `poolPhase`](../how-to/howto-query-results.md#about-pool-and-poolphase).
 
 ---
 
