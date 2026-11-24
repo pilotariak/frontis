@@ -30,6 +30,30 @@ curl -s -X POST "$FRONTIS_GW" \
   | jq -r '.data.results[].phase' | sort -u
 ```
 
+## About `pool` and `poolPhase`
+
+`phase` numbers a match within its round: `P 10` is the tenth pool match, not pool 10. The league
+site lists the pool round in sections, "Poules 1", "Poules 2", and `pool` is the number of the
+section a match sits in. Barrages and knockout rounds have no pool: `pool` is `null`.
+
+Some categories play the pool round in several phases, and the pool numbers start again in each
+one. `poolPhase` is then the phase, from the site's "Poule phase N" heading. It is `null` when the
+site names a single pool phase for the specialty and category. Pool numbers also start again in each
+group of a category ("GROUPE A", "GROUPE B" on the site), and Frontis does not store the group.
+
+Results stored before pools were added have `pool: null` until the scheduler scrapes them again.
+
+List the pools of one specialty and category:
+
+```bash
+curl -s -X POST "$FRONTIS_GW" \
+  -H "Content-Type: application/json" \
+  -H "X-Pilotariak-League: lcapb" \
+  -d '{
+    "query": "{ results(specialtyId: \"81\", categoryId: \"1435\", limit: 500) { phase pool poolPhase } }"
+  }' | jq -r '.data.results[] | select(.pool != null) | "\(.poolPhase // "-") \(.pool) \(.phase)"' | sort -V
+```
+
 ## List all results
 
 ```bash

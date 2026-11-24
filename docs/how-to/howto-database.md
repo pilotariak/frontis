@@ -38,7 +38,8 @@ database/
     ├── 0009_categories_enabled.sql   ← add enabled flag (INTEGER 0/1, default 0) to categories
     ├── 0010_specialties_enabled.sql  ← add enabled flag (INTEGER 0/1, default 0) to specialties
     ├── 0011_indexes.sql              ← secondary indexes on results filters and source_id lookups
-    └── 0012_rankings.sql             ← end-of-championship rankings (rankings, ranking_players)
+    ├── 0012_rankings.sql             ← end-of-championship rankings (rankings, ranking_players)
+    └── 0014_results_pool.sql         ← pool and pool_phase of each result (pool round section)
 ```
 
 ---
@@ -208,6 +209,18 @@ FROM results r
 JOIN clubs ca ON ca.id = r.club_a_id
 JOIN clubs cb ON cb.id = r.club_b_id
 ORDER BY r.id DESC LIMIT 10;
+
+-- Matches per pool of one specialty and category (ids from the competitions,
+-- specialties and categories tables). pool is NULL outside the pool round and
+-- on rows not scraped again since 0014; pool_phase is NULL when the site names
+-- a single pool phase. Pool numbers start again in each group ("GROUPE A",
+-- "GROUPE B"), which is not stored.
+SELECT r.pool_phase, r.pool, count(*) AS matches, group_concat(r.phase, ', ') AS phases
+FROM results r
+WHERE r.competition_id = <competition id> AND r.specialty_id = <specialty id>
+  AND r.category_id = <category id>
+GROUP BY r.pool_phase, r.pool
+ORDER BY r.pool_phase, r.pool;
 
 -- Stored rankings, one row per competition, specialty and category.
 -- final = 1 once the ranking has a champion.

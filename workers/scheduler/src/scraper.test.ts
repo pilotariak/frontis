@@ -95,6 +95,30 @@ const RESULTS_HTML = `
   </tr>
 </table>`;
 
+// Two pool phases, then a final, as CTPB prints a category whose pool round
+// has a second phase: the block header repeats inside the table.
+const POOL_HTML = `
+<table class="mBloc">
+  <tr><td colspan="7"><a href="csv.php">Télécharger</a></td></tr>
+  <tr><td>Trinquet/P.G. Pleine Masculin <span>Seniors</span> <span>GROUPE A Poule phase 1</span></td></tr>
+  <tr><td class="mTitreSmall" colspan="2">Poules 2</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>P 1</strong></td><td>05/01/2026</td>
+    <td>HASPARREN</td><td>ANGLET</td><td>15/08 15/11</td>
+  </tr>
+  <tr><td>Trinquet/P.G. Pleine Masculin <span>Seniors</span> <span>GROUPE A Poule phase 2</span></td></tr>
+  <tr><td class="mTitreSmall" colspan="2">Poules 1</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>P 1</strong></td><td>12/01/2026</td>
+    <td>CA BEGLAIS <span class="small">(01)</span></td><td>URRUGNE PILOTA</td><td>15/10 15/13</td>
+  </tr>
+  <tr><td class="mTitreSmall" colspan="2">Finale</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>F 1</strong></td><td>19/01/2026</td>
+    <td>HASPARREN</td><td>URRUGNE PILOTA</td><td>15/12 15/14</td>
+  </tr>
+</table>`;
+
 const FORM_HTML = `
 <select name="InCompet"><option value="0">-</option><option value="20260501">Championnat 2026</option></select>
 <select name="InSpec"><option value="10">Trinquet</option></select>
@@ -300,10 +324,10 @@ describe("scrapeResults", () => {
     expect(byCategory.results.map((r) => r.category)).toEqual(["Seniors", "Seniors"]);
   });
 
-  test("persists results in two batches and reports only newly inserted rows", async () => {
+  test("persists results in two batches and reports only new or changed rows", async () => {
     const { db, batches } = fakeDb(LOOKUPS, (s) =>
-      // Pretend the HASPARREN/ANGLET row already existed.
-      s.sql.startsWith("INSERT OR IGNORE INTO results") && s.bindings[4] === 300 ? 0 : 1
+      // Pretend the HASPARREN/ANGLET row already existed with the same pool.
+      s.sql.startsWith("INSERT INTO results") && s.bindings[4] === 300 ? 0 : 1
     );
 
     const { results, saved } = await scrapeResults(envWith(db), ALL, false);
@@ -327,7 +351,7 @@ describe("scrapeResults", () => {
     // Batch 2: one INSERT per result, then the three `enabled` flips.
     const [insertA, insertB, insertC, ...flags] = batches[1];
     expect(insertA.bindings.slice(0, 8)).toEqual([2, 10, 3, "12/01/2026", 100, 200, "15/10 15/13", "Finale"]);
-    expect(insertA.bindings.slice(8, 10)).toEqual(["DUPONT Jean", "1"]);
+    expect(insertA.bindings.slice(8, 12)).toEqual([null, null, "DUPONT Jean", "1"]);
     expect(insertB.bindings.slice(0, 6)).toEqual([2, 10, 3, "05/01/2026", 300, 400]);
     expect(insertC.bindings.slice(0, 6)).toEqual([2, 11, 5, "06/01/2026", 500, 600]);
     expect(flags.map((s) => [s.sql, s.bindings])).toEqual([
@@ -337,11 +361,68 @@ describe("scrapeResults", () => {
     ]);
   });
 
+  test("binds the pool and pool phase of each match", async () => {
+    serveSite(SITE_FORM_HTML, POOL_HTML);
+    const { db, batches } = fakeDb(LOOKUPS);
+    await scrapeResults(envWith(db), ALL, false);
+
+    const upserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
+    // phase, pool, pool_phase
+    expect(upserts.map((s) => s.bindings.slice(7, 10))).toEqual([
+      ["P 1", 2, 1],
+      ["P 1", 1, 2],
+      ["F 1", null, null],
+    ]);
+  });
+
+  test("a re-scrape fills the pool of a stored row and leaves its other columns as stored", async () => {
+    serveSite(SITE_FORM_HTML, POOL_HTML);
+    const { db, batches } = fakeDb(LOOKUPS);
+    await scrapeResults(envWith(db), ALL, false);
+    const upserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
+
+    // Replay the upserts on real SQLite, with the table as the migrations leave it.
+    const sqlite = new Database(":memory:");
+    sqlite.run(`CREATE TABLE results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      competition_id INTEGER NOT NULL, specialty_id INTEGER NOT NULL, category_id INTEGER NOT NULL,
+      club_a_id INTEGER NOT NULL, club_b_id INTEGER NOT NULL, date_match TEXT, phase TEXT,
+      club_a_player1_name TEXT, club_a_player1_number TEXT, club_a_player2_name TEXT, club_a_player2_number TEXT,
+      club_b_player1_name TEXT, club_b_player1_number TEXT, club_b_player2_name TEXT, club_b_player2_number TEXT,
+      scores TEXT, pool INTEGER, pool_phase INTEGER,
+      UNIQUE(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
+    )`);
+    // Stored before migration 0014, and before the match was played: no score, no pool.
+    sqlite.run(
+      `INSERT INTO results (competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase, club_a_player1_name)
+       VALUES (2, 10, 3, '05/01/2026', 300, 400, 'P 1', 'DUPONT Jean')`
+    );
+    const replay = () =>
+      upserts.reduce(
+        (sum, s) => sum + sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[])).changes,
+        0
+      );
+    const stored = () =>
+      sqlite.query("SELECT phase, scores, pool, pool_phase, club_a_player1_name AS player FROM results ORDER BY id").all();
+
+    // Two new rows, and the stored one gets its pool.
+    expect(replay()).toBe(3);
+    expect(stored()).toEqual([
+      { phase: "P 1", scores: null, pool: 2, pool_phase: 1, player: "DUPONT Jean" },
+      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null },
+      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null },
+    ]);
+
+    // Nothing changed on the site: nothing is reported as saved.
+    expect(replay()).toBe(0);
+    expect(stored()).toHaveLength(3);
+  });
+
   test("uses the requested specialty for every row instead of matching by name", async () => {
     const { db, batches } = fakeDb(LOOKUPS);
     await scrapeResults(envWith(db), { ...ALL, specialty: "10" }, false);
 
-    const inserts = batches[1].filter((s) => s.sql.startsWith("INSERT OR IGNORE INTO results"));
+    const inserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
     expect(inserts.map((s) => s.bindings[1])).toEqual([10, 10]);
   });
 

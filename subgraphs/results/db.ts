@@ -25,6 +25,8 @@ export interface ResultRow {
   club_b_id: number;
   scores: string | null;
   phase: string | null;
+  pool: number | null;
+  pool_phase: number | null;
   club_a_player1_name: string | null;
   club_a_player1_number: string | null;
   club_a_player2_name: string | null;
