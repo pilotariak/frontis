@@ -423,7 +423,13 @@ export function renderAdminPage(leagues: string[], version: string): string {
     (function () {
       "use strict";
 
-      var SESSION_LOST = "No answer from the scheduler. Your Cloudflare Access session may have expired: reload the page.";
+      var SESSION_LOST = "Your Cloudflare Access session has expired: reload the page.";
+      var NO_ANSWER = "No answer from the scheduler: the network request failed.";
+      // A failed scrape is tried this many times in all, these many ms apart.
+      var RETRY_PAUSES = [3000, 10000];
+      // A walk stops after this many failed requests in a row: the scheduler
+      // or the league site is down, the rest would fail the same way.
+      var MAX_FAILURES_IN_A_ROW = 5;
 
       function el(id) { return document.getElementById(id); }
       var form = el("form");
@@ -499,9 +505,54 @@ export function renderAdminPage(leagues: string[], version: string): string {
         select.disabled = true;
       }
 
+      // One request to the scheduler, which always answers text/plain or JSON.
       // Access answers an expired session with a redirect to its login page:
-      // a cross-origin hop that fetch() reports as a network error, or an HTML
-      // page. Neither is JSON. A body makes it a POST.
+      // redirect "manual" stops fetch() there, as an opaque redirect, instead
+      // of following it cross-origin into a network error. That, or any other
+      // answer below 500 that is not the scheduler's, throws SESSION_LOST.
+      // Everything else comes back as { res, status, type, text }: status 0
+      // when the network failed, an HTML type for a Cloudflare error page.
+      async function send(url, init) {
+        init.redirect = "manual";
+        var res;
+        try {
+          res = await fetch(url, init);
+        } catch (e) {
+          return { res: null, status: 0, type: "", text: NO_ANSWER };
+        }
+        var type = res.headers.get("content-type") || "";
+        var ours = type.indexOf("text/plain") !== -1 || type.indexOf("application/json") !== -1;
+        if (res.type === "opaqueredirect" || (!ours && res.status < 500 && res.status !== 429)) {
+          throw new Error(SESSION_LOST);
+        }
+        var text = await res.text().catch(function () { return ""; });
+        return { res: res, status: res.status, type: type, text: ours ? text : edgeError(text) };
+      }
+
+      // Cloudflare's own error page, sent when the Worker blew its CPU limit
+      // (1102), threw (1101) or the request timed out (524). Its title names
+      // the cause, as "Worker exceeded resource limits | host | Cloudflare".
+      function edgeError(html) {
+        var title = /<title>([^<]*)<\/title>/i.exec(html);
+        var cause = title ? title[1].split("|")[0].trim() : "";
+        return "Cloudflare error page" + (cause ? ": " + cause : "") +
+          " (the Worker ran out of CPU time, crashed or timed out)";
+      }
+
+      function statusLabel(status) { return status ? "HTTP " + status : "No answer"; }
+
+      function tooManyFailures() {
+        return MAX_FAILURES_IN_A_ROW + " requests failed in a row: stopped, the next ones would fail the same way. " +
+          "Run again once the scheduler or the league site answers.";
+      }
+
+      // One line for a failed answer, with the tries a scrape took.
+      function failureDetail(answer) {
+        var tries = answer.attempts > 1 ? " · " + answer.attempts + " tries" : "";
+        return (answer.status ? "HTTP " + answer.status + ": " : "") + answer.text.split("\n")[0] + tries;
+      }
+
+      // A body makes it a POST.
       async function fetchJson(url, body) {
         var init = { headers: { Accept: "application/json" } };
         if (body) {
@@ -509,18 +560,11 @@ export function renderAdminPage(leagues: string[], version: string): string {
           init.headers["Content-Type"] = "application/json";
           init.body = JSON.stringify(body);
         }
-        var res;
-        try {
-          res = await fetch(url, init);
-        } catch (e) {
-          throw new Error(SESSION_LOST);
-        }
-        if ((res.headers.get("content-type") || "").indexOf("application/json") === -1) {
-          throw new Error(SESSION_LOST);
-        }
-        var body = await res.json();
-        if (!res.ok) throw new Error(body.error || "HTTP " + res.status);
-        return body;
+        var answer = await send(url, init);
+        if (answer.type.indexOf("application/json") === -1) throw new Error(failureDetail(answer));
+        var json = JSON.parse(answer.text);
+        if (!answer.res.ok) throw new Error(json.error || "HTTP " + answer.status);
+        return json;
       }
 
       // parent is a select or an optgroup, which has no add().
@@ -690,34 +734,40 @@ export function renderAdminPage(leagues: string[], version: string): string {
         refresh();
       }
 
-      // One call to a scrape route. found and saved come from the
+      // One call to a scrape route, tried again after a pause when the network
+      // or the Worker failed (no answer, or a 5xx): a page that only just blows
+      // the CPU limit, or a hiccup of the league site, often passes the next
+      // time. Trying a save again is harmless: results are upserted, rankings
+      // replaced in one transaction. found and saved come from the
       // X-Scrape-Found and X-Scrape-Saved headers, null when absent. Throws
-      // only when the answer is not the scheduler's: the session is gone.
+      // only SESSION_LOST.
       async function scrape(scriptName, query, dryRun) {
         var params = new URLSearchParams(query);
         params.set("no_color", "true");
         params.set("dry_run", String(dryRun));
         var path = "/scrape_" + scriptName + "?" + params;
         requestEl.textContent = "GET " + path;
-        var res;
-        try {
-          res = await fetch(path);
-        } catch (e) {
-          throw new Error(SESSION_LOST);
+        var answer;
+        var attempt = 1;
+        for (;;) {
+          answer = await send(path, {});
+          var transient = answer.status === 0 || answer.status === 429 || answer.status >= 500;
+          if (!transient || attempt > RETRY_PAUSES.length || (walk && walk.stopped)) break;
+          badge("", statusLabel(answer.status) + ": trying again (" + (attempt + 1) + "/" + (RETRY_PAUSES.length + 1) + ")…");
+          await pause(RETRY_PAUSES[attempt - 1]);
+          if (walk && walk.stopped) break;
+          attempt++;
         }
-        var type = res.headers.get("content-type") || "";
-        if (type.indexOf("text/plain") === -1 && type.indexOf("application/json") === -1) {
-          throw new Error(SESSION_LOST);
-        }
-        var text = await res.text();
-        if (type.indexOf("application/json") !== -1) {
+        var text = answer.text;
+        if (answer.type.indexOf("application/json") !== -1) {
           try { text = JSON.parse(text).error || text; } catch (e) { /* keep the raw body */ }
         }
-        var found = res.headers.get("X-Scrape-Found");
-        var saved = res.headers.get("X-Scrape-Saved");
+        var found = answer.res ? answer.res.headers.get("X-Scrape-Found") : null;
+        var saved = answer.res ? answer.res.headers.get("X-Scrape-Saved") : null;
         return {
-          ok: res.ok,
-          status: res.status,
+          ok: Boolean(answer.res && answer.res.ok),
+          status: answer.status,
+          attempts: attempt,
           text: text,
           found: found === null ? null : Number(found),
           saved: saved === null ? null : Number(saved),
@@ -758,7 +808,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
             }
             bootstrapped = Boolean(register) && !dryRun;
           } else {
-            badge("fail", "HTTP " + answer.status + " · " + seconds);
+            badge("fail", statusLabel(answer.status) + " · " + seconds);
           }
           logEl.textContent = registered + answer.text;
         } catch (e) {
@@ -861,6 +911,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
       // last upsert wins, so the current season's labels must come last.
       async function bootstrapAll(league, name, competitions) {
         var failed = 0;
+        var inARow = 0;
         var done = 0;
         var journal = [];
         var registered = "";
@@ -896,10 +947,17 @@ export function renderAdminPage(leagues: string[], version: string): string {
             var reply = await scrape("infos", { league: league, competition: competition.source_id }, false);
             if (!reply.ok) {
               failed++;
-              journal.push("failed  " + competition.name + "  (HTTP " + reply.status + ": " + reply.text.split("\n")[0] + ")");
+              inARow++;
+              journal.push("failed  " + competition.name + "  (" + failureDetail(reply) + ")");
+            } else {
+              inARow = 0;
             }
             done = i + 1;
             show();
+            if (inARow >= MAX_FAILURES_IN_A_ROW) {
+              lost = tooManyFailures();
+              break;
+            }
             if (!walk.stopped) await pause(300);
           }
         } catch (e) {
@@ -970,6 +1028,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
       async function runWalk(scriptName, base, list, ask) {
         var noun = scriptName === "rankings" ? "teams" : "results";
         var tally = { saved: 0, skipped: 0, empty: 0, failed: 0 };
+        var inARow = 0;
         var journal = [];
         var done = 0;
         var lost = null;
@@ -991,7 +1050,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
         }
         function failure(combo, reply) {
           tally.failed++;
-          note("failed", combo, "HTTP " + reply.status + ": " + reply.text.split("\n")[0]);
+          note("failed", combo, failureDetail(reply));
         }
         function show() {
           walkBarEl.value = done;
@@ -1002,6 +1061,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
         try {
           for (var i = 0; i < list.length && !walk.stopped; i++) {
             var combo = list[i];
+            var failedBefore = tally.failed;
             var query = {
               league: base.league,
               competition: base.competition,
@@ -1019,7 +1079,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
             if (!reply.ok) {
               failure(combo, reply);
               if (asking) {
-                badge("fail", "HTTP " + reply.status);
+                badge("fail", statusLabel(reply.status));
                 logEl.textContent = reply.text;
                 var next = await decide(false);
                 if (next === "stop") break;
@@ -1058,6 +1118,11 @@ export function renderAdminPage(leagues: string[], version: string): string {
             }
             done = i + 1;
             show();
+            inARow = tally.failed > failedBefore ? inARow + 1 : 0;
+            if (inARow >= MAX_FAILURES_IN_A_ROW) {
+              lost = tooManyFailures();
+              break;
+            }
             // Be gentle on the league site, as the script is.
             if (!walk.stopped) await pause(300);
           }

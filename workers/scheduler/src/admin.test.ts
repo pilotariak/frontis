@@ -107,8 +107,23 @@ describe("/admin", () => {
     const html = renderAdminPage(["lcapb"], "1.0.0");
     expect(html).toContain(`<input type="radio" name="mode" id="mode-one" value="one" checked />`);
     expect(html).toContain(`<input type="radio" name="mode" id="mode-walk" value="walk" />`);
-    expect(html).toContain(`var found = res.headers.get("X-Scrape-Found");`);
+    expect(html).toContain(`var found = answer.res ? answer.res.headers.get("X-Scrape-Found") : null;`);
     expect(html).toContain(`} else if (reply.found === 0) {`);
+  });
+
+  test("tells an expired Access session from a Cloudflare error page, and tries a failed scrape again", () => {
+    const html = renderAdminPage(["lcapb"], "1.0.0");
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
+    expect(() => new Function(script)).not.toThrow();
+    expect(script).toContain(`init.redirect = "manual";`);
+    expect(script).toContain(`if (res.type === "opaqueredirect" || (!ours && res.status < 500 && res.status !== 429)) {`);
+    expect(script).toContain(`var transient = answer.status === 0 || answer.status === 429 || answer.status >= 500;`);
+
+    const source = /function edgeError[\s\S]*?\n {6}}\n/.exec(script)![0];
+    const edgeError = new Function(`${source}; return edgeError;`)() as (html: string) => string;
+    expect(edgeError("<title>Worker exceeded resource limits | frontis-scheduler.pilotariak.com | Cloudflare</title>"))
+      .toBe("Cloudflare error page: Worker exceeded resource limits (the Worker ran out of CPU time, crashed or timed out)");
+    expect(edgeError("")).toBe("Cloudflare error page (the Worker ran out of CPU time, crashed or timed out)");
   });
 
   test("offers a bootstrap card: the league row first, then /scrape_infos by source_id", () => {
