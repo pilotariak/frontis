@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { BadRequestError } from "./params";
-import { scrapeInfos, scrapeResults } from "./scraper";
+import { scrapeInfos, scrapeResults, scrapers } from "./scraper";
 import type { Env } from "./types";
 
 // ── Fake D1 ──────────────────────────────────────────────────────────────────
@@ -534,31 +534,94 @@ describe("scrapeResults", () => {
 });
 
 describe("scrapeInfos", () => {
-  test("fetches the form with a GET and returns the parsed dropdowns", async () => {
+  const INFOS = { league: "lcapb", competition: "20260501" };
+
+  // FORM_HTML parsed: what /scrape_infos returns and saves.
+  const FORM_OPTIONS = {
+    competitions: [{ sourceId: "20260501", name: "Championnat 2026" }],
+    specialties: [{ sourceId: "10", name: "Trinquet" }],
+    clubs: [{ sourceId: "7", name: "CA BEGLAIS" }],
+    categories: [{ sourceId: "3", name: "Seniors" }],
+    phases: [{ sourceId: "4", name: "Finale" }],
+  };
+
+  /** The URL and init of a fetch call, with the query split out. */
+  const request = (call: [string | URL | Request, RequestInit?]) => {
+    const url = new URL(String(call[0]));
+    return { base: `${url.origin}${url.pathname}`, params: url.searchParams, init: call[1] };
+  };
+
+  // A GET with every form field (InVoir among them) made the site answer with
+  // the whole results page, which blew the CPU limit (#118): InCompet must be
+  // the only field.
+  test.each([
+    ["a competition", "20260501"],
+    ["the site default competition", ""],
+  ])("reads %s from a GET whose query holds InCompet only", async (_, competition) => {
     serve(FORM_HTML);
     const { db, batches } = fakeDb([]);
 
-    const options = await scrapeInfos(envWith(db), { ...ALL, competition: "20260501" }, true);
+    const options = await scrapeInfos(envWith(db), { league: "lcapb", competition }, true);
 
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toStartWith("https://lcapb.euskalpilota.fr/resultats.php?");
-    expect(new URL(String(url)).searchParams.get("InCompet")).toBe("20260501");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { base, params, init } = request(fetchMock.mock.calls[0]);
+    expect(base).toBe(scrapers.lcapb!.baseUrl);
+    expect([...params.keys()]).toEqual(["InCompet"]);
+    expect(params.get("InCompet")).toBe(competition);
+    for (const field of ["InVoir", "InSpec", "InCat", "InPhase"]) expect(params.has(field)).toBe(false);
     expect(init?.method).toBeUndefined();
-    expect(options).toEqual({
-      competitions: [{ sourceId: "20260501", name: "Championnat 2026" }],
-      specialties: [{ sourceId: "10", name: "Trinquet" }],
-      clubs: [{ sourceId: "7", name: "CA BEGLAIS" }],
-      categories: [{ sourceId: "3", name: "Seniors" }],
-      phases: [{ sourceId: "4", name: "Finale" }],
-    });
+    expect(options).toEqual(FORM_OPTIONS);
     expect(batches).toEqual([]);
+  });
+
+  test.each(["lcapb", "lidfpb", "ctpb", "llpb"])("returns and saves the same options for %s", async (league) => {
+    serve(FORM_HTML);
+    const { db, batches } = fakeDb([]);
+
+    const options = await scrapeInfos(envWith(db), { league, competition: "20260501" }, false);
+
+    // CTPB primes a session first; the form GET is always the last request.
+    const { base, params } = request(fetchMock.mock.calls.at(-1)!);
+    expect(base).toBe(scrapers[league]!.baseUrl);
+    expect([...params.entries()]).toEqual([["InCompet", "20260501"]]);
+    expect(options).toEqual(FORM_OPTIONS);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].map((s) => s.bindings)).toEqual([
+      ["10", "Trinquet"],
+      ["7", "CA BEGLAIS"],
+      ["3", "Seniors"],
+      ["4", "Finale"],
+      ["20260501", "Championnat 2026"],
+    ]);
+  });
+
+  test("primes the CTPB session before the form GET, and sends its cookie with it", async () => {
+    fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) =>
+      init?.redirect === "manual"
+        ? new Response(null, { status: 302, headers: { "Set-Cookie": "PHPSESSID=s3ss10n; path=/" } })
+        : new Response(FORM_HTML, { status: 200 })
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { db } = fakeDb([]);
+
+    const options = await scrapeInfos(envWith(db), { league: "ctpb", competition: "20260104" }, true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const prime = request(fetchMock.mock.calls[0]);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(scrapers.ctpb!.baseUrl);
+    expect(prime.init?.redirect).toBe("manual");
+    const form = request(fetchMock.mock.calls[1]);
+    expect(form.base).toBe(scrapers.ctpb!.baseUrl);
+    expect([...form.params.entries()]).toEqual([["InCompet", "20260104"]]);
+    expect((form.init?.headers as Record<string, string>)["Cookie"]).toBe("PHPSESSID=s3ss10n");
+    expect(options).toEqual(FORM_OPTIONS);
   });
 
   test("upserts every option in a single batch with the right conflict target", async () => {
     serve(FORM_HTML);
     const { db, batches } = fakeDb([]);
 
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
 
     expect(batches).toHaveLength(1);
     const normalised = batches[0].map((s) => [s.sql.replace(/\s+/g, " "), s.bindings]);
@@ -582,7 +645,7 @@ describe("scrapeInfos", () => {
         `<option value="20260501">Championnat 2026</option>`
     ));
     const { db, batches } = fakeDb([]);
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
 
     // Replay the batch on real SQLite, with the table as the migrations leave it.
     const sqlite = new Database(":memory:");
@@ -606,22 +669,38 @@ describe("scrapeInfos", () => {
 
     // A known competition renamed onto a taken name keeps its own name.
     serve(FORM_HTML.replace("Championnat 2026", "Championnat 2025"));
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
     replay();
     expect(competitionRows()).toContainEqual({ source_id: "20260501", name: "Championnat 2026" });
   });
 
-  test("skips the batch entirely when the form is empty", async () => {
+  // No competition list means no form (session not primed, error page, markup
+  // change): an error, where saving nothing used to pass for success.
+  test("fails on a page without a competition list, and saves nothing", async () => {
     serve("<html></html>");
+    const { db, statements, batches } = fakeDb([]);
+    await expect(scrapeInfos(envWith(db), INFOS, false)).rejects.toThrow(
+      "[LCAPB] Results form not found on resultats.php (HTTP 200)"
+    );
+    expect(statements).toEqual([]);
+    expect(batches).toEqual([]);
+  });
+
+  test("surfaces upstream HTTP failures", async () => {
+    fetchMock = mock(async () => new Response("nope", { status: 503, statusText: "Service Unavailable" }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     const { db, batches } = fakeDb([]);
-    await scrapeInfos(envWith(db), ALL, false);
+    await expect(scrapeInfos(envWith(db), INFOS, false)).rejects.toThrow(
+      "[LCAPB] Failed to fetch results form: Service Unavailable"
+    );
     expect(batches).toEqual([]);
   });
 
   test("rejects an unsupported league", async () => {
     const { db } = fakeDb([]);
-    await expect(scrapeInfos(envWith(db), { ...ALL, league: "xyz" }, true)).rejects.toThrow(
+    await expect(scrapeInfos(envWith(db), { ...INFOS, league: "xyz" }, true)).rejects.toThrow(
       "Unsupported league: xyz"
     );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

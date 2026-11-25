@@ -20,11 +20,6 @@ export interface FormOptions {
   phases: FormOption[];
 }
 
-export interface ScrapeData {
-  formOptions: FormOptions;
-  results: ScrapedResult[];
-}
-
 /** One player of a ranked team, as printed on classements.php:
  *  "(000102 - 01-339-002) GARAT Beñat (E)". */
 export interface ScrapedRankedPlayer {
@@ -72,10 +67,12 @@ export interface RankingSource {
 export interface LeagueScraper {
   /** The league site's results page, stored in the `leagues` row. */
   readonly baseUrl: string;
-  fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData>;
+  /** The results of a competition, filtered by specialty, category and phase (source_ids). */
+  fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]>;
   /**
    * The results form of a competition (source_id): the competitions the site
-   * lists, and the specialties, categories and phases it offers for this one.
+   * lists, and the specialties, clubs, categories and phases it offers for this
+   * one. An empty competition reads the form of the site's default competition.
    */
   fetchResultsForm(competition: string): Promise<FormOptions>;
   /** Open the end-of-championship rankings page of a competition (source_id). */
