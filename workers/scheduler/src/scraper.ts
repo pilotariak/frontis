@@ -82,15 +82,28 @@ async function saveFormOptions(db: D1Database, options: FormOptions): Promise<vo
   if (statements.length > 0) await db.batch(statements);
 }
 
+/** The parameters of /scrape_infos: a league, and a competition source_id ("" for the site default). */
+export type InfosOptions = Pick<ScraperOptions, "league" | "competition">;
+
+/**
+ * Read the dropdowns of a competition's results form and, unless dryRun, save
+ * them.
+ *
+ * Only the form is fetched (`fetchResultsForm`, a GET with the competition
+ * alone), never the results page: the dropdowns are the same on both, and a
+ * results page (several MB on CTPB) blows the 10 ms CPU limit. A specialty,
+ * category or phase only ever filtered the results, so none is taken. A page
+ * without a competition list is an error, not an empty save.
+ */
 export async function scrapeInfos(
   env: Env,
-  options: ScraperOptions,
+  options: InfosOptions,
   dryRun: boolean
 ): Promise<FormOptions> {
   const scraper = scrapers[options.league.toLowerCase()];
   if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
 
-  const { formOptions } = await scraper.fetchData(options, false);
+  const formOptions = await scraper.fetchResultsForm(options.competition);
 
   if (!dryRun) {
     const db = getDatabase(env, options.league);
@@ -343,7 +356,7 @@ export async function scrapeResults(
   const db = getDatabase(env, options.league);
   const resolved = await resolveSourceIds(db, scraper, options);
 
-  const { results: scraped } = await scraper.fetchData(resolved, true);
+  const scraped = await scraper.fetchResults(resolved);
 
   // The upstream site filters results by competition only — it ignores the
   // posted specialty/category and returns the competition's default block.

@@ -8,7 +8,6 @@ import type {
   RankingSource,
   ScrapedRankedPlayer,
   ScrapedRanking,
-  ScrapeData,
   ScrapeOptions,
 } from "./types";
 
@@ -17,12 +16,13 @@ import type {
  * run the same `resultats.php` application and emit the same markup).
  *
  * CPU budget matters here: on the Workers Free plan an invocation gets 10 ms of
- * CPU, and a full-season results page is up to ~500 KB of HTML. Three choices
- * keep parsing cheap:
+ * CPU, and a full-season results page is up to ~500 KB of HTML (several MB on
+ * CTPB). Three choices keep parsing cheap:
  *   - `cheerio/slim` parses with htmlparser2 instead of parse5 (5-7x faster on
  *     these pages, identical extraction).
- *   - The form dropdowns are only parsed when the caller asked for them; a
- *     results fetch skips them entirely.
+ *   - The form dropdowns are read from the form alone (`fetchResultsForm`, a
+ *     GET with `InCompet` only, about 25 KB), never from a results page, and a
+ *     results fetch never parses them.
  *   - Result rows are walked on the raw DOM nodes rather than through cheerio
  *     selectors per cell, and nothing is logged per row.
  */
@@ -38,7 +38,7 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     return { "User-Agent": this.userAgent };
   }
 
-  async fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData> {
+  async fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]> {
     const body = new URLSearchParams({
       InSel: "",
       InCompet: options.competition,
@@ -54,37 +54,35 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
 
     const headers = await this.requestHeaders();
 
-    // GET populates the SELECT dropdowns; POST submits the form and returns results.
-    const response = extractResults
-      ? await fetch(this.baseUrl, {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
-          body: body.toString(),
-        })
-      : await fetch(`${this.baseUrl}?${body.toString()}`, { headers });
+    // The POST submits the form and returns the results; the dropdowns of the
+    // page it answers are not parsed (see fetchResultsForm).
+    const response = await fetch(this.baseUrl, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
 
     if (!response.ok) {
       throw new Error(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`);
     }
 
     const html = await response.text();
-    const $ = load(html);
-
-    // Callers of a results fetch (`scrapeResults`) discard the form options, so
-    // parsing the dropdowns there would only burn CPU.
-    const formOptions = extractResults ? EMPTY_FORM_OPTIONS : parseFormOptions($);
-    const results = extractResults ? parseResults($, this.leagueName) : [];
+    const results = parseResults(load(html), this.leagueName);
 
     console.log(
-      `[${this.leagueName}] ${extractResults ? "POST" : "GET"} ${this.baseUrl} status=${response.status} html=${html.length}B results=${results.length}`
+      `[${this.leagueName}] POST ${this.baseUrl} status=${response.status} html=${html.length}B results=${results.length}`
     );
 
-    return { formOptions, results };
+    return results;
   }
 
   async fetchResultsForm(competition: string): Promise<FormOptions> {
-    // A GET with InCompet alone returns the form only (about 20 KB), not the
-    // results: cheap enough to check a request before the results POST.
+    // A GET with InCompet alone returns the form only (about 25 KB), not the
+    // results. A GET with every form field, InVoir included, is read as a form
+    // submission and answers the full results page (several MB on CTPB). An
+    // empty InCompet returns the form of the site's default competition. Cheap
+    // enough to check a request before the results POST, and it is all that
+    // /scrape_infos reads.
     const headers = await this.requestHeaders();
     const res = await fetch(`${this.baseUrl}?${new URLSearchParams({ InCompet: competition })}`, { headers });
     if (!res.ok) {
@@ -150,14 +148,6 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     };
   }
 }
-
-const EMPTY_FORM_OPTIONS: FormOptions = {
-  competitions: [],
-  specialties: [],
-  clubs: [],
-  categories: [],
-  phases: [],
-};
 
 export function parseFormOptions($: CheerioAPI): FormOptions {
   const parseSelect = (name: string): FormOption[] => {
