@@ -208,7 +208,8 @@ unit tests mock `fetch()`, it uses `fetch()`.
    per-competition loop of the bootstrap guide adds nothing. `competition=2026` loads one season,
    `competition=2026-1` only what that competition offers.
 3. Load results one specialty and category at a time: `/scrape_results` with the database ids of the
-   competition, specialty and category, or the admin page's "One combination" mode.
+   competition, specialty and category, or the admin page's "One combination" mode. There, "All
+   specialties" or "All categories" walks the matching combinations, one request each.
 
 ## Outside this repository
 

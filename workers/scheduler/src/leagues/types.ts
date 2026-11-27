@@ -67,6 +67,12 @@ export interface RankingSource {
 export interface LeagueScraper {
   /** The league site's results page, stored in the `leagues` row. */
   readonly baseUrl: string;
+  /**
+   * Whether fetchResults takes one specialty and one category at a time and
+   * rejects "0" (every one) for either: the site has no page for every
+   * category. Callers that want them all walk the combinations instead.
+   */
+  readonly resultsOneAtATime?: boolean;
   /** The results of a competition, filtered by specialty, category and phase (source_ids). */
   fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]>;
   /**

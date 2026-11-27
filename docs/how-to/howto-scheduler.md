@@ -46,7 +46,9 @@ The page has two modes:
    under **Refreshed nightly**. The others follow, newest season first.
 3. Choose the specialty and the category. The menus list only what the league site offers for this
    competition, read live from its form. **All specialties** and **All categories** send `0`.
-   A choice shown greyed out is offered by the site but missing from the database:
+   For `ffpb`, whose match results come one specialty and one category at a time, they instead walk
+   the matching combinations, one request each, as [Every combination](#every-combination) does:
+   the button reads **Review N combinations**. A choice shown greyed out is offered by the site but missing from the database:
    [bootstrap the league](#bootstrap-a-league) with this competition as its scope.
 4. Leave **Dry run** checked and click **Preview**. The output panel shows the request it sent and
    the scheduler's plain-text answer.

@@ -153,6 +153,34 @@ describe("/admin", () => {
     expect(script).toContain(`if (inARow >= MAX_FAILURES_IN_A_ROW && done < competitions.length) {`);
   });
 
+  test("walks the matching combinations for an All choice of a league that takes one at a time", () => {
+    const script = /<script>([\s\S]*?)<\/script>/.exec(renderAdminPage(["ffpb"], "1.0.0"))![1]!;
+    const pick = (re: RegExp) => re.exec(script)![0];
+    const sources =
+      pick(/function hasId\(item\) \{[^\n]*\}\n/) +
+      pick(/function combinations\(\) \{[\s\S]*?\n {6}\}\n/) +
+      pick(/function expanded\(\) \{[\s\S]*?\n {6}\}\n/);
+    const make = new Function("offered", "specialtyEl", "categoryEl", `${sources}; return expanded;`);
+    const walked = (oneAtATime: boolean, specialty: string, category: string) => {
+      const offered = {
+        oneAtATime,
+        specialties: [{ id: 29, name: "Pala" }, { id: 30, name: "Paleta" }, { id: null, name: "Xare" }],
+        categories: [{ id: 1, name: "Seniors" }, { id: 2, name: "Juniors" }],
+      };
+      const list = make(offered, { value: specialty }, { value: category })() as { label: string }[] | null;
+      return list && list.map((combo) => combo.label);
+    };
+
+    expect(walked(true, "29", "0")).toEqual(["Pala · Seniors", "Pala · Juniors"]);
+    expect(walked(true, "0", "2")).toEqual(["Pala · Juniors", "Paleta · Juniors"]);
+    expect(walked(true, "0", "0")).toEqual(["Pala · Seniors", "Pala · Juniors", "Paleta · Seniors", "Paleta · Juniors"]);
+    // One request does it: a single combination, a choice still missing, or a league that takes "0".
+    expect(walked(true, "29", "1")).toBeNull();
+    expect(walked(true, "", "0")).toBeNull();
+    expect(walked(false, "29", "0")).toBeNull();
+    expect(script).toContain(`var subset = mode() === "walk" ? combinations() : expanded();`);
+  });
+
   test("offers a bootstrap card: the league row first, then /scrape_infos by source_id", () => {
     const html = renderAdminPage(["lcapb"], "1.0.0");
     expect(html).toContain(`<details class="card" id="bootstrap">`);
@@ -228,7 +256,18 @@ describe("/admin/options", () => {
     expect(await body(res)).toEqual({
       specialties: [{ id: 146, name: "Main nue" }, { id: null, name: "Xare" }],
       categories: [{ id: 1575, name: "1ère Série" }],
+      oneAtATime: false,
     });
+  });
+
+  test("results: tells the page FFPB takes one specialty and one category at a time", async () => {
+    spyOn(scrapers.ffpb!, "fetchResultsForm").mockResolvedValue(form(["20260501"]));
+    const res = await get(
+      "/admin/options?league=ffpb&competition=502&script=results",
+      envWith({ DB_LEAGUE_FFPB: leagueDb().db })
+    );
+    expect(res.status).toBe(200);
+    expect(await body(res)).toMatchObject({ oneAtATime: true });
   });
 
   test("rankings: reads the rankings page, not the results form", async () => {
@@ -251,6 +290,7 @@ describe("/admin/options", () => {
     expect(await body(res)).toEqual({
       specialties: [{ id: 146, name: "Main nue" }],
       categories: [{ id: 1575, name: "1ère Série" }],
+      oneAtATime: false,
     });
   });
 
