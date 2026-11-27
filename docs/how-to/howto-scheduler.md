@@ -76,7 +76,12 @@ To save every combination without previews, uncheck **Ask before each save** and
 **Save N combinations**: each one is scraped and saved in one request. The page waits 300 ms
 between combinations, as the script does, to spare the league site.
 
-Match results already in D1 are not inserted twice, so saving them again reports `0 saved`.
+Match results already in D1 are not inserted twice, so saving them again reports `0 saved`. A
+stored result is updated in place when the site gives it a new score, lineup, pool or pool phase,
+and then counts as saved: a match saved before it was played gets its score the next time its
+combination is saved, and the first save after migration `0014` counts every stored result it
+gives a pool. A score or player the site no longer gives is kept as stored and does not count as
+saved.
 
 ### Bootstrap a league
 
@@ -153,6 +158,15 @@ Fetches the form dropdowns from the league website and returns all available
 
 Run this first to discover the IDs you need for `/scrape_results`.
 
+The worker reads the results form alone: a GET of `resultats.php?InCompet=<source_id>`, about
+25 KB, never the results page. On CTPB it first opens a session (`PHPSESSID`). The competitions
+list every competition of the site; the specialties, categories and phases are the ones the
+competition offers.
+
+The route takes no `specialty`, `category` or `phase`: they filter results, not the dropdowns, and
+it ignores them. A page without a competition list (session not opened, error page, changed markup)
+answers HTTP 500 and saves nothing, as does a league site that does not answer.
+
 **Required parameters**
 
 | Parameter | Description                                 |
@@ -161,10 +175,10 @@ Run this first to discover the IDs you need for `/scrape_results`.
 
 **Optional parameters**
 
-| Parameter     | Default | Description                                            |
-| ------------- | ------- | ------------------------------------------------------ |
-| `competition` | `""`    | Filter dropdowns to a specific competition `source_id` |
-| `dry_run`     | `false` | If `true`, fetch and display results but do not save   |
+| Parameter     | Default | Description                                                                     |
+| ------------- | ------- | ------------------------------------------------------------------------------- |
+| `competition` | `""`    | Competition `source_id` whose dropdowns to read; empty for the site default one |
+| `dry_run`     | `false` | If `true`, fetch and display the dropdowns but do not save                      |
 
 For `ffpb`, `competition` is a season (`2026`) or a competition `source_id` (`2026-1`), and its
 season's values are loaded. Without it, every season the site lists is loaded. `ffpb` loads no club
@@ -173,7 +187,7 @@ and no phase. See [FFPB](../reference/leagues.md#ffpb).
 **Examples**
 
 ```bash
-# List all available form options for LCAPB
+# List the form options of the site's default competition for LCAPB
 curl "http://127.0.0.1:8787/scrape_infos?league=lcapb"
 
 # Scope to a specific competition
@@ -454,9 +468,12 @@ CPU time** (the Paid plan allows 30 s, 15 min for a daily cron). Hitting it surf
 under that budget:
 
 - **Parsing is cheap.** Pages are parsed with `cheerio/slim` (htmlparser2), result rows are
-  walked on raw DOM nodes, the form dropdowns are only parsed by `/scrape_infos`, and nothing
-  is logged per row. A full-season page (~500 KB, ~600 results) parses in roughly 10 ms on a
-  laptop versus ~80 ms before.
+  walked on raw DOM nodes, and nothing is logged per row. A full-season page (~500 KB, ~600
+  results) parses in roughly 10 ms on a laptop versus ~80 ms before.
+- **The form is read alone.** `/scrape_infos`, and the checks of `/scrape_results` and of the
+  admin page, read the dropdowns from a GET with `InCompet` only, about 25 KB. A GET with every
+  form field returns the full results page instead, several MB on CTPB: parsing it is what pushed
+  `/scrape_infos` far over the limit.
 - **One invocation per competition.** The cron does not scrape in-process: each self-call
   through the service binding is a separate invocation with its own CPU budget, so the cost of
   one competition is never added to the others', and one competition exceeding the limit does
@@ -473,15 +490,15 @@ When running `bun run dev` the `SELF` binding points at the same dev session, so
 
 ### Filter values (`competition`, `specialty`, `category`, `phase`)
 
-| Value | Endpoint          | Meaning                                    |
-| ----- | ----------------- | ------------------------------------------ |
-| `0`   | `/scrape_results` | No filter — fetch all                      |
-| `""`  | `/scrape_infos`   | No filter — fetch all form options         |
-| `N`   | `/scrape_results` | Internal DB `id` — resolved to `source_id` |
-| ID    | `/scrape_infos`   | `source_id` string used as form value      |
+| Value | Endpoint          | Meaning                                                  |
+| ----- | ----------------- | -------------------------------------------------------- |
+| `0`   | `/scrape_results` | No filter — fetch all                                    |
+| `""`  | `/scrape_infos`   | `competition` only: the site's default competition       |
+| `N`   | `/scrape_results` | Internal DB `id` — resolved to `source_id`               |
+| ID    | `/scrape_infos`   | `competition` only: `source_id` sent as `InCompet` alone |
 
-> **Note:** `/scrape_infos` still accepts `source_id` values directly (they are passed
-> straight to the upstream form). `/scrape_results` accepts internal DB `id` values and
+> **Note:** `/scrape_infos` takes a competition `source_id`, sent as is to the upstream form,
+> and no specialty, category or phase. `/scrape_results` accepts internal DB `id` values and
 > resolves them to `source_id`s before hitting the upstream website.
 
 ### Output flags

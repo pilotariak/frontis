@@ -108,6 +108,30 @@ describe("fetch", () => {
     expect(await res.text()).toBe("Error: missing required parameter: league");
   });
 
+  test.each([
+    ["&competition=20260501&specialty=10&category=3&phase=4", "20260501"],
+    ["", ""],
+  ])("/scrape_infos passes the league and competition only (query %p)", async (query, competition) => {
+    const empty = { competitions: [], specialties: [], clubs: [], categories: [], phases: [] };
+    const scrapeInfos = spyOn(scraper, "scrapeInfos").mockResolvedValue(empty);
+
+    const res = await get(`/scrape_infos?league=lcapb${query}&dry_run=true&no_color=true`, envWith({}));
+
+    expect(res.status).toBe(200);
+    expect(scrapeInfos).toHaveBeenCalledTimes(1);
+    expect(scrapeInfos.mock.calls[0][1]).toEqual({ league: "lcapb", competition });
+    expect(scrapeInfos.mock.calls[0][2]).toBe(true);
+  });
+
+  test("/scrape_infos reports a missing results form as an error", async () => {
+    spyOn(scraper, "scrapeInfos").mockRejectedValue(
+      new Error("[LCAPB] Results form not found on resultats.php (HTTP 200)")
+    );
+    const res = await get("/scrape_infos?league=lcapb&no_color=true", envWith({}));
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe("Error: [LCAPB] Results form not found on resultats.php (HTTP 200)");
+  });
+
   test("/scrape_results lists every missing parameter", async () => {
     const res = await get("/scrape_results?league=lcapb", envWith({}));
     expect(res.status).toBe(400);

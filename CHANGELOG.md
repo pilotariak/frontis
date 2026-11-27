@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.14.0](https://github.com/pilotariak/frontis/compare/v0.13.0...v0.14.0) (2026-11-25)
+
+
+### 🚀 Features
+
+* **results:** store the pool of each match from the league site ([#115](https://github.com/pilotariak/frontis/issues/115)) ([ed5aa08](https://github.com/pilotariak/frontis/commit/ed5aa089622bcef9edc24e9cd5544e70289b0ccc)), closes [#114](https://github.com/pilotariak/frontis/issues/114)
+
+
+### 🐛 Bug Fixes
+
+* **gateway:** move rate limiting and supergraph cache off workers kv ([#104](https://github.com/pilotariak/frontis/issues/104)) ([7f5a415](https://github.com/pilotariak/frontis/commit/7f5a415dc5dfced364133d14ed552a9bc597b005))
+* **scheduler:** read only the results form in /scrape_infos ([#119](https://github.com/pilotariak/frontis/issues/119)) ([6026605](https://github.com/pilotariak/frontis/commit/60266058c3d2e96dd60f952322385ab21c1b5e16)), closes [#118](https://github.com/pilotariak/frontis/issues/118)
+* **scheduler:** retry admin scrapes killed by the cpu limit ([#117](https://github.com/pilotariak/frontis/issues/117)) ([28865cc](https://github.com/pilotariak/frontis/commit/28865cc3357b6c51ab03975597c058a87cf6e515))
+* **scheduler:** update scores and lineups on re-scrape ([#116](https://github.com/pilotariak/frontis/issues/116)) ([3af1f5b](https://github.com/pilotariak/frontis/commit/3af1f5b8e030ad2dc5879bf0e7733463b0b0dec4))
+
 ## [0.13.0](https://github.com/pilotariak/frontis/compare/v0.12.0...v0.13.0) (2026-11-18)
 
 

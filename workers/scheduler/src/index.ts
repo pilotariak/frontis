@@ -65,13 +65,13 @@ export default {
         return new Response(`${red("Error: missing required parameter: league")}`, { status: 400, ...TEXT });
       }
 
+      // A competition source_id, or "" for the site's default competition. The
+      // route takes no specialty, category or phase: they only filter results,
+      // never the dropdowns, so any given is ignored.
       const competition = url.searchParams.get("competition") ?? "";
-      const specialty   = url.searchParams.get("specialty")   ?? "0";
-      const category    = url.searchParams.get("category")    ?? "0";
-      const phase       = url.searchParams.get("phase")       ?? "0";
 
       try {
-        const fo = await scrapeInfos(env, { league, competition, specialty, category, phase }, dryRun);
+        const fo = await scrapeInfos(env, { league, competition }, dryRun);
 
         const fmt = (items: { sourceId: string; name: string }[]) =>
           items.length
@@ -359,7 +359,8 @@ export default {
 ${bold("/admin")}           — web page to bootstrap a league, or to pick a league, competition, specialty and category, then run /scrape_results or /scrape_rankings
   ${gray(`${base}/admin`)}
 
-${bold("/scrape_infos")}   — fetch form options (competitions, specialties, clubs, categories, phases)
+${bold("/scrape_infos")}   — fetch form options (competitions, specialties, clubs, categories, phases) of a competition (source_id, none = site default)
+  ${gray(`${base}/scrape_infos?league=lcapb`)}
   ${gray(`${base}/scrape_infos?league=lcapb&competition=20260501`)}
   ${gray(`${base}/scrape_infos?league=lcapb&competition=20260501&dry_run=true`)}
 

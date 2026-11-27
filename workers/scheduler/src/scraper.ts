@@ -84,15 +84,28 @@ async function saveFormOptions(db: D1Database, options: FormOptions): Promise<vo
   if (statements.length > 0) await db.batch(statements);
 }
 
+/** The parameters of /scrape_infos: a league, and a competition source_id ("" for the site default). */
+export type InfosOptions = Pick<ScraperOptions, "league" | "competition">;
+
+/**
+ * Read the dropdowns of a competition's results form and, unless dryRun, save
+ * them.
+ *
+ * Only the form is fetched (`fetchResultsForm`, a GET with the competition
+ * alone), never the results page: the dropdowns are the same on both, and a
+ * results page (several MB on CTPB) blows the 10 ms CPU limit. A specialty,
+ * category or phase only ever filtered the results, so none is taken. A page
+ * without a competition list is an error, not an empty save.
+ */
 export async function scrapeInfos(
   env: Env,
-  options: ScraperOptions,
+  options: InfosOptions,
   dryRun: boolean
 ): Promise<FormOptions> {
   const scraper = scrapers[options.league.toLowerCase()];
   if (!scraper) throw new Error(`Unsupported league: ${options.league}`);
 
-  const { formOptions } = await scraper.fetchData(options, false);
+  const formOptions = await scraper.fetchResultsForm(options.competition);
 
   if (!dryRun) {
     const db = getDatabase(env, options.league);
@@ -155,12 +168,21 @@ async function resolveSourceIds(
  * keeps the subrequest count flat and small:
  *   1. one SELECT per lookup table to preload name → id maps,
  *   2. one db.batch() to INSERT OR IGNORE any missing clubs/categories,
- *   3. one db.batch() of INSERT OR IGNORE statements for the results, plus
- *      the UPDATEs flipping `enabled` on the competition, specialties and
- *      categories those results belong to.
+ *   3. one db.batch() of upserts for the results, plus the UPDATEs flipping
+ *      `enabled` on the competition, specialties and categories those
+ *      results belong to.
  * The results table carries a UNIQUE(competition_id, specialty_id,
- * category_id, date_match, club_a_id, club_b_id, phase) constraint, so
- * INSERT OR IGNORE replaces the former SELECT-then-INSERT existence check.
+ * category_id, date_match, club_a_id, club_b_id, phase) constraint, so the
+ * upsert replaces the former SELECT-then-INSERT existence check. A row already
+ * stored gets the pool and pool phase the site gives (rows saved before
+ * migration 0014 have none), and the score and lineup the site gives: a row
+ * saved before its match was played gets its score on the next re-scrape. A
+ * score or player the site no longer gives is kept as stored, never erased.
+ * The upsert counts a stored row only when one of those columns changes.
+ *
+ * SQLite treats NULLs as distinct in a UNIQUE key, so a row whose date_match
+ * or phase is NULL never conflicts. The parser always binds strings ("" when
+ * the cell is empty), so only rows stored that way by older code are affected.
  */
 async function saveResults(db: D1Database, options: ScraperOptions, results: ScrapedResult[]): Promise<number> {
   if (results.length === 0) return 0;
@@ -224,13 +246,40 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   // Only needed when no single specialty was requested; resolve per row by name.
   const specialtyIds = sharedSpecialty ? null : await buildMap("specialties");
 
+  // COALESCE keeps a stored score or player when the site gives none. The WHERE
+  // compares each stored value with the value the SET would write, so an
+  // unchanged row stays unchanged and meta.changes stays 0 for it.
   const insertResult = db.prepare(
-    `INSERT OR IGNORE INTO results (
+    `INSERT INTO results (
       competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id,
-      scores, phase,
+      scores, phase, pool, pool_phase,
       club_a_player1_name, club_a_player1_number, club_a_player2_name, club_a_player2_number,
       club_b_player1_name, club_b_player1_number, club_b_player2_name, club_b_player2_number
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
+    DO UPDATE SET
+      scores = COALESCE(excluded.scores, results.scores),
+      pool = excluded.pool,
+      pool_phase = excluded.pool_phase,
+      club_a_player1_name = COALESCE(excluded.club_a_player1_name, results.club_a_player1_name),
+      club_a_player1_number = COALESCE(excluded.club_a_player1_number, results.club_a_player1_number),
+      club_a_player2_name = COALESCE(excluded.club_a_player2_name, results.club_a_player2_name),
+      club_a_player2_number = COALESCE(excluded.club_a_player2_number, results.club_a_player2_number),
+      club_b_player1_name = COALESCE(excluded.club_b_player1_name, results.club_b_player1_name),
+      club_b_player1_number = COALESCE(excluded.club_b_player1_number, results.club_b_player1_number),
+      club_b_player2_name = COALESCE(excluded.club_b_player2_name, results.club_b_player2_name),
+      club_b_player2_number = COALESCE(excluded.club_b_player2_number, results.club_b_player2_number)
+    WHERE results.pool IS NOT excluded.pool
+      OR results.pool_phase IS NOT excluded.pool_phase
+      OR results.scores IS NOT COALESCE(excluded.scores, results.scores)
+      OR results.club_a_player1_name IS NOT COALESCE(excluded.club_a_player1_name, results.club_a_player1_name)
+      OR results.club_a_player1_number IS NOT COALESCE(excluded.club_a_player1_number, results.club_a_player1_number)
+      OR results.club_a_player2_name IS NOT COALESCE(excluded.club_a_player2_name, results.club_a_player2_name)
+      OR results.club_a_player2_number IS NOT COALESCE(excluded.club_a_player2_number, results.club_a_player2_number)
+      OR results.club_b_player1_name IS NOT COALESCE(excluded.club_b_player1_name, results.club_b_player1_name)
+      OR results.club_b_player1_number IS NOT COALESCE(excluded.club_b_player1_number, results.club_b_player1_number)
+      OR results.club_b_player2_name IS NOT COALESCE(excluded.club_b_player2_name, results.club_b_player2_name)
+      OR results.club_b_player2_number IS NOT COALESCE(excluded.club_b_player2_number, results.club_b_player2_number)`
   );
 
   const statements: D1PreparedStatement[] = [];
@@ -256,7 +305,7 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     statements.push(
       insertResult.bind(
         competition.id, specialtyId, categoryId, res.date_match,
-        clubAId, clubBId, res.scores ?? null, res.phase,
+        clubAId, clubBId, res.scores ?? null, res.phase, res.pool, res.pool_phase,
         res.club_a_player1_name ?? null, res.club_a_player1_number ?? null,
         res.club_a_player2_name ?? null, res.club_a_player2_number ?? null,
         res.club_b_player1_name ?? null, res.club_b_player1_number ?? null,
@@ -287,8 +336,9 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     enableWhereIdIn("categories", usedCategoryIds),
   ];
 
-  // One subrequest for the whole batch; INSERT OR IGNORE reports changes=0 for
-  // rows that already existed, so meta.changes sums to the newly inserted count.
+  // One subrequest for the whole batch; the upsert reports changes=0 for rows
+  // that already existed with nothing new, so meta.changes sums to the rows
+  // inserted plus the rows whose score, lineup, pool or pool phase changed.
   // The trailing UPDATEs are excluded from that sum.
   const batchResults = await db.batch([...statements, ...enableFlags]);
   return batchResults
@@ -308,7 +358,7 @@ export async function scrapeResults(
   const db = getDatabase(env, options.league);
   const resolved = await resolveSourceIds(db, scraper, options);
 
-  const { results: scraped } = await scraper.fetchData(resolved, true);
+  const scraped = await scraper.fetchResults(resolved);
 
   // The upstream site filters results by competition only — it ignores the
   // posted specialty/category and returns the competition's default block.

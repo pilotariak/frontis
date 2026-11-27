@@ -65,6 +65,21 @@ type Result @key(fields: "id") {
   winner: Club
   "Tournament phase (e.g. Finale, 1/2 Finale, Poule)."
   phase: String
+  """
+  Pool the match belongs to: the N of the "Poules N" section the league site
+  lists it under. Pool numbers start again in each pool phase (see
+  `poolPhase`) and in each group ("GROUPE A", "GROUPE B") of a category; the
+  group is not stored. Null outside the pool round (barrages, knockout rounds)
+  and on results not scraped again since pools were added.
+  """
+  pool: Int
+  """
+  Pool phase of the match: the N of the "Poule phase N" heading, when the
+  league site splits the pool round of a category into several phases (pool
+  numbers start again in each phase). Null when it names a single pool phase,
+  and outside the pool round.
+  """
+  poolPhase: Int
   "Players lineup for club A."
   clubALineup: ClubLineup
   "Players lineup for club B."

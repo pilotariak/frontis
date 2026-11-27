@@ -59,6 +59,8 @@ function row(overrides: Partial<ResultRow> = {}): ResultRow {
     club_b_id: 200,
     scores: "15/10 15/13",
     phase: "Finale",
+    pool: null,
+    pool_phase: null,
     club_a_player1_name: "A1",
     club_a_player1_number: "11",
     club_a_player2_name: null,
@@ -152,7 +154,7 @@ describe("Query.result", () => {
       envWith(db),
       `query ($id: ID!) {
         result(id: $id) {
-          id dateMatch scores phase
+          id dateMatch scores phase pool poolPhase
           competition { id } specialty { id } category { id }
           clubA { id } clubB { id }
           sets { a b }
@@ -170,6 +172,8 @@ describe("Query.result", () => {
       dateMatch: "12/01/2026",
       scores: "15/10 15/13",
       phase: "Finale",
+      pool: null,
+      poolPhase: null,
       competition: { id: "10" },
       specialty: { id: "20" },
       category: { id: "30" },
@@ -180,6 +184,13 @@ describe("Query.result", () => {
       clubALineup: { player1: { name: "A1", number: "11" }, player2: null },
       clubBLineup: { player1: { name: "B1", number: "21" }, player2: { name: "B2", number: "22" } },
     });
+  });
+
+  test("maps pool and pool_phase to pool and poolPhase", async () => {
+    const { db } = fakeDb([row({ phase: "P 7", pool: 2, pool_phase: 1 })]);
+    const { body } = await graphql(envWith(db), `{ result(id: "1") { phase pool poolPhase } }`);
+    expect(body.errors).toBeUndefined();
+    expect(body.data.result).toEqual({ phase: "P 7", pool: 2, poolPhase: 1 });
   });
 
   test("returns null for an unknown id", async () => {

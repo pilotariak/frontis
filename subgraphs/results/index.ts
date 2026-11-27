@@ -156,6 +156,7 @@ const resolvers = {
 
     // snake_case DB columns → camelCase GraphQL fields
     dateMatch: (row: ResultRow) => row.date_match,
+    poolPhase: (row: ResultRow) => row.pool_phase,
 
     competition: (row: ResultRow) => ({ __typename: "Competition", id: String(row.competition_id) }),
     specialty: (row: ResultRow) => ({ __typename: "Specialty", id: String(row.specialty_id) }),

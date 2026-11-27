@@ -8,7 +8,6 @@ import type {
   RankingSource,
   ScrapedRankedPlayer,
   ScrapedRanking,
-  ScrapeData,
   ScrapeOptions,
 } from "./types";
 
@@ -17,12 +16,13 @@ import type {
  * run the same `resultats.php` application and emit the same markup).
  *
  * CPU budget matters here: on the Workers Free plan an invocation gets 10 ms of
- * CPU, and a full-season results page is up to ~500 KB of HTML. Three choices
- * keep parsing cheap:
+ * CPU, and a full-season results page is up to ~500 KB of HTML (several MB on
+ * CTPB). Three choices keep parsing cheap:
  *   - `cheerio/slim` parses with htmlparser2 instead of parse5 (5-7x faster on
  *     these pages, identical extraction).
- *   - The form dropdowns are only parsed when the caller asked for them; a
- *     results fetch skips them entirely.
+ *   - The form dropdowns are read from the form alone (`fetchResultsForm`, a
+ *     GET with `InCompet` only, about 25 KB), never from a results page, and a
+ *     results fetch never parses them.
  *   - Result rows are walked on the raw DOM nodes rather than through cheerio
  *     selectors per cell, and nothing is logged per row.
  */
@@ -38,7 +38,7 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     return { "User-Agent": this.userAgent };
   }
 
-  async fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData> {
+  async fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]> {
     const body = new URLSearchParams({
       InSel: "",
       InCompet: options.competition,
@@ -54,37 +54,35 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
 
     const headers = await this.requestHeaders();
 
-    // GET populates the SELECT dropdowns; POST submits the form and returns results.
-    const response = extractResults
-      ? await fetch(this.baseUrl, {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
-          body: body.toString(),
-        })
-      : await fetch(`${this.baseUrl}?${body.toString()}`, { headers });
+    // The POST submits the form and returns the results; the dropdowns of the
+    // page it answers are not parsed (see fetchResultsForm).
+    const response = await fetch(this.baseUrl, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
 
     if (!response.ok) {
       throw new Error(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`);
     }
 
     const html = await response.text();
-    const $ = load(html);
-
-    // Callers of a results fetch (`scrapeResults`) discard the form options, so
-    // parsing the dropdowns there would only burn CPU.
-    const formOptions = extractResults ? EMPTY_FORM_OPTIONS : parseFormOptions($);
-    const results = extractResults ? parseResults($, this.leagueName) : [];
+    const results = parseResults(load(html), this.leagueName);
 
     console.log(
-      `[${this.leagueName}] ${extractResults ? "POST" : "GET"} ${this.baseUrl} status=${response.status} html=${html.length}B results=${results.length}`
+      `[${this.leagueName}] POST ${this.baseUrl} status=${response.status} html=${html.length}B results=${results.length}`
     );
 
-    return { formOptions, results };
+    return results;
   }
 
   async fetchResultsForm(competition: string): Promise<FormOptions> {
-    // A GET with InCompet alone returns the form only (about 20 KB), not the
-    // results: cheap enough to check a request before the results POST.
+    // A GET with InCompet alone returns the form only (about 25 KB), not the
+    // results. A GET with every form field, InVoir included, is read as a form
+    // submission and answers the full results page (several MB on CTPB). An
+    // empty InCompet returns the form of the site's default competition. Cheap
+    // enough to check a request before the results POST, and it is all that
+    // /scrape_infos reads.
     const headers = await this.requestHeaders();
     const res = await fetch(`${this.baseUrl}?${new URLSearchParams({ InCompet: competition })}`, { headers });
     if (!res.ok) {
@@ -150,14 +148,6 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     };
   }
 }
-
-const EMPTY_FORM_OPTIONS: FormOptions = {
-  competitions: [],
-  specialties: [],
-  clubs: [],
-  categories: [],
-  phases: [],
-};
 
 export function parseFormOptions($: CheerioAPI): FormOptions {
   const parseSelect = (name: string): FormOption[] => {
@@ -232,31 +222,61 @@ function extractClubData(col: Element): { name: string; players: { name: string;
   return { name: `${fullText} ${teamNumber}`.trim(), players };
 }
 
+/** "Poules 2" → 2; any other section title ("1/4 de finale", "Barrage 1er tour") → null. */
+const POOL_TITLE = /^Poules?\s+(\d+)$/i;
+/** "GROUPE B Poule phase 2" → 2. */
+const POOL_PHASE = /\bPoule\s+phase\s+(\d+)\b/i;
+
+/**
+ * Rows of the resultats.php results table. Each `.mBloc` table holds:
+ *   - a block header row: one cell, "<specialty> <span>category</span>
+ *     <span>GROUPE A Poule phase 1</span>". CTPB repeats it inside the same
+ *     table for each group and pool phase of the category;
+ *   - section title rows (`td.mTitreSmall`): "Poules 1", "Poules 2", then the
+ *     knockout rounds ("1/4 de finale", "Finale"), each followed by its matches;
+ *   - match rows with five cells or more: phase | date | club A | club B | score.
+ *
+ * `pool` is the N of the "Poules N" section a match sits in, and `pool_phase`
+ * the N of the heading's "Poule phase N". A knockout match sits under the last
+ * heading too, so both are null outside a "Poules N" section. When the page
+ * names a single pool phase for a specialty and category, its `pool_phase` is
+ * null: it only matters when pool numbers start again in a later phase.
+ */
 export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[] {
   const results: ScrapedResult[] = [];
   const year = new Date().getFullYear();
   const competition = `Championnat ${leagueName}`;
+  // Pool phases named by the page, per specialty and category.
+  const poolPhases = new Map<string, Set<number>>();
+  const blockKey = (specialty: string, category: string) => `${specialty}\u0000${category}`;
 
   for (const table of $(".mBloc").toArray()) {
-    const rows = descendants(table, "tr");
-
-    // Row 1 carries the block header: "<specialty> <span>category</span>".
-    const infoRow = rows[1];
     let specialtyText = "";
     let categoryText = "";
-    if (infoRow) {
-      const firstTd = descendants(infoRow, "td")[0];
-      if (firstTd) {
-        specialtyText = firstTd.children.filter(isText).map(textOf).join("").trim();
-      }
-      const firstSpan = descendants(infoRow, "span")[0];
-      if (firstSpan) categoryText = textOf(firstSpan).trim();
-    }
+    let poolPhase: number | null = null;
+    let pool: number | null = null;
 
-    for (let i = 3; i < rows.length; i++) {
-      const row = rows[i];
+    for (const row of descendants(table, "tr")) {
       const cols = descendants(row, "td");
-      if (cols.some((td) => hasClass(td, "mTitreSmall"))) continue;
+
+      // Block header: a single cell holding the category and heading spans.
+      // The first row (CSV and share links) has a single cell but no span.
+      const spans = cols.length === 1 ? descendants(cols[0], "span") : [];
+      if (spans.length > 0) {
+        specialtyText = cols[0].children.filter(isText).map(textOf).join("").trim();
+        categoryText = textOf(spans[0]).trim();
+        const phase = spans[1] ? POOL_PHASE.exec(collapse(textOf(spans[1]))) : null;
+        poolPhase = phase ? Number(phase[1]) : null;
+        pool = null;
+        continue;
+      }
+
+      const title = cols.find((td) => hasClass(td, "mTitreSmall"));
+      if (title) {
+        const match = POOL_TITLE.exec(collapse(textOf(title)));
+        pool = match ? Number(match[1]) : null;
+        continue;
+      }
       if (cols.length < 5) continue;
 
       const phase = descendants(cols[0], "strong")
@@ -272,8 +292,16 @@ export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[]
       const clubAData = extractClubData(cols[2]);
       const clubBData = extractClubData(cols[3]);
 
+      const specialty = specialtyText || "Trinquet/P.G. Pleine Masculin";
+      if (pool !== null && poolPhase !== null) {
+        const key = blockKey(specialty, categoryText);
+        const phases = poolPhases.get(key) ?? new Set<number>();
+        phases.add(poolPhase);
+        poolPhases.set(key, phases);
+      }
+
       results.push({
-        specialty: specialtyText || "Trinquet/P.G. Pleine Masculin",
+        specialty,
         competition,
         year,
         category: categoryText,
@@ -290,7 +318,17 @@ export function parseResults($: CheerioAPI, leagueName: string): ScrapedResult[]
         club_b_player2_name: clubBData.players[1]?.name,
         club_b_player2_number: clubBData.players[1]?.number,
         scores,
+        pool,
+        pool_phase: pool === null ? null : poolPhase,
       });
+    }
+  }
+
+  // A single pool phase tells nothing: keep pool_phase only where the page
+  // names several for the specialty and category.
+  for (const r of results) {
+    if (r.pool_phase !== null && (poolPhases.get(blockKey(r.specialty, r.category))?.size ?? 0) < 2) {
+      r.pool_phase = null;
     }
   }
 

@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { BadRequestError } from "./params";
-import { scrapeInfos, scrapeResults } from "./scraper";
+import { scrapeInfos, scrapeResults, scrapers } from "./scraper";
 import type { Env } from "./types";
 
 // ── Fake D1 ──────────────────────────────────────────────────────────────────
@@ -96,6 +96,30 @@ const RESULTS_HTML = `
   </tr>
 </table>`;
 
+// Two pool phases, then a final, as CTPB prints a category whose pool round
+// has a second phase: the block header repeats inside the table.
+const POOL_HTML = `
+<table class="mBloc">
+  <tr><td colspan="7"><a href="csv.php">Télécharger</a></td></tr>
+  <tr><td>Trinquet/P.G. Pleine Masculin <span>Seniors</span> <span>GROUPE A Poule phase 1</span></td></tr>
+  <tr><td class="mTitreSmall" colspan="2">Poules 2</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>P 1</strong></td><td>05/01/2026</td>
+    <td>HASPARREN</td><td>ANGLET</td><td>15/08 15/11</td>
+  </tr>
+  <tr><td>Trinquet/P.G. Pleine Masculin <span>Seniors</span> <span>GROUPE A Poule phase 2</span></td></tr>
+  <tr><td class="mTitreSmall" colspan="2">Poules 1</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>P 1</strong></td><td>12/01/2026</td>
+    <td>CA BEGLAIS <span class="small">(01)</span></td><td>URRUGNE PILOTA</td><td>15/10 15/13</td>
+  </tr>
+  <tr><td class="mTitreSmall" colspan="2">Finale</td><td class="mTitreSmall">Club 1</td></tr>
+  <tr>
+    <td><strong>F 1</strong></td><td>19/01/2026</td>
+    <td>HASPARREN</td><td>URRUGNE PILOTA</td><td>15/12 15/14</td>
+  </tr>
+</table>`;
+
 const FORM_HTML = `
 <select name="InCompet"><option value="0">-</option><option value="20260501">Championnat 2026</option></select>
 <select name="InSpec"><option value="10">Trinquet</option></select>
@@ -178,6 +202,49 @@ const LOOKUPS: Rule[] = [
 ];
 
 const ALL = { league: "lcapb", competition: "2", specialty: "0", category: "0", phase: "0" };
+
+// ── Replaying the upserts on real SQLite ─────────────────────────────────────
+
+/** The results upserts saveResults sends for one scrape of `html`. */
+async function upsertsFor(html: string): Promise<Statement[]> {
+  serveSite(SITE_FORM_HTML, html);
+  const { db, batches } = fakeDb(LOOKUPS);
+  await scrapeResults(envWith(db), ALL, false);
+  return batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
+}
+
+/** An in-memory results table, as the migrations leave it. */
+function resultsTable(): Database {
+  const sqlite = new Database(":memory:");
+  sqlite.run(`CREATE TABLE results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    competition_id INTEGER NOT NULL, specialty_id INTEGER NOT NULL, category_id INTEGER NOT NULL,
+    club_a_id INTEGER NOT NULL, club_b_id INTEGER NOT NULL, date_match TEXT, phase TEXT,
+    club_a_player1_name TEXT, club_a_player1_number TEXT, club_a_player2_name TEXT, club_a_player2_number TEXT,
+    club_b_player1_name TEXT, club_b_player1_number TEXT, club_b_player2_name TEXT, club_b_player2_number TEXT,
+    scores TEXT, pool INTEGER, pool_phase INTEGER,
+    UNIQUE(competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase)
+  )`);
+  return sqlite;
+}
+
+/** Runs the upserts and sums their changes, as saveResults computes `saved`. */
+function replay(sqlite: Database, upserts: Statement[]): number {
+  return upserts.reduce(
+    (sum, s) => sum + sqlite.query(s.sql).run(...(s.bindings as (string | number | null)[])).changes,
+    0
+  );
+}
+
+/** The stored rows, with the first player of club A. */
+function stored(sqlite: Database): unknown[] {
+  return sqlite
+    .query(
+      `SELECT phase, scores, pool, pool_phase, club_a_player1_name AS player, club_a_player1_number AS number
+       FROM results ORDER BY id`
+    )
+    .all();
+}
 
 describe("scrapeResults", () => {
   test("rejects an unsupported league before touching the database or network", async () => {
@@ -301,10 +368,10 @@ describe("scrapeResults", () => {
     expect(byCategory.results.map((r) => r.category)).toEqual(["Seniors", "Seniors"]);
   });
 
-  test("persists results in two batches and reports only newly inserted rows", async () => {
+  test("persists results in two batches and reports only new or changed rows", async () => {
     const { db, batches } = fakeDb(LOOKUPS, (s) =>
-      // Pretend the HASPARREN/ANGLET row already existed.
-      s.sql.startsWith("INSERT OR IGNORE INTO results") && s.bindings[4] === 300 ? 0 : 1
+      // Pretend the HASPARREN/ANGLET row already existed, unchanged.
+      s.sql.startsWith("INSERT INTO results") && s.bindings[4] === 300 ? 0 : 1
     );
 
     const { results, saved } = await scrapeResults(envWith(db), ALL, false);
@@ -328,7 +395,7 @@ describe("scrapeResults", () => {
     // Batch 2: one INSERT per result, then the three `enabled` flips.
     const [insertA, insertB, insertC, ...flags] = batches[1];
     expect(insertA.bindings.slice(0, 8)).toEqual([2, 10, 3, "12/01/2026", 100, 200, "15/10 15/13", "Finale"]);
-    expect(insertA.bindings.slice(8, 10)).toEqual(["DUPONT Jean", "1"]);
+    expect(insertA.bindings.slice(8, 12)).toEqual([null, null, "DUPONT Jean", "1"]);
     expect(insertB.bindings.slice(0, 6)).toEqual([2, 10, 3, "05/01/2026", 300, 400]);
     expect(insertC.bindings.slice(0, 6)).toEqual([2, 11, 5, "06/01/2026", 500, 600]);
     expect(flags.map((s) => [s.sql, s.bindings])).toEqual([
@@ -338,11 +405,109 @@ describe("scrapeResults", () => {
     ]);
   });
 
+  test("binds the pool and pool phase of each match", async () => {
+    serveSite(SITE_FORM_HTML, POOL_HTML);
+    const { db, batches } = fakeDb(LOOKUPS);
+    await scrapeResults(envWith(db), ALL, false);
+
+    const upserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
+    // phase, pool, pool_phase
+    expect(upserts.map((s) => s.bindings.slice(7, 10))).toEqual([
+      ["P 1", 2, 1],
+      ["P 1", 1, 2],
+      ["F 1", null, null],
+    ]);
+  });
+
+  test("a re-scrape fills the pool and score of a stored row and keeps its stored lineup", async () => {
+    const upserts = await upsertsFor(POOL_HTML);
+    const sqlite = resultsTable();
+    // Stored before migration 0014, and before the match was played: no score, no pool.
+    sqlite.run(
+      `INSERT INTO results (competition_id, specialty_id, category_id, date_match, club_a_id, club_b_id, phase, club_a_player1_name)
+       VALUES (2, 10, 3, '05/01/2026', 300, 400, 'P 1', 'DUPONT Jean')`
+    );
+
+    // Two new rows, and the stored one gets its pool and score. The site lists
+    // no player for it, so the stored one stays.
+    expect(replay(sqlite, upserts)).toBe(3);
+    expect(stored(sqlite)).toEqual([
+      { phase: "P 1", scores: "15/08 15/11", pool: 2, pool_phase: 1, player: "DUPONT Jean", number: null },
+      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null, number: null },
+      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null, number: null },
+    ]);
+
+    // Nothing changed on the site: nothing is reported as saved.
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(stored(sqlite)).toHaveLength(3);
+  });
+
+  test("a stored result saved before its match was played gets the score and counts as saved", async () => {
+    const sqlite = resultsTable();
+    // First save: the HASPARREN/ANGLET pool match is not played yet.
+    expect(replay(sqlite, await upsertsFor(POOL_HTML.replace("15/08 15/11", "")))).toBe(3);
+    expect(stored(sqlite)).toMatchObject([{ phase: "P 1", scores: null, pool: 2, pool_phase: 1 }, {}, {}]);
+
+    // The site now gives the score: same date, phase and clubs, so the stored
+    // row is updated in place. Its pool is unchanged, so only the score counts.
+    const played = await upsertsFor(POOL_HTML);
+    expect(replay(sqlite, played)).toBe(1);
+    expect(stored(sqlite)).toEqual([
+      { phase: "P 1", scores: "15/08 15/11", pool: 2, pool_phase: 1, player: null, number: null },
+      { phase: "P 1", scores: "15/10 15/13", pool: 1, pool_phase: 2, player: null, number: null },
+      { phase: "F 1", scores: "15/12 15/14", pool: null, pool_phase: null, player: null, number: null },
+    ]);
+    expect(replay(sqlite, played)).toBe(0);
+  });
+
+  test("a lineup missing at first is filled by a later scrape", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML.replace("<ul><li>(1) DUPONT Jean</li></ul>", "")))).toBe(3);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", player: null, number: null }, {}, {}]);
+
+    const withLineup = await upsertsFor(RESULTS_HTML);
+    expect(replay(sqlite, withLineup)).toBe(1);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/13", player: "DUPONT Jean", number: "1" }, {}, {}]);
+    expect(replay(sqlite, withLineup)).toBe(0);
+  });
+
+  test("saving an unchanged page again changes nothing and counts 0", async () => {
+    const upserts = await upsertsFor(RESULTS_HTML);
+    const sqlite = resultsTable();
+    expect(replay(sqlite, upserts)).toBe(3);
+    const before = sqlite.query("SELECT * FROM results ORDER BY id").all();
+
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(sqlite.query("SELECT * FROM results ORDER BY id").all()).toEqual(before);
+  });
+
+  test("a stored score or player is kept when a later scrape gives none", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML))).toBe(3);
+
+    // The site drops the score and the lineup of the final: nothing is erased,
+    // and nothing counts as saved.
+    const blank = RESULTS_HTML.replace("15/10 15/13", "").replace("<ul><li>(1) DUPONT Jean</li></ul>", "");
+    const upserts = await upsertsFor(blank);
+    expect(upserts[0].bindings[6]).toBeNull(); // scores
+    expect(upserts[0].bindings.slice(10, 12)).toEqual([null, null]); // club A player 1 name, number
+    expect(replay(sqlite, upserts)).toBe(0);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/13", player: "DUPONT Jean", number: "1" }, {}, {}]);
+  });
+
+  test("a score corrected on the site replaces the stored one", async () => {
+    const sqlite = resultsTable();
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML))).toBe(3);
+
+    expect(replay(sqlite, await upsertsFor(RESULTS_HTML.replace("15/10 15/13", "15/10 15/14")))).toBe(1);
+    expect(stored(sqlite)).toMatchObject([{ phase: "Finale", scores: "15/10 15/14", player: "DUPONT Jean" }, {}, {}]);
+  });
+
   test("uses the requested specialty for every row instead of matching by name", async () => {
     const { db, batches } = fakeDb(LOOKUPS);
     await scrapeResults(envWith(db), { ...ALL, specialty: "10" }, false);
 
-    const inserts = batches[1].filter((s) => s.sql.startsWith("INSERT OR IGNORE INTO results"));
+    const inserts = batches[1].filter((s) => s.sql.startsWith("INSERT INTO results"));
     expect(inserts.map((s) => s.bindings[1])).toEqual([10, 10]);
   });
 
@@ -370,31 +535,94 @@ describe("scrapeResults", () => {
 });
 
 describe("scrapeInfos", () => {
-  test("fetches the form with a GET and returns the parsed dropdowns", async () => {
+  const INFOS = { league: "lcapb", competition: "20260501" };
+
+  // FORM_HTML parsed: what /scrape_infos returns and saves.
+  const FORM_OPTIONS = {
+    competitions: [{ sourceId: "20260501", name: "Championnat 2026" }],
+    specialties: [{ sourceId: "10", name: "Trinquet" }],
+    clubs: [{ sourceId: "7", name: "CA BEGLAIS" }],
+    categories: [{ sourceId: "3", name: "Seniors" }],
+    phases: [{ sourceId: "4", name: "Finale" }],
+  };
+
+  /** The URL and init of a fetch call, with the query split out. */
+  const request = (call: [string | URL | Request, RequestInit?]) => {
+    const url = new URL(String(call[0]));
+    return { base: `${url.origin}${url.pathname}`, params: url.searchParams, init: call[1] };
+  };
+
+  // A GET with every form field (InVoir among them) made the site answer with
+  // the whole results page, which blew the CPU limit (#118): InCompet must be
+  // the only field.
+  test.each([
+    ["a competition", "20260501"],
+    ["the site default competition", ""],
+  ])("reads %s from a GET whose query holds InCompet only", async (_, competition) => {
     serve(FORM_HTML);
     const { db, batches } = fakeDb([]);
 
-    const options = await scrapeInfos(envWith(db), { ...ALL, competition: "20260501" }, true);
+    const options = await scrapeInfos(envWith(db), { league: "lcapb", competition }, true);
 
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toStartWith("https://lcapb.euskalpilota.fr/resultats.php?");
-    expect(new URL(String(url)).searchParams.get("InCompet")).toBe("20260501");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { base, params, init } = request(fetchMock.mock.calls[0]);
+    expect(base).toBe(scrapers.lcapb!.baseUrl);
+    expect([...params.keys()]).toEqual(["InCompet"]);
+    expect(params.get("InCompet")).toBe(competition);
+    for (const field of ["InVoir", "InSpec", "InCat", "InPhase"]) expect(params.has(field)).toBe(false);
     expect(init?.method).toBeUndefined();
-    expect(options).toEqual({
-      competitions: [{ sourceId: "20260501", name: "Championnat 2026" }],
-      specialties: [{ sourceId: "10", name: "Trinquet" }],
-      clubs: [{ sourceId: "7", name: "CA BEGLAIS" }],
-      categories: [{ sourceId: "3", name: "Seniors" }],
-      phases: [{ sourceId: "4", name: "Finale" }],
-    });
+    expect(options).toEqual(FORM_OPTIONS);
     expect(batches).toEqual([]);
+  });
+
+  test.each(["lcapb", "lidfpb", "ctpb", "llpb"])("returns and saves the same options for %s", async (league) => {
+    serve(FORM_HTML);
+    const { db, batches } = fakeDb([]);
+
+    const options = await scrapeInfos(envWith(db), { league, competition: "20260501" }, false);
+
+    // CTPB primes a session first; the form GET is always the last request.
+    const { base, params } = request(fetchMock.mock.calls.at(-1)!);
+    expect(base).toBe(scrapers[league]!.baseUrl);
+    expect([...params.entries()]).toEqual([["InCompet", "20260501"]]);
+    expect(options).toEqual(FORM_OPTIONS);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].map((s) => s.bindings)).toEqual([
+      ["10", "Trinquet"],
+      ["7", "CA BEGLAIS"],
+      ["3", "Seniors"],
+      ["4", "Finale"],
+      ["20260501", "Championnat 2026"],
+    ]);
+  });
+
+  test("primes the CTPB session before the form GET, and sends its cookie with it", async () => {
+    fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) =>
+      init?.redirect === "manual"
+        ? new Response(null, { status: 302, headers: { "Set-Cookie": "PHPSESSID=s3ss10n; path=/" } })
+        : new Response(FORM_HTML, { status: 200 })
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { db } = fakeDb([]);
+
+    const options = await scrapeInfos(envWith(db), { league: "ctpb", competition: "20260104" }, true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const prime = request(fetchMock.mock.calls[0]);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(scrapers.ctpb!.baseUrl);
+    expect(prime.init?.redirect).toBe("manual");
+    const form = request(fetchMock.mock.calls[1]);
+    expect(form.base).toBe(scrapers.ctpb!.baseUrl);
+    expect([...form.params.entries()]).toEqual([["InCompet", "20260104"]]);
+    expect((form.init?.headers as Record<string, string>)["Cookie"]).toBe("PHPSESSID=s3ss10n");
+    expect(options).toEqual(FORM_OPTIONS);
   });
 
   test("upserts every option in a single batch with the right conflict target", async () => {
     serve(FORM_HTML);
     const { db, batches } = fakeDb([]);
 
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
 
     expect(batches).toHaveLength(1);
     const normalised = batches[0].map((s) => [s.sql.replace(/\s+/g, " "), s.bindings]);
@@ -418,7 +646,7 @@ describe("scrapeInfos", () => {
         `<option value="20260501">Championnat 2026</option>`
     ));
     const { db, batches } = fakeDb([]);
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
 
     // Replay the batch on real SQLite, with the table as the migrations leave it.
     const sqlite = new Database(":memory:");
@@ -442,22 +670,38 @@ describe("scrapeInfos", () => {
 
     // A known competition renamed onto a taken name keeps its own name.
     serve(FORM_HTML.replace("Championnat 2026", "Championnat 2025"));
-    await scrapeInfos(envWith(db), ALL, false);
+    await scrapeInfos(envWith(db), INFOS, false);
     replay();
     expect(competitionRows()).toContainEqual({ source_id: "20260501", name: "Championnat 2026" });
   });
 
-  test("skips the batch entirely when the form is empty", async () => {
+  // No competition list means no form (session not primed, error page, markup
+  // change): an error, where saving nothing used to pass for success.
+  test("fails on a page without a competition list, and saves nothing", async () => {
     serve("<html></html>");
+    const { db, statements, batches } = fakeDb([]);
+    await expect(scrapeInfos(envWith(db), INFOS, false)).rejects.toThrow(
+      "[LCAPB] Results form not found on resultats.php (HTTP 200)"
+    );
+    expect(statements).toEqual([]);
+    expect(batches).toEqual([]);
+  });
+
+  test("surfaces upstream HTTP failures", async () => {
+    fetchMock = mock(async () => new Response("nope", { status: 503, statusText: "Service Unavailable" }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     const { db, batches } = fakeDb([]);
-    await scrapeInfos(envWith(db), ALL, false);
+    await expect(scrapeInfos(envWith(db), INFOS, false)).rejects.toThrow(
+      "[LCAPB] Failed to fetch results form: Service Unavailable"
+    );
     expect(batches).toEqual([]);
   });
 
   test("rejects an unsupported league", async () => {
     const { db } = fakeDb([]);
-    await expect(scrapeInfos(envWith(db), { ...ALL, league: "xyz" }, true)).rejects.toThrow(
+    await expect(scrapeInfos(envWith(db), { ...INFOS, league: "xyz" }, true)).rejects.toThrow(
       "Unsupported league: xyz"
     );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
