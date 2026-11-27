@@ -83,7 +83,9 @@ async function registerLeague(env: Env, league: string, req: Request) {
 /**
  * The specialties and categories the league site offers for a competition, as
  * database ids. Results and rankings are two pages of the site, which can offer
- * different sets, so the script picks the form to read.
+ * different sets, so the script picks the form to read. oneAtATime tells the
+ * page the route rejects "0" (every one): it walks the combinations instead.
+ * /scrape_rankings takes "0" and fetches the categories one by one itself.
  */
 async function listOffered(env: Env, league: string, competitionId: string, script: AdminScript) {
   checkIds({ competition: competitionId });
@@ -112,6 +114,7 @@ async function listOffered(env: Env, league: string, competitionId: string, scri
   return {
     specialties: await withIds("specialties", specialties),
     categories: await withIds("categories", categories),
+    oneAtATime: script === "results" && scraper.resultsOneAtATime === true,
   };
 }
 

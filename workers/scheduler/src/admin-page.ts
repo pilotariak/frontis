@@ -11,7 +11,11 @@
  * URLs it replaces; "Every combination" walks each specialty x category the
  * competition offers, like `scrape-competition.sh --all`, and asks before each
  * save. The walk reads the X-Scrape-Found header to skip empty combinations,
- * and skips the ones the competition does not offer (HTTP 400).
+ * and skips the ones the competition does not offer (HTTP 400). A league whose
+ * results come one specialty and one category at a time (FFPB, see
+ * /admin/options' oneAtATime) turns "All specialties" or "All categories" of
+ * One combination into a walk of the matching combinations, since its
+ * /scrape_results rejects "0".
  *
  * A third card bootstraps a league, as setup-league's /init and /bootstrap do:
  * its save writes the league's row through POST /admin/league, then runs
@@ -599,10 +603,27 @@ export function renderAdminPage(leagues: string[], version: string): string {
         return list;
       }
 
+      // One combination with "All specialties" or "All categories", for a
+      // league whose /scrape_results rejects "0": the matching combinations,
+      // walked one request each. null when one request does it.
+      function expanded() {
+        if (!offered || !offered.oneAtATime) return null;
+        var specialty = specialtyEl.value;
+        var category = categoryEl.value;
+        if (!specialty || !category || (specialty !== "0" && category !== "0")) return null;
+        return combinations().filter(function (combo) {
+          return (specialty === "0" || String(combo.specialty.id) === specialty) &&
+            (category === "0" || String(combo.category.id) === category);
+        });
+      }
+
       function describeOffer() {
         if (!offered) return;
         if (mode() === "one") {
-          hint(offered.specialties.length + " specialties and " + offered.categories.length + " categories offered.");
+          hint(offered.specialties.length + " specialties and " + offered.categories.length + " categories offered." +
+            (offered.oneAtATime
+              ? " This league's results come one specialty and one category at a time: an All choice walks the combinations, one request each."
+              : ""));
           return;
         }
         var specialties = offered.specialties.filter(hasId).length;
@@ -620,12 +641,13 @@ export function renderAdminPage(leagues: string[], version: string): string {
         var walking = mode() === "walk";
         var dry = dryRunEl.checked;
         form.classList.toggle("walk-mode", walking);
-        if (walking) {
-          var count = combinations().length;
+        var subset = walking ? null : expanded();
+        if (walking || subset) {
+          var count = (subset || combinations()).length;
           runEl.disabled = busy || count === 0;
           dryRunLabelEl.textContent = "Ask before each save";
           dryRunHelpEl.textContent = "— preview every combination, then save or skip it";
-          runEl.textContent = (dry ? "Review " : "Save ") + (count ? plural(count, "combination", "combinations") : "every combination");
+          runEl.textContent = (dry ? "Review " : "Save ") + (count || subset ? plural(count, "combination", "combinations") : "every combination");
         } else {
           var ready = Boolean(leagueEl.value && competitionEl.value && specialtyEl.value && categoryEl.value);
           runEl.disabled = busy || !ready;
@@ -1197,8 +1219,9 @@ export function renderAdminPage(leagues: string[], version: string): string {
       form.addEventListener("submit", function (event) {
         event.preventDefault();
         if (runEl.disabled) return;
-        if (mode() === "walk") {
-          runWalk(script(), { league: leagueEl.value, competition: competitionEl.value }, combinations(), dryRunEl.checked);
+        var subset = mode() === "walk" ? combinations() : expanded();
+        if (subset) {
+          runWalk(script(), { league: leagueEl.value, competition: competitionEl.value }, subset, dryRunEl.checked);
           return;
         }
         execute(script(), {

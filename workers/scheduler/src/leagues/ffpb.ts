@@ -474,6 +474,7 @@ function offered(session: Session, control: string, id: string, label: string, s
 
 export class FfpbScraper implements LeagueScraper {
   readonly baseUrl = `${ORIGIN}/FFPB_COMPETITION/`;
+  readonly resultsOneAtATime = true;
 
   /**
    * The form values for a competition source_id:
