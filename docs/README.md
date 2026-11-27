@@ -38,7 +38,7 @@ Follow these three guides in order to add a new league, from an empty database t
 | [Query the GraphQL API](how-to/howto-query-the-api.md)         | Setup and troubleshooting, one guide per subgraph    |
 | [Manage D1 databases](how-to/howto-database.md)                | Migrations, schema, adding leagues                   |
 | [Set up a league](how-to/howto-setup-league.md)                | Bootstrap competitions, specialties, and categories  |
-| [Use the scheduler](how-to/howto-scheduler.md)                 | Admin page, scrape results, source IDs, cron         |
+| [Use the scheduler](how-to/howto-scheduler.md)                 | Admin page, scrape results, source IDs, cron, logs   |
 | [Use the scheduler scripts](how-to/howto-scheduler-scripts.md) | `scrape-competition.sh` and `scrape-all-results.sh`  |
 | [Test the rankings locally](how-to/howto-rankings-local.md)    | Scrape rankings, query the subgraph and the gateway  |
 | [Publish schemas to Hive](how-to/howto-hive-registry.md)       | Schema registry workflow                             |
@@ -50,12 +50,13 @@ Follow these three guides in order to add a new league, from an empty database t
 
 Look these up when you need accurate, factual information.
 
-| Document                                      | Description                                       |
-| --------------------------------------------- | ------------------------------------------------- |
-| [GraphQL Schema](reference/graphql-schema.md) | All types, queries, and fields                    |
-| [Configuration](reference/configuration.md)   | Environment variables, Wrangler bindings, secrets |
-| [Supported leagues](reference/leagues.md)     | Codes, results sites, D1 databases, scrapers      |
-| [Ports](reference/ports.md)                   | Local development port assignments                |
+| Document                                      | Description                                             |
+| --------------------------------------------- | ------------------------------------------------------- |
+| [GraphQL Schema](reference/graphql-schema.md) | All types, queries, and fields                          |
+| [Configuration](reference/configuration.md)   | Environment variables, Wrangler bindings, secrets       |
+| [Supported leagues](reference/leagues.md)     | Codes, results sites, D1 databases, scrapers            |
+| [Logs](reference/logs.md)                     | Log fields and events of the scheduler and setup-league |
+| [Ports](reference/ports.md)                   | Local development port assignments                      |
 
 ---
 

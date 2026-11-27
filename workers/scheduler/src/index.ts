@@ -1,4 +1,5 @@
 import { handleAdmin } from "./admin";
+import { log, logRouteDone, logRouteError } from "./log";
 import { BadRequestError } from "./params";
 import { scrapeRankings } from "./rankings";
 import { scrapeInfos, scrapeResults } from "./scraper";
@@ -43,6 +44,7 @@ function makeColors(noColor: boolean) {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    const started = Date.now();
     const dryRun  = url.searchParams.get("dry_run")  === "true";
     const noColor = url.searchParams.get("no_color") === "true";
     const { bold, dim, cyan, yellow, green, red, magenta, gray, white } = makeColors(noColor);
@@ -62,6 +64,7 @@ export default {
     if (url.pathname === "/scrape_infos") {
       const league = url.searchParams.get("league");
       if (!league) {
+        logRouteError(url, started, 400, "missing required parameter: league");
         return new Response(`${red("Error: missing required parameter: league")}`, { status: 400, ...TEXT });
       }
 
@@ -72,6 +75,14 @@ export default {
 
       try {
         const fo = await scrapeInfos(env, { league, competition }, dryRun);
+        const kinds = [fo.competitions, fo.specialties, fo.clubs, fo.categories, fo.phases];
+        logRouteDone(
+          url,
+          started,
+          { found: kinds.reduce((n, k) => n + k.length, 0) },
+          `${fo.competitions.length} competitions, ${fo.specialties.length} specialties, ${fo.clubs.length} clubs, ` +
+            `${fo.categories.length} categories, ${fo.phases.length} phases`
+        );
 
         const fmt = (items: { sourceId: string; name: string }[]) =>
           items.length
@@ -104,6 +115,7 @@ export default {
         return new Response(lines.join("\n") + "\n", TEXT);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        logRouteError(url, started, 500, err);
         return new Response(`${red(`Error: ${msg}`)}`, { status: 500, ...TEXT });
       }
     }
@@ -125,6 +137,7 @@ export default {
       ].filter(Boolean) as string[];
 
       if (missing.length > 0) {
+        logRouteError(url, started, 400, `missing required parameters: ${missing.join(", ")}`);
         return new Response(
           JSON.stringify({ error: `missing required parameters: ${missing.join(", ")}` }),
           { status: 400, headers: JSON_HEADERS }
@@ -137,6 +150,7 @@ export default {
           { league: league!, competition: competition!, specialty: specialty!, category: category!, phase },
           dryRun
         );
+        logRouteDone(url, started, { found: results.length, saved }, `found ${results.length}, saved ${saved} results`);
 
         // Compact machine-readable summary. Used by the nightly cron (through the
         // SELF service binding) so the callee spends no CPU on rendering rows or
@@ -265,6 +279,7 @@ export default {
         const msg = err instanceof Error ? err.message : String(err);
         // A parameter the caller must fix is a 400; anything else is ours.
         const status = err instanceof BadRequestError ? 400 : 500;
+        logRouteError(url, started, status, err);
         if (url.searchParams.get("format") === "json") {
           return new Response(JSON.stringify({ error: msg }), { status, headers: JSON_HEADERS });
         }
@@ -289,6 +304,7 @@ export default {
       ].filter(Boolean) as string[];
 
       if (missing.length > 0) {
+        logRouteError(url, started, 400, `missing required parameters: ${missing.join(", ")}`);
         return new Response(
           JSON.stringify({ error: `missing required parameters: ${missing.join(", ")}` }),
           { status: 400, headers: JSON_HEADERS }
@@ -300,6 +316,12 @@ export default {
           env,
           { league: league!, competition: competition!, specialty: specialty!, category: category! },
           dryRun
+        );
+        logRouteDone(
+          url,
+          started,
+          { found: summary.found, saved: summary.saved },
+          `found ${summary.found}, saved ${summary.saved} ranked teams across ${summary.pages.length} pages`
         );
 
         // Compact summary for the nightly cron (through the SELF binding).
@@ -344,6 +366,7 @@ export default {
         const msg = err instanceof Error ? err.message : String(err);
         // A parameter the caller must fix is a 400; anything else is ours.
         const status = err instanceof BadRequestError ? 400 : 500;
+        logRouteError(url, started, status, err);
         if (asJson) {
           return new Response(JSON.stringify({ error: msg }), { status, headers: JSON_HEADERS });
         }
@@ -379,7 +402,7 @@ Supported leagues: ${yellow("lcapb")}  ${yellow("lidfpb")}
   },
 
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    console.log(`[scheduler] Cron triggered at ${event.cron}`);
+    log.info({ event: "cron.start", cron: event.cron, message: `Cron triggered at ${event.cron}` });
     ctx.waitUntil(runNightlyScrape(env));
   },
 } satisfies ExportedHandler<Env>;
@@ -417,7 +440,7 @@ async function runNightlyScrape(env: Env): Promise<void> {
   for (const league of CRON_LEAGUES) {
     const db = getDatabase(env, league);
     if (!db) {
-      console.error(`[scheduler][${league}] No database binding, skipping`);
+      log.error({ event: "cron.skip", league, message: "No database binding, skipping" });
       continue;
     }
     await refreshResults(env, league, db);
@@ -433,23 +456,28 @@ async function refreshResults(env: Env, league: string, db: D1Database): Promise
       .all<{ id: number; name: string }>());
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[scheduler][${league}] Failed to list enabled competitions: ${message}`);
+    log.error({ event: "cron.skip", league, message: `Failed to list enabled competitions: ${message}` });
     return;
   }
 
   if (competitions.length === 0) {
-    console.log(
-      `[scheduler][${league}] No enabled competition; run /scrape_results once for a competition to enrol it`
-    );
+    log.info({
+      event: "cron.skip",
+      league,
+      message: "No enabled competition; run /scrape_results once for a competition to enrol it",
+    });
     return;
   }
 
+  const route = "/scrape_results";
   let total = 0;
   let failed = 0;
   for (const competition of competitions) {
     const label = `${competition.name} (#${competition.id})`;
+    const fields = { route, league, competition: String(competition.id) };
+    const started = Date.now();
     try {
-      const { saved, found } = await scrapeViaSelf(env, "/scrape_results", {
+      const { saved, found } = await scrapeViaSelf(env, route, {
         league,
         competition: String(competition.id),
         specialty: "0",
@@ -457,17 +485,28 @@ async function refreshResults(env: Env, league: string, db: D1Database): Promise
         phase: "0",
       });
       total += saved;
-      console.log(`[scheduler][${league}] ${label}: found ${found}, saved ${saved} results`);
+      log.info({
+        event: "cron.scrape",
+        ...fields,
+        found,
+        saved,
+        durationMs: Date.now() - started,
+        message: `${label}: found ${found}, saved ${saved} results`,
+      });
     } catch (err: unknown) {
       failed++;
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[scheduler][${league}] ${label}: ${message}`);
+      logSelfCallError(fields, started, label, err);
     }
   }
 
-  console.log(
-    `[scheduler][${league}] Saved ${total} results across ${competitions.length} competitions (${failed} failed)`
-  );
+  log.info({
+    event: "cron.summary",
+    route,
+    league,
+    saved: total,
+    failed,
+    message: `Saved ${total} results across ${competitions.length} competitions (${failed} failed)`,
+  });
 }
 
 /**
@@ -495,35 +534,79 @@ async function refreshRankings(env: Env, league: string, db: D1Database): Promis
       .all<{ competition_id: number; specialty_id: number }>());
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[scheduler][${league}] Failed to list provisional rankings: ${message}`);
+    log.error({ event: "cron.skip", league, message: `Failed to list provisional rankings: ${message}` });
     return;
   }
 
+  const route = "/scrape_rankings";
   let total = 0;
   let failed = 0;
   for (const { competition_id, specialty_id } of pairs) {
     const label = `rankings of competition #${competition_id}, specialty #${specialty_id}`;
+    const fields = { route, league, competition: String(competition_id), specialty: String(specialty_id) };
+    const started = Date.now();
     try {
-      const { saved } = await scrapeViaSelf(env, "/scrape_rankings", {
+      const { found, saved } = await scrapeViaSelf(env, route, {
         league,
         competition: String(competition_id),
         specialty: String(specialty_id),
         category: "0",
       });
       total += saved;
-      console.log(`[scheduler][${league}] ${label}: saved ${saved} teams`);
+      log.info({
+        event: "cron.scrape",
+        ...fields,
+        found,
+        saved,
+        durationMs: Date.now() - started,
+        message: `${label}: saved ${saved} teams`,
+      });
     } catch (err: unknown) {
       failed++;
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[scheduler][${league}] ${label}: ${message}`);
+      logSelfCallError(fields, started, label, err);
     }
   }
 
   if (pairs.length > 0) {
-    console.log(
-      `[scheduler][${league}] Saved ${total} ranked teams across ${pairs.length} specialties (${failed} failed)`
-    );
+    log.info({
+      event: "cron.summary",
+      route,
+      league,
+      saved: total,
+      failed,
+      message: `Saved ${total} ranked teams across ${pairs.length} specialties (${failed} failed)`,
+    });
   }
+}
+
+/** A self-call that did not answer a summary: the status it answered, when it did. */
+class SelfCallError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Log a failed self-call of the cron. The callee logs its own route.error with
+ * the upstream details; this line ties the failure to the cron run.
+ */
+function logSelfCallError(
+  fields: { route: string; league: string; competition: string; specialty?: string },
+  started: number,
+  label: string,
+  err: unknown
+): void {
+  const message = err instanceof Error ? err.message : String(err);
+  log.error({
+    event: "cron.scrape.error",
+    ...fields,
+    status: err instanceof SelfCallError ? err.status : undefined,
+    durationMs: Date.now() - started,
+    message: `${label}: ${message}`,
+  });
 }
 
 /**
@@ -543,7 +626,7 @@ async function scrapeViaSelf(
     | null;
 
   if (!res.ok || !body || typeof body.saved !== "number") {
-    throw new Error(body?.error ?? `self-call failed with HTTP ${res.status}`);
+    throw new SelfCallError(body?.error ?? `self-call failed with HTTP ${res.status}`, res.status);
   }
   return { found: body.found ?? 0, saved: body.saved };
 }

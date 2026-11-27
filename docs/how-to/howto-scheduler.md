@@ -491,6 +491,50 @@ When running `bun run dev` the `SELF` binding points at the same dev session, so
 
 ---
 
+## Read the logs
+
+The scheduler logs one object per line, with fixed fields. [Logs](../reference/logs.md) lists the
+fields and the events. Workers Logs indexes these fields, so you can filter and group on them.
+
+Open the logs in the Cloudflare dashboard: **Workers & Pages**, `frontis-scheduler`, then
+**Observability**. Build a query in the Query Builder: each filter is a field, an operator and a
+value, and several filters must all match. setup-league writes the same `route.*` lines under
+`frontis-setup-league`. In local development, the same objects print in the terminal of
+`bun run dev`.
+
+### Find why a scrape failed
+
+Every error a route returns is a `route.error` line. It holds the route, the request parameters,
+the status the route answered, and the error message.
+
+| To find                                     | Filter                                                         |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| The errors of one league                    | `event` equals `route.error`, `league` equals `ffpb`           |
+| Failures only, not bad requests             | `event` equals `route.error`, `status` greater or equals `500` |
+| League site failures, with what it answered | `event` equals `route.error`, `upstreamStatus` exists          |
+| The failed nightly self-calls               | `event` equals `cron.scrape.error`                             |
+| Rows a save left out                        | `event` equals `results.skipped`, or `rankings.skipped`        |
+| Slow scrapes                                | `event` equals `route.done`, `durationMs` greater `5000`       |
+| The nightly runs                            | `event` starts with `cron.`                                    |
+
+The admin page's **Every combination** walk gets HTTP 400 by design, for each combination the
+league site does not offer. Filter on `status` greater or equals `500` to leave them out.
+
+On a league site failure, add `upstreamStatus` and `upstreamBody` as columns. `upstreamBody` holds
+the start of the error page, where WebDev and PHP name their error. Session ids and tokens are
+replaced by `[redacted]`.
+
+### Group the failures
+
+To count the failures by cause, filter on `event` equals `route.error` and `status` greater or
+equals `500`, then group by `league` and `message`. Group by `upstreamStatus` to see which HTTP
+status the league site answers most.
+
+To see how long the scrapes take, filter on `event` equals `route.done`, then group by `league` and
+`route`, with the median of `durationMs`.
+
+---
+
 ## Parameter reference
 
 ### Filter values (`competition`, `specialty`, `category`, `phase`)

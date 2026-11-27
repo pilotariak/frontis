@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as cheerio from "cheerio";
+import { upstreamError } from "./log";
 import type { FormOption, FormOptions } from "./types";
 
 const USER_AGENT =
@@ -41,8 +42,9 @@ export async function scrapeFormOptions(url: string, competitionSourceId?: strin
 
   const response = await fetch(fetchUrl, { headers });
 
+  // statusText is empty over HTTP/2: the status and the body go to the logs.
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    throw await upstreamError(`Failed to fetch ${url}: ${response.statusText}`, response);
   }
 
   const $ = cheerio.load(await response.text());

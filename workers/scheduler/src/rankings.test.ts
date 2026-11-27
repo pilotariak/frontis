@@ -189,6 +189,28 @@ describe("scrapeRankings", () => {
     expect(withReload.batches[1].find((s) => s.bindings.includes("Finale"))?.bindings).toEqual([444, 98, 881, 12, 3, 2, "Finale"]);
   });
 
+  test("warns once for the teams it leaves out, with the counts and the pages' labels", async () => {
+    // NEW CLUB stays unknown, its insert ignored; PILOTA CLUB TEST team 1 is listed twice.
+    const twice = RANKING_HTML.replace("</tbody>", `${team(3, "1339001", "PILOTA CLUB TEST", 1, "Finale", "")}</tbody>`);
+    serve(FORM, () => twice);
+    const { db } = fakeDb(lookups([{ id: 10, source_id: "1339001", name: "PILOTA CLUB TEST" }]));
+
+    const summary = await scrapeRankings(envWith(db), options({ category: "881" }), false);
+
+    expect(summary).toMatchObject({ found: 3, saved: 1 });
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith({
+      event: "rankings.skipped",
+      league: "lcapb",
+      competition: "444",
+      found: 3,
+      skipped: 2,
+      missing: "Trinquet / P.G. Pleine Masculin / 1ère Série",
+      message:
+        "Skipped 2 of 3 ranked teams, unknown club or listed twice: Trinquet / P.G. Pleine Masculin / 1ère Série",
+    });
+  });
+
   test("passes the specialty and category filters to the site as source_ids", async () => {
     serve(FORM, () => "");
     const { db } = fakeDb(lookups([]));

@@ -1,5 +1,6 @@
 import { renderAdminPage } from "./admin-page";
 import type { FormOption } from "./leagues/types";
+import { logRouteError } from "./log";
 import { BadRequestError, checkIds, idsBySourceId, lookup } from "./params";
 import { getDatabase, scrapers } from "./scraper";
 import type { Env } from "./types";
@@ -125,6 +126,7 @@ export async function handleAdmin(req: Request, url: URL, env: Env, version: str
 
   if (!["/admin/competitions", "/admin/options", "/admin/league"].includes(url.pathname)) return null;
 
+  const started = Date.now();
   try {
     const league = checkLeague(env, url.searchParams.get("league"));
     if (url.pathname === "/admin/competitions") {
@@ -144,6 +146,7 @@ export async function handleAdmin(req: Request, url: URL, env: Env, version: str
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const status = err instanceof BadRequestError ? 400 : 500;
+    logRouteError(url, started, status, err);
     return new Response(JSON.stringify({ error: msg }), { status, headers: JSON_HEADERS });
   }
 }

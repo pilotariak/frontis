@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import worker from "./index";
 import { adminLeagues } from "./admin";
 import { renderAdminPage } from "./admin-page";
+import { UpstreamError } from "./log";
 import { scrapers } from "./scraper";
 import type { FormOptions, RankingSource } from "./leagues/types";
 import type { Env } from "./types";
@@ -81,6 +82,12 @@ const form = (competitions: string[]): FormOptions => ({
   clubs: [],
   categories: [{ sourceId: "4", name: "1ère Série" }],
   phases: [],
+});
+
+// Every error an admin route answers is logged: keep the test output quiet.
+let consoleError: ReturnType<typeof spyOn<Console, "error">>;
+beforeEach(() => {
+  consoleError = spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => mock.restore());
@@ -273,14 +280,30 @@ describe("/admin/options", () => {
     expect(fetchResultsForm).not.toHaveBeenCalled();
   });
 
-  test("a league site failure is a 500", async () => {
-    spyOn(scrapers.lcapb!, "fetchResultsForm").mockRejectedValue(new Error("[LCAPB] Failed to fetch results form: Bad Gateway"));
+  test("a league site failure is a 500, logged with the site's status and body", async () => {
+    spyOn(scrapers.lcapb!, "fetchResultsForm").mockRejectedValue(
+      new UpstreamError("[LCAPB] Failed to fetch results form: Bad Gateway", 502, "Bad Gateway nginx")
+    );
     const res = await get(
       "/admin/options?league=lcapb&competition=502&script=results",
       envWith({ DB_LEAGUE_LCAPB: leagueDb().db })
     );
     expect(res.status).toBe(500);
     expect(await body(res)).toEqual({ error: "[LCAPB] Failed to fetch results form: Bad Gateway" });
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError.mock.calls[0]).toEqual([
+      {
+        event: "route.error",
+        route: "/admin/options",
+        league: "lcapb",
+        competition: "502",
+        status: 500,
+        durationMs: expect.any(Number),
+        message: "[LCAPB] Failed to fetch results form: Bad Gateway",
+        upstreamStatus: 502,
+        upstreamBody: "Bad Gateway nginx",
+      },
+    ]);
   });
 });
 

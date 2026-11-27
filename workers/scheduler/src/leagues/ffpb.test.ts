@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { UpstreamError } from "../log";
 import { BadRequestError } from "../params";
 import {
   FfpbScraper,
@@ -239,6 +240,20 @@ describe("FfpbScraper.fetchResults", () => {
     expect(headers["Cookie"]).toBe("FFPB_COMPETITION_HOST=test-host; DYN_SECURITEd10=test-value");
   });
 
+  test("logs its summary as one object, without the session's cookies", async () => {
+    fakeSite();
+    await scraper.fetchResults(results2026);
+    expect(console.log).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith({
+      event: "league.results",
+      league: "ffpb",
+      found: 5,
+      pageSize: RESULTS.length,
+      durationMs: expect.any(Number),
+      message: "CHAMPIONNAT DE FRANCE 2026 / Trinquet Paleta Pelote de Gomme Pleine Masculin / Nationale A: 5 results",
+    });
+  });
+
   test("searches with every field of the form, the choices the answers moved included", async () => {
     fakeSite();
     await scraper.fetchResults(results2026);
@@ -304,9 +319,39 @@ describe("FfpbScraper.fetchResults", () => {
     );
   });
 
-  test("fails when a change does not answer WAJAX", async () => {
+  test("keeps the status and a redacted start of the body of an error answer", async () => {
+    const page = `<html><head><style>p { color: red }</style></head><body>
+      <h1>Erreur 503</h1>
+      <p>Le serveur WebDev est saturé. Session /FFPB_COMPETITION/PAGE_ACCUEIL_INVITE/AWPQ7XUFTQ2BDKE4GUXZ6JMC3HDNN5RVO
+      expirée, token=s3cr3t-value</p>
+      ${"<p>détail</p> ".repeat(60)}</body></html>`;
+    fakeSite({ home: () => new Response(page, { status: 503, statusText: "Service Unavailable" }) });
+
+    const err = await scraper.fetchResults(results2026).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(UpstreamError);
+    const { message, upstreamStatus, upstreamBody } = err as UpstreamError;
+    expect(message).toBe("[FFPB] Failed to fetch the home page: HTTP 503 Service Unavailable");
+    expect(upstreamStatus).toBe(503);
+    expect(upstreamBody).toStartWith(
+      "Erreur 503 Le serveur WebDev est saturé. Session [redacted] expirée, token=[redacted] détail détail"
+    );
+    expect(upstreamBody).not.toContain("AWPQ7");
+    expect(upstreamBody).not.toContain("s3cr3t");
+    expect(upstreamBody).not.toContain("color");
+    expect(upstreamBody).not.toContain("\n");
+    expect(upstreamBody.length).toBeLessThanOrEqual(201);
+  });
+
+  test("fails when a change does not answer WAJAX, keeping what it answered", async () => {
     fakeSite({ category: "<html>CGI1910 ERR_BAD_URL</html>" });
-    await expect(scraper.fetchResults(results2026)).rejects.toThrow("The A41 change did not answer WAJAX XML");
+    const err = await scraper.fetchResults(results2026).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err).toMatchObject({
+      message: "[FFPB] The A41 change did not answer WAJAX XML",
+      upstreamStatus: 200,
+      upstreamBody: "CGI1910 ERR_BAD_URL",
+    });
   });
 });
 

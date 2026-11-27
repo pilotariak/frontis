@@ -1,3 +1,4 @@
+import { excerpt, log, upstreamError, UpstreamError } from "../log";
 import { BadRequestError } from "../params";
 import type { ScrapedResult } from "../types";
 import { socketConnect, socketFetch } from "./socket-fetch";
@@ -355,9 +356,10 @@ class Session {
   async choose(control: string, choice: Choice): Promise<void> {
     this.form.chosen.set(control, choice.position);
     const head = { WD_ACTION_: "AJAXPAGE", EXECUTE: WEBDEV.changeEvent, WD_CONTEXTE_: control };
-    const xml = await text(await send(this.url, this.jar, this.body(head, {})), `${control} change`);
+    const res = await send(this.url, this.jar, this.body(head, {}));
+    const xml = await text(res, `${control} change`);
     if (!xml.includes("<WAJAX>")) {
-      throw new Error(`[${LEAGUE}] The ${control} change did not answer WAJAX XML`);
+      throw new UpstreamError(`[${LEAGUE}] The ${control} change did not answer WAJAX XML`, res.status, excerpt(xml));
     }
     for (const [alias, change] of parseAjaxLists(xml)) {
       if (change.choices) this.form.lists.set(alias, change.choices);
@@ -377,10 +379,11 @@ class Session {
   /** Press the search button: the competitions page, filtered by the chosen options. */
   async search(): Promise<string> {
     const body = this.body({}, { WD_ACTION_: "", WD_BUTTON_CLICK_: WEBDEV.search });
-    const page = await text(await send(this.url, this.jar, body), "competitions page");
+    const res = await send(this.url, this.jar, body);
+    const page = await text(res, "competitions page");
     // An error or session page would otherwise read as a table without rows.
     if (!page.includes(`<form name="${WEBDEV.competitionsForm}"`)) {
-      throw new Error(`[${LEAGUE}] The search did not answer the competitions page`);
+      throw new UpstreamError(`[${LEAGUE}] The search did not answer the competitions page`, res.status, excerpt(page));
     }
     return page;
   }
@@ -434,8 +437,14 @@ async function send(url: string, jar: Map<string, string>, body?: URLSearchParam
   return res;
 }
 
+/**
+ * The body of an answer. A failed one throws with the site's status and the
+ * start of its body, where WebDev names its error, for the logs.
+ */
 async function text(res: Response, what: string): Promise<string> {
-  if (!res.ok) throw new Error(`[${LEAGUE}] Failed to fetch the ${what}: HTTP ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    throw await upstreamError(`[${LEAGUE}] Failed to fetch the ${what}: HTTP ${res.status} ${res.statusText}`, res);
+  }
   return res.text();
 }
 
@@ -529,6 +538,7 @@ export class FfpbScraper implements LeagueScraper {
       throw new BadRequestError(`${LEAGUE} results cannot be filtered by phase: pass phase=0`);
     }
 
+    const started = Date.now();
     const session = await Session.open();
     if (!(await session.showSeason(wanted.season))) {
       throw new BadRequestError(`The ${LEAGUE} site does not list season ${wanted.season}`);
@@ -564,7 +574,14 @@ export class FfpbScraper implements LeagueScraper {
         throw new Error(`[${LEAGUE}] Asked for ${want.join(" / ")}, the site answered ${got.join(" / ")}`);
       }
     }
-    console.log(`[${LEAGUE}] ${competitionName} / ${specialty.label} / ${category.label}: ${results.length} results`);
+    log.info({
+      event: "league.results",
+      league: LEAGUE.toLowerCase(),
+      found: results.length,
+      pageSize: page.length,
+      durationMs: Date.now() - started,
+      message: `${competitionName} / ${specialty.label} / ${category.label}: ${results.length} results`,
+    });
     return results;
   }
 
