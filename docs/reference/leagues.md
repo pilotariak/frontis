@@ -195,8 +195,9 @@ unit tests mock `fetch()`, it uses `fetch()`.
 - **setup-league.** `/bootstrap` reads the `InCompet` select of `resultats.php`, which this site does
   not have, so it finds nothing. Bootstrap `ffpb` with the scheduler.
 - **Every combination walk.** The admin page's walk runs one `/scrape_results` per specialty and
-  category the competition offers, each with a search of 2 to 11 s. A category the specialty does not
-  offer fails at once, without a search.
+  category the competition offers, each with a search of 2 to 11 s. The competition's categories are
+  those of every specialty: a category the specialty does not offer answers HTTP 400 at once,
+  without a search, and the walk counts it as not offered and goes on.
 
 ### Bootstrap
 

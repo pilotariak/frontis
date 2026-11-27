@@ -60,7 +60,9 @@ The page has two modes:
    walk: every specialty the league site offers for this competition, times every category.
    Choices missing from the database are left out.
 3. Leave **Ask before each save** checked and click **Review N combinations**. The page previews
-   each combination in turn with a dry run and skips the empty ones. For each other one, choose:
+   each combination in turn with a dry run. It skips the empty ones, and the ones the league site
+   does not offer: the scheduler answers those HTTP 400, as for an `ffpb` category the specialty
+   does not have. For each other one, choose:
 
    | Button                 | Key | Effect                                            |
    | ---------------------- | --- | ------------------------------------------------- |
@@ -69,8 +71,10 @@ The page has two modes:
    | **Save all remaining** | `a` | Save this one and every later one without asking  |
    | **Stop**               | `q` | End the walk; what is already saved stays saved   |
 
-4. When the walk ends, the output panel lists each combination saved, skipped or failed, with the
-   counts. A failed combination does not stop the walk: you can skip it and go on.
+4. When the walk ends, the output panel lists each combination saved, skipped, not offered or
+   failed, with the counts. A failed combination does not stop the walk: you can skip it and go
+   on. Five outages in a row (no answer, HTTP 429 or a 5xx, each tried three times) stop it: the
+   scheduler or the league site is down, and the rest would fail the same way.
 
 To save every combination without previews, uncheck **Ask before each save** and click
 **Save N combinations**: each one is scraped and saved in one request. The page waits 300 ms
