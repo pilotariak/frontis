@@ -1,5 +1,6 @@
 import { load, type CheerioAPI } from "cheerio/slim";
 import type { AnyNode, Element } from "domhandler";
+import { excerpt, log, upstreamError, UpstreamError } from "../log";
 import type { ScrapedResult } from "../types";
 import type {
   FormOption,
@@ -56,22 +57,30 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
 
     // The POST submits the form and returns the results; the dropdowns of the
     // page it answers are not parsed (see fetchResultsForm).
+    const started = Date.now();
     const response = await fetch(this.baseUrl, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
     });
 
+    // statusText is empty over HTTP/2: the status and the body go to the logs.
     if (!response.ok) {
-      throw new Error(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`);
+      throw await upstreamError(`[${this.leagueName}] Failed to fetch page: ${response.statusText}`, response);
     }
 
     const html = await response.text();
     const results = parseResults(load(html), this.leagueName);
 
-    console.log(
-      `[${this.leagueName}] POST ${this.baseUrl} status=${response.status} html=${html.length}B results=${results.length}`
-    );
+    log.info({
+      event: "league.results",
+      league: this.leagueName.toLowerCase(),
+      found: results.length,
+      upstreamStatus: response.status,
+      pageSize: html.length,
+      durationMs: Date.now() - started,
+      message: `POST ${this.baseUrl}: ${results.length} results`,
+    });
 
     return results;
   }
@@ -86,13 +95,18 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     const headers = await this.requestHeaders();
     const res = await fetch(`${this.baseUrl}?${new URLSearchParams({ InCompet: competition })}`, { headers });
     if (!res.ok) {
-      throw new Error(`[${this.leagueName}] Failed to fetch results form: ${res.statusText}`);
+      throw await upstreamError(`[${this.leagueName}] Failed to fetch results form: ${res.statusText}`, res);
     }
-    const options = parseFormOptions(load(await res.text()));
+    const html = await res.text();
+    const options = parseFormOptions(load(html));
     // No competition list means no form at all (session not primed, error
     // page, markup change), not a competition missing from the list.
     if (options.competitions.length === 0) {
-      throw new Error(`[${this.leagueName}] Results form not found on resultats.php (HTTP ${res.status})`);
+      throw new UpstreamError(
+        `[${this.leagueName}] Results form not found on resultats.php (HTTP ${res.status})`,
+        res.status,
+        excerpt(html)
+      );
     }
     return options;
   }
@@ -109,13 +123,18 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
     // competition offers.
     const form = await fetch(`${url}?${new URLSearchParams({ InCompet: competition })}`, { headers });
     if (!form.ok) {
-      throw new Error(`[${leagueName}] Failed to fetch rankings form: ${form.statusText}`);
+      throw await upstreamError(`[${leagueName}] Failed to fetch rankings form: ${form.statusText}`, form);
     }
-    const options = parseFormOptions(load(await form.text()));
+    const html = await form.text();
+    const options = parseFormOptions(load(html));
     // No competition list means no form at all (session not primed, error
     // page, markup change), not a competition missing from the list.
     if (options.competitions.length === 0) {
-      throw new Error(`[${leagueName}] Rankings form not found on classements.php (HTTP ${form.status})`);
+      throw new UpstreamError(
+        `[${leagueName}] Rankings form not found on classements.php (HTTP ${form.status})`,
+        form.status,
+        excerpt(html)
+      );
     }
 
     return {
@@ -141,7 +160,10 @@ export abstract class EuskalpilotaScraper implements LeagueScraper {
           body: body.toString(),
         });
         if (!res.ok) {
-          throw new Error(`[${leagueName}] Failed to fetch ranking ${specialty}/${category}: ${res.statusText}`);
+          throw await upstreamError(
+            `[${leagueName}] Failed to fetch ranking ${specialty}/${category}: ${res.statusText}`,
+            res
+          );
         }
         return parseRanking(load(await res.text()));
       },

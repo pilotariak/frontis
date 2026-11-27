@@ -5,6 +5,7 @@ import { LcapbScraper } from "./leagues/lcapb";
 import { LidfpbScraper } from "./leagues/lidfpb";
 import { LlpbScraper } from "./leagues/llpb";
 import type { FormOptions, LeagueScraper, ScrapeOptions } from "./leagues/types";
+import { labelList, log } from "./log";
 import { BadRequestError, checkIds, lookup, pick } from "./params";
 
 export interface ScraperOptions extends ScrapeOptions {
@@ -287,6 +288,8 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
   // matching `enabled` flags can be flipped in the same batch below.
   const usedSpecialtyIds = new Set<number>();
   const usedCategoryIds = new Set<number>();
+  // Rows without a lookup id, warned about once for the whole call.
+  const skipped: string[] = [];
   for (const res of results) {
     const specialtyId = sharedSpecialty?.id ?? specialtyIds?.get(res.specialty);
     const clubAId = clubIds.get(baseClubName(res.club_a));
@@ -294,9 +297,7 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
     const categoryId = categoryIds.get(res.category);
 
     if (!specialtyId || !clubAId || !clubBId || !categoryId) {
-      console.warn(
-        `[saveResults] Skipping result: missing lookup for specialty='${res.specialty}' category='${res.category}' club_a='${res.club_a}' club_b='${res.club_b}'`
-      );
+      skipped.push(`${res.specialty} / ${res.category}`);
       continue;
     }
 
@@ -312,6 +313,18 @@ async function saveResults(db: D1Database, options: ScraperOptions, results: Scr
         res.club_b_player2_name ?? null, res.club_b_player2_number ?? null
       )
     );
+  }
+
+  if (skipped.length > 0) {
+    log.warn({
+      event: "results.skipped",
+      league: options.league,
+      competition: String(competition.id),
+      found: results.length,
+      skipped: skipped.length,
+      missing: labelList(skipped),
+      message: `Skipped ${skipped.length} of ${results.length} results with a missing lookup: ${labelList(skipped)}`,
+    });
   }
 
   if (statements.length === 0) return 0;

@@ -1,6 +1,7 @@
 import { getDatabase, scrapers } from "./scraper";
 import type { Env } from "./types";
 import type { RankingPage, ScrapedRanking } from "./leagues/types";
+import { labelList, log } from "./log";
 import { BadRequestError, checkIds, idsBySourceId, lookup, pick } from "./params";
 
 /** Same arguments as /scrape_results: DB ids, "0" for every one. */
@@ -186,6 +187,8 @@ export async function scrapeRankings(env: Env, options: RankingOptions, dryRun: 
 
   const statements: D1PreparedStatement[] = [];
   let saved = 0;
+  // Pages of the teams left out, warned about once for the whole call.
+  const skipped: string[] = [];
   for (const { page, specialtyId, categoryId } of toSave) {
     const key = [competition.id, specialtyId, categoryId] as const;
     statements.push(deletePlayers.bind(...key), deleteRankings.bind(...key));
@@ -195,7 +198,7 @@ export async function scrapeRankings(env: Env, options: RankingOptions, dryRun: 
       const clubId = clubIdOf(row);
       // A team listed twice would break the UNIQUE key and fail the whole batch.
       if (clubId === undefined || seen.has(`${clubId}:${row.teamNumber}`)) {
-        console.warn(`[scrapeRankings] Skipping team '${row.club}' ${row.teamNumber} (rank ${row.rank})`);
+        skipped.push(`${page.specialty.name} / ${page.category.name}`);
         continue;
       }
       seen.add(`${clubId}:${row.teamNumber}`);
@@ -210,6 +213,18 @@ export async function scrapeRankings(env: Env, options: RankingOptions, dryRun: 
       });
       saved++;
     }
+  }
+
+  if (skipped.length > 0) {
+    log.warn({
+      event: "rankings.skipped",
+      league: options.league,
+      competition: String(competition.id),
+      found,
+      skipped: skipped.length,
+      missing: labelList(skipped),
+      message: `Skipped ${skipped.length} of ${found} ranked teams, unknown club or listed twice: ${labelList(skipped)}`,
+    });
   }
 
   await db.batch(statements);

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import worker from "./index";
+import { UpstreamError } from "./log";
 import * as rankings from "./rankings";
 import * as scraper from "./scraper";
 import type { Env } from "./types";
@@ -65,14 +66,22 @@ function fakeCtx() {
 
 const event = { cron: "0 3 * * *", scheduledTime: 0, noRetry() {} } as ScheduledController;
 
-let logs: string[];
-let errors: string[];
+type Line = Record<string, unknown>;
+let logs: Line[];
+let errors: Line[];
+
+/** Collects the lines of a console method; each call must log one object. */
+const collect = (into: () => Line[]) => (...args: unknown[]) => {
+  expect(args).toHaveLength(1);
+  expect(typeof args[0]).toBe("object");
+  into().push(args[0] as Line);
+};
 
 beforeEach(() => {
   logs = [];
   errors = [];
-  spyOn(console, "log").mockImplementation((...a: unknown[]) => void logs.push(a.join(" ")));
-  spyOn(console, "error").mockImplementation((...a: unknown[]) => void errors.push(a.join(" ")));
+  spyOn(console, "log").mockImplementation(collect(() => logs));
+  spyOn(console, "error").mockImplementation(collect(() => errors));
 });
 
 afterEach(() => mock.restore());
@@ -106,6 +115,15 @@ describe("fetch", () => {
     const res = await get("/scrape_infos?no_color=true", envWith({}));
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("Error: missing required parameter: league");
+    expect(errors).toEqual([
+      {
+        event: "route.error",
+        route: "/scrape_infos",
+        status: 400,
+        durationMs: expect.any(Number),
+        message: "missing required parameter: league",
+      },
+    ]);
   });
 
   test.each([
@@ -130,6 +148,46 @@ describe("fetch", () => {
     const res = await get("/scrape_infos?league=lcapb&no_color=true", envWith({}));
     expect(res.status).toBe(500);
     expect(await res.text()).toBe("Error: [LCAPB] Results form not found on resultats.php (HTTP 200)");
+    expect(errors).toEqual([
+      expect.objectContaining({
+        event: "route.error",
+        route: "/scrape_infos",
+        league: "lcapb",
+        status: 500,
+        message: "[LCAPB] Results form not found on resultats.php (HTTP 200)",
+      }),
+    ]);
+  });
+
+  test("/scrape_results logs the league site failure it returns, the answer unchanged", async () => {
+    const message = "[FFPB] Failed to fetch the home page: HTTP 503 ";
+    spyOn(scraper, "scrapeResults").mockRejectedValue(
+      new UpstreamError(message, 503, "Erreur 503 Le serveur WebDev est saturé")
+    );
+
+    const res = await get(
+      "/scrape_results?league=ffpb&competition=12&specialty=55&category=1&dry_run=true&format=json",
+      envWith({})
+    );
+
+    expect(res.status).toBe(500);
+    expect(await body(res)).toEqual({ error: message });
+    expect(errors).toEqual([
+      {
+        event: "route.error",
+        route: "/scrape_results",
+        league: "ffpb",
+        competition: "12",
+        specialty: "55",
+        category: "1",
+        dryRun: "true",
+        status: 500,
+        durationMs: expect.any(Number),
+        message,
+        upstreamStatus: 503,
+        upstreamBody: "Erreur 503 Le serveur WebDev est saturé",
+      },
+    ]);
   });
 
   test("/scrape_results lists every missing parameter", async () => {
@@ -138,6 +196,15 @@ describe("fetch", () => {
     expect(await body(res)).toEqual({
       error: "missing required parameters: competition, specialty, category",
     });
+    expect(errors).toEqual([
+      expect.objectContaining({
+        event: "route.error",
+        route: "/scrape_results",
+        league: "lcapb",
+        status: 400,
+        message: "missing required parameters: competition, specialty, category",
+      }),
+    ]);
   });
 
   test("/scrape_results answers a parameter the caller must fix with a 400, as JSON when format=json", async () => {
@@ -158,6 +225,15 @@ describe("fetch", () => {
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("Error: Invalid category: 'abc'");
+    expect(errors).toEqual([
+      expect.objectContaining({
+        event: "route.error",
+        route: "/scrape_rankings",
+        category: "abc",
+        status: 400,
+        message: "Invalid category: 'abc'",
+      }),
+    ]);
   });
 
   test("/scrape_results reports a bad parameter as plain text otherwise", async () => {
@@ -182,6 +258,23 @@ describe("fetch", () => {
     expect(res.headers.get("X-Scrape-Found")).toBe("0");
     expect(res.headers.get("X-Scrape-Saved")).toBe("0");
     expect(await res.text()).toContain("(no results)");
+    expect(logs).toEqual([
+      {
+        event: "route.done",
+        route: "/scrape_results",
+        league: "lcapb",
+        competition: "2",
+        specialty: "10",
+        category: "1",
+        dryRun: "true",
+        status: 200,
+        found: 0,
+        saved: 0,
+        durationMs: expect.any(Number),
+        message: "found 0, saved 0 results",
+      },
+    ]);
+    expect(errors).toEqual([]);
   });
 
   test("/scrape_rankings reports its counts as headers, which the admin page reads", async () => {
@@ -193,6 +286,9 @@ describe("fetch", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Scrape-Found")).toBe("7");
     expect(res.headers.get("X-Scrape-Saved")).toBe("6");
+    expect(logs).toEqual([
+      expect.objectContaining({ event: "route.done", route: "/scrape_rankings", status: 200, found: 7, saved: 6 }),
+    ]);
   });
 
   test("/scrape_rankings takes the same required parameters as /scrape_results", async () => {
@@ -254,9 +350,28 @@ describe("scheduled", () => {
       { league: "lidfpb", competition: "7", specialty: "0", category: "0", phase: "0", format: "json" },
     ]);
     expect(lcapb.queries[0].sql).toBe("SELECT id, name FROM competitions WHERE enabled = 1 ORDER BY id");
-    expect(logs).toContain("[scheduler][lcapb] Championnat 2026 (#2): found 10, saved 2 results");
-    expect(logs).toContain("[scheduler][lcapb] Saved 5 results across 2 competitions (0 failed)");
-    expect(logs).toContain("[scheduler][lidfpb] Saved 7 results across 1 competitions (0 failed)");
+    expect(logs[0]).toEqual({ event: "cron.start", cron: "0 3 * * *", message: "Cron triggered at 0 3 * * *" });
+    expect(logs).toContainEqual({
+      event: "cron.scrape",
+      route: "/scrape_results",
+      league: "lcapb",
+      competition: "2",
+      found: 10,
+      saved: 2,
+      durationMs: expect.any(Number),
+      message: "Championnat 2026 (#2): found 10, saved 2 results",
+    });
+    expect(logs).toContainEqual({
+      event: "cron.summary",
+      route: "/scrape_results",
+      league: "lcapb",
+      saved: 5,
+      failed: 0,
+      message: "Saved 5 results across 2 competitions (0 failed)",
+    });
+    expect(logs).toContainEqual(
+      expect.objectContaining({ event: "cron.summary", league: "lidfpb", saved: 7, failed: 0 })
+    );
     expect(errors).toEqual([]);
   });
 
@@ -303,10 +418,25 @@ describe("scheduled", () => {
 
     expect(calls).toHaveLength(3);
     expect(errors).toEqual([
-      "[scheduler][lcapb] A (#1): upstream exploded",
-      "[scheduler][lcapb] B (#2): self-call failed with HTTP 200",
+      {
+        event: "cron.scrape.error",
+        route: "/scrape_results",
+        league: "lcapb",
+        competition: "1",
+        status: 500,
+        durationMs: expect.any(Number),
+        message: "A (#1): upstream exploded",
+      },
+      expect.objectContaining({
+        event: "cron.scrape.error",
+        competition: "2",
+        status: 200,
+        message: "B (#2): self-call failed with HTTP 200",
+      }),
     ]);
-    expect(logs).toContain("[scheduler][lcapb] Saved 4 results across 3 competitions (2 failed)");
+    expect(logs).toContainEqual(
+      expect.objectContaining({ event: "cron.summary", saved: 4, failed: 2, message: "Saved 4 results across 3 competitions (2 failed)" })
+    );
   });
 
   test("a league with no enabled competition is skipped with a hint", async () => {
@@ -317,9 +447,11 @@ describe("scheduled", () => {
     await settled();
 
     expect(calls).toEqual([]);
-    expect(logs).toContain(
-      "[scheduler][lcapb] No enabled competition; run /scrape_results once for a competition to enrol it"
-    );
+    expect(logs).toContainEqual({
+      event: "cron.skip",
+      league: "lcapb",
+      message: "No enabled competition; run /scrape_results once for a competition to enrol it",
+    });
   });
 
   test("a league whose competition listing fails is skipped without aborting the run", async () => {
@@ -332,8 +464,8 @@ describe("scheduled", () => {
     await settled();
 
     expect(errors).toEqual([
-      "[scheduler][lcapb] Failed to list enabled competitions: D1 unavailable",
-      "[scheduler][lcapb] Failed to list provisional rankings: D1 unavailable",
+      { event: "cron.skip", league: "lcapb", message: "Failed to list enabled competitions: D1 unavailable" },
+      { event: "cron.skip", league: "lcapb", message: "Failed to list provisional rankings: D1 unavailable" },
     ]);
     expect(calls.map((u) => u.searchParams.get("league"))).toEqual(["lidfpb"]);
   });
@@ -359,7 +491,17 @@ describe("scheduled", () => {
       { league: "lcapb", competition: "4", specialty: "98", category: "0", format: "json" },
       { league: "lcapb", competition: "4", specialty: "97", category: "0", format: "json" },
     ]);
-    expect(logs).toContain("[scheduler][lcapb] Saved 24 ranked teams across 2 specialties (0 failed)");
+    expect(logs).toContainEqual(
+      expect.objectContaining({ event: "cron.scrape", route: "/scrape_rankings", competition: "4", specialty: "98", saved: 12 })
+    );
+    expect(logs).toContainEqual({
+      event: "cron.summary",
+      route: "/scrape_rankings",
+      league: "lcapb",
+      saved: 24,
+      failed: 0,
+      message: "Saved 24 ranked teams across 2 specialties (0 failed)",
+    });
     expect(errors).toEqual([]);
   });
 
@@ -371,6 +513,6 @@ describe("scheduled", () => {
     await worker.scheduled(event, env, ctx);
     await settled();
 
-    expect(errors).toEqual(["[scheduler][lcapb] No database binding, skipping"]);
+    expect(errors).toEqual([{ event: "cron.skip", league: "lcapb", message: "No database binding, skipping" }]);
   });
 });

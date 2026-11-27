@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { UpstreamError } from "./log";
 import { BadRequestError } from "./params";
 import { scrapeInfos, scrapeResults, scrapers } from "./scraper";
 import type { Env } from "./types";
@@ -521,7 +522,32 @@ describe("scrapeResults", () => {
 
     expect(saved).toBe(0);
     expect(batches).toHaveLength(1); // only the club/category upsert batch
-    expect(console.warn).toHaveBeenCalledTimes(3);
+    // One warning for the call, not one per row: counts and distinct labels.
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith({
+      event: "results.skipped",
+      league: "lcapb",
+      competition: "2",
+      found: 3,
+      skipped: 3,
+      missing: "Trinquet/P.G. Pleine Masculin / Seniors; Main Nue / Cadets",
+      message:
+        "Skipped 3 of 3 results with a missing lookup: Trinquet/P.G. Pleine Masculin / Seniors; Main Nue / Cadets",
+    });
+  });
+
+  test("logs the league scraper's summary as one object", async () => {
+    const { db } = fakeDb(LOOKUPS);
+    await scrapeResults(envWith(db), ALL, true);
+    expect(console.log).toHaveBeenCalledWith({
+      event: "league.results",
+      league: "lcapb",
+      found: 3,
+      upstreamStatus: 200,
+      pageSize: RESULTS_HTML.length,
+      durationMs: expect.any(Number),
+      message: "POST https://lcapb.euskalpilota.fr/resultats.php: 3 results",
+    });
   });
 
   test("surfaces upstream HTTP failures", async () => {
@@ -531,6 +557,29 @@ describe("scrapeResults", () => {
     await expect(scrapeResults(envWith(db), ALL, true)).rejects.toThrow(
       "[LCAPB] Failed to fetch results form: Service Unavailable"
     );
+  });
+
+  test("keeps the status and the start of the body of a failure, the message unchanged", async () => {
+    // Over HTTP/2 a response has no status text: the message ends with ": ".
+    const page = `<html><head><title>Erreur</title><script>var t = 1;</script></head>
+      <body><h1>Fatal error</h1>  <p>Too many connections in /var/www/resultats.php
+      (PHPSESSID=abc123secret)</p>${"x ".repeat(200)}</body></html>`;
+    fetchMock = mock(async () => new Response(page, { status: 500 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { db } = fakeDb(LOOKUPS);
+
+    const err = await scrapeResults(envWith(db), ALL, true).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(UpstreamError);
+    const upstream = err as UpstreamError;
+    expect(upstream.message).toBe("[LCAPB] Failed to fetch results form: ");
+    expect(upstream.upstreamStatus).toBe(500);
+    expect(upstream.upstreamBody).toStartWith(
+      "Erreur Fatal error Too many connections in /var/www/resultats.php (PHPSESSID=[redacted])"
+    );
+    expect(upstream.upstreamBody).not.toContain("abc123secret");
+    expect(upstream.upstreamBody).not.toContain("var t");
+    expect(upstream.upstreamBody.length).toBeLessThanOrEqual(201);
   });
 });
 
