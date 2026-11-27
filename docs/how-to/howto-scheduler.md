@@ -180,8 +180,9 @@ answers HTTP 500 and saves nothing, as does a league site that does not answer.
 | `competition` | `""`    | Competition `source_id` whose dropdowns to read; empty for the site default one |
 | `dry_run`     | `false` | If `true`, fetch and display the dropdowns but do not save                      |
 
-For `ffpb`, `competition` is a season (`2026`) or a competition `source_id` (`2026-1`), and its
-season's values are loaded. Without it, every season the site lists is loaded. `ffpb` loads no club
+For `ffpb`, `competition` is a season (`2026`), whose values are loaded, or a competition `source_id`
+(`2026-1`), whose season's competitions are loaded with the specialties and categories that competition
+offers. Without it, every season the site lists is loaded. `ffpb` loads no club
 and no phase. See [FFPB](../reference/leagues.md#ffpb).
 
 **Examples**

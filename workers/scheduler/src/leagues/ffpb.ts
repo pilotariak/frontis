@@ -1,7 +1,7 @@
 import { BadRequestError } from "../params";
 import type { ScrapedResult } from "../types";
 import { socketConnect, socketFetch } from "./socket-fetch";
-import type { FormOption, FormOptions, LeagueScraper, RankingSource, ScrapeData, ScrapeOptions } from "./types";
+import type { FormOption, FormOptions, LeagueScraper, RankingSource, ScrapeOptions } from "./types";
 
 /**
  * Scraper for competition.ffpb.net, the national competitions of the
@@ -281,6 +281,8 @@ export function parseRows(page: string, year: number): ScrapedResult[] {
     if (!a.club || !b.club) continue;
 
     const pool = textOf(cells.get(CELL.pool) ?? "");
+    // Under a POULES header, the row's own pool ("Poule 1") names its phase and gives its pool number.
+    const poolNumber = head.phase.toUpperCase() === "POULES" ? Number(/^Poule (\d+)$/i.exec(pool)?.[1] ?? 0) : 0;
     // "24/01/2026 reportée au 06/02/2026 à 18:30": a postponed match keeps its new date.
     const dates = textOf(cells.get(CELL.date) ?? "").match(/\b\d{2}\/\d{2}\/\d{4}\b/g);
     results.push({
@@ -289,6 +291,9 @@ export function parseRows(page: string, year: number): ScrapedResult[] {
       year,
       category: head.category,
       phase: head.phase.toUpperCase() === "POULES" && pool && pool !== "Poule 0" ? pool : head.phase,
+      pool: poolNumber > 0 ? poolNumber : null,
+      // The site has no pool phases.
+      pool_phase: null,
       date_match: dates ? dates[dates.length - 1] : "",
       club_a: a.club,
       club_a_player1_name: a.players[0]?.name,
@@ -470,54 +475,47 @@ function offered(session: Session, control: string, id: string, label: string, s
 export class FfpbScraper implements LeagueScraper {
   readonly baseUrl = `${ORIGIN}/FFPB_COMPETITION/`;
 
-  async fetchData(options: ScrapeOptions, extractResults: boolean): Promise<ScrapeData> {
-    return extractResults
-      ? { formOptions: EMPTY_FORM_OPTIONS, results: await this.fetchResults(options) }
-      : { formOptions: await this.fetchOptions(options.competition), results: [] };
-  }
-
   /**
-   * The form values of one season, or of every season the site lists when no
-   * competition is given. The specialty and category lists cover the whole
-   * season, every competition type included.
+   * The form values for a competition source_id:
+   * - `""`: every season the site lists, not only the one the home page shows;
+   * - `<season>`: the season's competitions, and the specialties and categories
+   *   of the whole season, every competition type included;
+   * - `<season>-<type>`: the season's competitions, and the specialties and
+   *   categories that competition offers, as the site narrows them once the type
+   *   is chosen.
+   * A season the site does not list offers nothing.
    */
-  private async fetchOptions(competition: string): Promise<FormOptions> {
-    const session = await Session.open();
-    if (competition) {
-      const wanted = parseCompetition(competition);
-      if (!wanted) {
-        throw new BadRequestError(`Invalid ${LEAGUE} competition '${competition}': expected <season>-<type> or <season>`);
-      }
-      if (!(await session.showSeason(wanted.season))) return EMPTY_FORM_OPTIONS;
-      return session.options();
-    }
-
-    const all = [session.options()];
-    const shown = session.chosen(WEBDEV.season)?.id;
-    for (const season of session.list(WEBDEV.season)) {
-      if (!isReal(season) || season.id === shown) continue;
-      await session.showSeason(season.id);
-      all.push(session.options());
-    }
-    return merge(all);
-  }
-
-  /** The competitions of the season, and the specialties and categories the competition offers. */
   async fetchResultsForm(competition: string): Promise<FormOptions> {
-    const wanted = parseCompetition(competition);
-    if (!wanted) throw new BadRequestError(`Invalid ${LEAGUE} competition '${competition}'`);
+    const wanted = competition ? parseCompetition(competition) : null;
+    if (competition && !wanted) {
+      throw new BadRequestError(`Invalid ${LEAGUE} competition '${competition}': expected <season>-<type> or <season>`);
+    }
     const session = await Session.open();
     if (session.list(WEBDEV.season).length === 0) {
       throw new Error(`[${LEAGUE}] Season select not found on the home page`);
     }
-    // A season the site does not list offers no competition.
+
+    if (!wanted) {
+      const all = [session.options()];
+      const shown = session.chosen(WEBDEV.season)?.id;
+      for (const season of session.list(WEBDEV.season)) {
+        if (!isReal(season) || season.id === shown) continue;
+        await session.showSeason(season.id);
+        all.push(session.options());
+      }
+      return merge(all);
+    }
+
     if (!(await session.showSeason(wanted.season))) return EMPTY_FORM_OPTIONS;
-    const type = session.list(WEBDEV.type).find((c) => c.id === wanted.type);
-    if (type && isReal(type)) await session.choose(WEBDEV.type, type);
+    if (wanted.type) {
+      const type = session.list(WEBDEV.type).find((c) => c.id === wanted.type);
+      if (type && isReal(type)) await session.choose(WEBDEV.type, type);
+    }
     return session.options();
   }
 
-  private async fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]> {
+  /** The results of one specialty and one category of a competition (`<season>-<type>`). */
+  async fetchResults(options: ScrapeOptions): Promise<ScrapedResult[]> {
     const wanted = parseCompetition(options.competition);
     if (!wanted?.type) {
       throw new BadRequestError(`Invalid ${LEAGUE} competition '${options.competition}': expected <season>-<type>`);

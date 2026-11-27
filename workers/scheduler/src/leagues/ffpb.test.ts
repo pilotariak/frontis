@@ -54,6 +54,11 @@ describe("parseRows", () => {
     expect(results.map((r) => r.phase)).toEqual(["Poule 1", "Poule 1", "BARRAGES MAINTIEN", "1/4 DE FINALE", "FINALE"]);
   });
 
+  test("gives the pool number under POULES only, and no pool phase", () => {
+    expect(results.map((r) => r.pool)).toEqual([1, 1, null, null, null]);
+    expect(results.map((r) => r.pool_phase)).toEqual([null, null, null, null, null]);
+  });
+
   test("keeps the date without its time, the new one for a postponed match", () => {
     expect(results.map((r) => r.date_match)).toEqual(["17/01/2026", "06/02/2026", "08/03/2026", "21/02/2026", "07/03/2026"]);
   });
@@ -221,13 +226,12 @@ afterEach(() => {
   mock.restore();
 });
 
-describe("FfpbScraper.fetchData (results)", () => {
+describe("FfpbScraper.fetchResults", () => {
   test("makes the browser's choices on the home page, then searches", async () => {
     fakeSite();
-    const { results, formOptions } = await scraper.fetchData(results2026, true);
+    const results = await scraper.fetchResults(results2026);
 
     expect(results).toHaveLength(5);
-    expect(formOptions.competitions).toEqual([]);
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([SITE, ...Array(5).fill(HOME_ACTION)]);
     // Each choice is posted as the browser posts it, positions from the lists the previous answer sent.
     expect([1, 2, 3, 4].map(bodyOf)).toEqual(BROWSER);
@@ -237,7 +241,7 @@ describe("FfpbScraper.fetchData (results)", () => {
 
   test("searches with every field of the form, the choices the answers moved included", async () => {
     fakeSite();
-    await scraper.fetchData(results2026, true);
+    await scraper.fetchResults(results2026);
     expect(bodyOf(5)).toBe(
       "WD_JSON_PROPRIETE_=&WD_BUTTON_CLICK_=A32&WD_ACTION_=&A34=2&A33=2&A36=9&A38=27&A39=34&A41=7" + TAIL
     );
@@ -246,7 +250,7 @@ describe("FfpbScraper.fetchData (results)", () => {
   test("skips the season change for the season the page shows", async () => {
     fakeSite();
     // The fixture answers belong to 2026, so the header check fails.
-    await expect(scraper.fetchData({ ...results2026, competition: "2027-1" }, true)).rejects.toThrow(
+    await expect(scraper.fetchResults({ ...results2026, competition: "2027-1" })).rejects.toThrow(
       "Asked for CHAMPIONNAT DE FRANCE 2027 / Trinquet Paleta Pelote de Gomme Pleine Masculin / Nationale A, " +
         "the site answered CHAMPIONNAT DE FRANCE 2026"
     );
@@ -255,17 +259,17 @@ describe("FfpbScraper.fetchData (results)", () => {
 
   test("refuses every specialty, every category or a phase without calling the site", async () => {
     fakeSite();
-    await expect(scraper.fetchData({ ...results2026, specialty: "0" }, true)).rejects.toBeInstanceOf(BadRequestError);
-    await expect(scraper.fetchData({ ...results2026, category: "0" }, true)).rejects.toThrow(
+    await expect(scraper.fetchResults({ ...results2026, specialty: "0" })).rejects.toBeInstanceOf(BadRequestError);
+    await expect(scraper.fetchResults({ ...results2026, category: "0" })).rejects.toThrow(
       "one specialty and one category at a time"
     );
-    await expect(scraper.fetchData({ ...results2026, phase: "10" }, true)).rejects.toThrow("pass phase=0");
+    await expect(scraper.fetchResults({ ...results2026, phase: "10" })).rejects.toThrow("pass phase=0");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test("refuses a competition without its type", async () => {
     fakeSite();
-    await expect(scraper.fetchData({ ...results2026, competition: "2026" }, true)).rejects.toBeInstanceOf(
+    await expect(scraper.fetchResults({ ...results2026, competition: "2026" })).rejects.toBeInstanceOf(
       BadRequestError
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -274,7 +278,7 @@ describe("FfpbScraper.fetchData (results)", () => {
   test("refuses a category the specialty does not offer, before searching", async () => {
     fakeSite();
     // Espoir (-22 ans): offered by the competition, not by this specialty.
-    await expect(scraper.fetchData({ ...results2026, category: "10" }, true)).rejects.toThrow(
+    await expect(scraper.fetchResults({ ...results2026, category: "10" })).rejects.toThrow(
       "Category '10' is not offered by the FFPB site for CHAMPIONNAT DE FRANCE 2026, " +
         "Trinquet Paleta Pelote de Gomme Pleine Masculin"
     );
@@ -283,26 +287,26 @@ describe("FfpbScraper.fetchData (results)", () => {
 
   test("fails on a table the site cut short", async () => {
     fakeSite({ results: RESULTS.replace("5 / 5 lignes", "5 / 60 lignes") });
-    await expect(scraper.fetchData(results2026, true)).rejects.toThrow("lists 60 matches but sent 5");
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow("lists 60 matches but sent 5");
   });
 
   test("fails when the search does not answer the competitions page", async () => {
     fakeSite({ results: "<html>Session expirée</html>" });
-    await expect(scraper.fetchData(results2026, true)).rejects.toThrow(
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow(
       "The search did not answer the competitions page"
     );
   });
 
   test("fails when the site answers an error", async () => {
     fakeSite({ home: () => new Response("busy", { status: 503, statusText: "Service Unavailable" }) });
-    await expect(scraper.fetchData(results2026, true)).rejects.toThrow(
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow(
       "[FFPB] Failed to fetch the home page: HTTP 503 Service Unavailable"
     );
   });
 
   test("fails when a change does not answer WAJAX", async () => {
     fakeSite({ category: "<html>CGI1910 ERR_BAD_URL</html>" });
-    await expect(scraper.fetchData(results2026, true)).rejects.toThrow("The A41 change did not answer WAJAX XML");
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow("The A41 change did not answer WAJAX XML");
   });
 });
 
@@ -334,37 +338,33 @@ describe("FfpbScraper.fetchResultsForm", () => {
     expect(form.competitions).toEqual([]);
     expect(contexts()).toEqual([]);
   });
-});
 
-describe("FfpbScraper.fetchData (form options)", () => {
   test("lists every season the site offers when no competition is given", async () => {
     fakeSite();
-    const { formOptions, results } = await scraper.fetchData({ competition: "", specialty: "0", category: "0", phase: "0" }, false);
+    const form = await scraper.fetchResultsForm("");
 
-    expect(results).toEqual([]);
     // One season change per season other than the one the page shows, never a search.
     expect(contexts()).toEqual(["A34", "A34", "A34", "A34"]);
     expect(searches()).toHaveLength(0);
-    const ids = formOptions.competitions.map((c) => c.sourceId);
+    const ids = form.competitions.map((c) => c.sourceId);
     expect(ids).toContain("2027-13");
     expect(ids).toContain("2023-4");
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test("lists one season for a season or competition source_id", async () => {
+  test("lists the whole season for a season source_id", async () => {
     fakeSite();
-    const { formOptions } = await scraper.fetchData({ competition: "2026", specialty: "0", category: "0", phase: "0" }, false);
-    expect(formOptions.competitions).toHaveLength(5);
-    expect(formOptions.specialties).toHaveLength(38);
-    expect(formOptions.categories).toHaveLength(15);
+    const form = await scraper.fetchResultsForm("2026");
+    expect(form.competitions).toHaveLength(5);
+    expect(form.specialties).toHaveLength(38);
+    expect(form.categories).toHaveLength(15);
     expect(contexts()).toEqual(["A34"]);
   });
 
   test("refuses a competition that is not a season", async () => {
     fakeSite();
-    await expect(
-      scraper.fetchData({ competition: "20260501", specialty: "0", category: "0", phase: "0" }, false)
-    ).rejects.toBeInstanceOf(BadRequestError);
+    await expect(scraper.fetchResultsForm("20260501")).rejects.toBeInstanceOf(BadRequestError);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

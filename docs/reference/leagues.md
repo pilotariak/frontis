@@ -110,7 +110,7 @@ Requests per call, as measured on 2026-11-19:
 
 | Call                                  | Requests to the site                                                                                       | Time      |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------- |
-| `/scrape_infos` for one season        | home page, plus 1 season choice for a past season                                                          | about 1 s |
+| `/scrape_infos` for one season        | home page, plus 1 season choice for a past season, plus 1 type choice for `<season>-<type>`                | about 1 s |
 | `/scrape_infos` without `competition` | home page, plus 1 season choice per past season (4 on 2026-11-19)                                          | about 2 s |
 | `/admin/options`                      | home page, season, competition type                                                                        | about 1 s |
 | `/scrape_results`                     | the `/admin/options` requests, then a second session: home page, season, type, specialty, category, search | 4 to 15 s |
@@ -150,9 +150,10 @@ resolves.
 The home page has no club or phase select, so `/scrape_infos` loads no club and no phase for `ffpb`.
 Saving results creates the clubs that play, without a `source_id`.
 
-`/scrape_infos` loads the specialties and categories of a whole season. `/admin/options` and the check
-before `/scrape_results` narrow them to what the competition offers, as the site does once the
-competition type is chosen.
+`/scrape_infos` with a season (`2026`) loads the specialties and categories of that whole season, and
+without `competition` those of every season. A competition `source_id` (`2026-1`), as `/scrape_infos`,
+`/admin/options` and the check before `/scrape_results` pass it, narrows them to what the competition
+offers, as the site does once the competition type is chosen.
 
 Each results row maps to a `results` row:
 
@@ -160,6 +161,8 @@ Each results row maps to a `results` row:
   what was asked for. Any other header fails the scrape.
 - **Phase**: under a `POULES` header, the row's pool (`Poule 1`); otherwise the header
   (`1/4 DE FINALE`, `BARRAGES MAINTIEN`).
+- **Pool**: under a `POULES` header, the number of the row's pool (`Poule 1` gives `1`); null
+  otherwise. The pool phase is always null: the site has no pool phases.
 - **Club**: the team name with its number (`AVIRON BAYONNAIS 02`); saving strips the number.
 - **Players**: `NAME Firstname (licence) (marker)` gives the name and the licence. The marker (`E`,
   `S`) is dropped.
@@ -201,8 +204,8 @@ unit tests mock `fetch()`, it uses `fetch()`.
    `POST /admin/league?league=ffpb` with `{"name":"Fédération Française de Pelote basque"}`.
 2. Load the competitions, specialties and categories of every season with one call:
    `/scrape_infos?league=ffpb`. The lists are the same for every competition of a season, so the
-   per-competition loop of the bootstrap guide adds nothing. `competition=2026` (or `2026-1`) loads
-   one season.
+   per-competition loop of the bootstrap guide adds nothing. `competition=2026` loads one season,
+   `competition=2026-1` only what that competition offers.
 3. Load results one specialty and category at a time: `/scrape_results` with the database ids of the
    competition, specialty and category, or the admin page's "One combination" mode.
 
