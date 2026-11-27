@@ -10,7 +10,8 @@
  * Two modes share the page: "One combination" runs a single scrape, like the
  * URLs it replaces; "Every combination" walks each specialty x category the
  * competition offers, like `scrape-competition.sh --all`, and asks before each
- * save. The walk reads the X-Scrape-Found header to skip empty combinations.
+ * save. The walk reads the X-Scrape-Found header to skip empty combinations,
+ * and skips the ones the competition does not offer (HTTP 400).
  *
  * A third card bootstraps a league, as setup-league's /init and /bootstrap do:
  * its save writes the league's row through POST /admin/league, then runs
@@ -427,8 +428,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
       var NO_ANSWER = "No answer from the scheduler: the network request failed.";
       // A failed scrape is tried this many times in all, these many ms apart.
       var RETRY_PAUSES = [3000, 10000];
-      // A walk stops after this many failed requests in a row: the scheduler
-      // or the league site is down, the rest would fail the same way.
+      // A walk stops after this many outages in a row: the scheduler or the
+      // league site is down, the rest would fail the same way.
       var MAX_FAILURES_IN_A_ROW = 5;
 
       function el(id) { return document.getElementById(id); }
@@ -541,6 +542,12 @@ export function renderAdminPage(leagues: string[], version: string): string {
 
       function statusLabel(status) { return status ? "HTTP " + status : "No answer"; }
 
+      // No answer, a rate limit or a Worker failure: worth trying again, and
+      // what a walk counts towards MAX_FAILURES_IN_A_ROW. Any other answer,
+      // such as a 400 for a combination the competition does not offer, shows
+      // the scheduler and the league site are up.
+      function outage(status) { return status === 0 || status === 429 || status >= 500; }
+
       function tooManyFailures() {
         return MAX_FAILURES_IN_A_ROW + " requests failed in a row: stopped, the next ones would fail the same way. " +
           "Run again once the scheduler or the league site answers.";
@@ -603,7 +610,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
         var unknown = offered.specialties.length + offered.categories.length - specialties - categories;
         var text = plural(specialties, "specialty", "specialties") + " × " +
           plural(categories, "category", "categories") + ": " +
-          plural(combinations().length, "combination", "combinations") + ", the empty ones skipped.";
+          plural(combinations().length, "combination", "combinations") +
+          ", the empty and not offered ones skipped.";
         if (unknown) text += " " + unknown + " left out, not in database: bootstrap the league for this competition.";
         hint(text);
       }
@@ -751,8 +759,7 @@ export function renderAdminPage(leagues: string[], version: string): string {
         var attempt = 1;
         for (;;) {
           answer = await send(path, {});
-          var transient = answer.status === 0 || answer.status === 429 || answer.status >= 500;
-          if (!transient || attempt > RETRY_PAUSES.length || (walk && walk.stopped)) break;
+          if (!outage(answer.status) || attempt > RETRY_PAUSES.length || (walk && walk.stopped)) break;
           badge("", statusLabel(answer.status) + ": trying again (" + (attempt + 1) + "/" + (RETRY_PAUSES.length + 1) + ")…");
           await pause(RETRY_PAUSES[attempt - 1]);
           if (walk && walk.stopped) break;
@@ -947,14 +954,12 @@ export function renderAdminPage(leagues: string[], version: string): string {
             var reply = await scrape("infos", { league: league, competition: competition.source_id }, false);
             if (!reply.ok) {
               failed++;
-              inARow++;
               journal.push("failed  " + competition.name + "  (" + failureDetail(reply) + ")");
-            } else {
-              inARow = 0;
             }
+            inARow = !reply.ok && outage(reply.status) ? inARow + 1 : 0;
             done = i + 1;
             show();
-            if (inARow >= MAX_FAILURES_IN_A_ROW) {
+            if (inARow >= MAX_FAILURES_IN_A_ROW && done < competitions.length) {
               lost = tooManyFailures();
               break;
             }
@@ -1027,8 +1032,10 @@ export function renderAdminPage(leagues: string[], version: string): string {
 
       async function runWalk(scriptName, base, list, ask) {
         var noun = scriptName === "rankings" ? "teams" : "results";
-        var tally = { saved: 0, skipped: 0, empty: 0, failed: 0 };
+        var tally = { saved: 0, skipped: 0, empty: 0, notOffered: 0, failed: 0 };
         var inARow = 0;
+        // Whether the current combination failed with an outage.
+        var down = false;
         var journal = [];
         var done = 0;
         var lost = null;
@@ -1045,23 +1052,24 @@ export function renderAdminPage(leagues: string[], version: string): string {
         logEl.textContent = "";
 
         function note(state, combo, detail) {
-          var pad = "        ".slice(state.length);
+          var pad = "            ".slice(state.length);
           journal.push(state + pad + combo.label + "  (" + detail + ")");
         }
         function failure(combo, reply) {
           tally.failed++;
+          if (outage(reply.status)) down = true;
           note("failed", combo, failureDetail(reply));
         }
         function show() {
           walkBarEl.value = done;
           walkTallyEl.textContent = tally.saved + " saved · " + tally.skipped + " skipped · " +
-            tally.empty + " empty · " + tally.failed + " failed";
+            tally.empty + " empty · " + tally.notOffered + " not offered · " + tally.failed + " failed";
         }
 
         try {
           for (var i = 0; i < list.length && !walk.stopped; i++) {
             var combo = list[i];
-            var failedBefore = tally.failed;
+            down = false;
             var query = {
               league: base.league,
               competition: base.competition,
@@ -1076,7 +1084,13 @@ export function renderAdminPage(leagues: string[], version: string): string {
             var reply = await scrape(scriptName, query, asking);
             if (walk.stopped && asking) break;
 
-            if (!reply.ok) {
+            if (reply.status === 400) {
+              // The competition does not offer this combination, such as an
+              // FFPB category the specialty does not have: nothing to save,
+              // nothing to ask, as scrape-competition.sh --all does.
+              tally.notOffered++;
+              note("not offered", combo, reply.text.split("\n")[0]);
+            } else if (!reply.ok) {
               failure(combo, reply);
               if (asking) {
                 badge("fail", statusLabel(reply.status));
@@ -1118,8 +1132,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
             }
             done = i + 1;
             show();
-            inARow = tally.failed > failedBefore ? inARow + 1 : 0;
-            if (inARow >= MAX_FAILURES_IN_A_ROW) {
+            inARow = down ? inARow + 1 : 0;
+            if (inARow >= MAX_FAILURES_IN_A_ROW && done < list.length) {
               lost = tooManyFailures();
               break;
             }
@@ -1140,7 +1154,8 @@ export function renderAdminPage(leagues: string[], version: string): string {
           : "Stopped after " + done + " / " + list.length;
         badge(lost ? "fail" : "ok", lost ? "Failed" : finished ? "Done" : "Stopped");
         var summary = "done: " + plural(done, "combination", "combinations") + ", " + tally.saved + " saved, " +
-          tally.skipped + " skipped, " + tally.empty + " empty, " + tally.failed + " failed.";
+          tally.skipped + " skipped, " + tally.empty + " empty, " + tally.notOffered + " not offered, " +
+          tally.failed + " failed.";
         logEl.textContent = (lost ? lost + "\n\n" : "") + summary + (journal.length ? "\n\n" + journal.join("\n") : "");
         walk = null;
         setBusy(false);

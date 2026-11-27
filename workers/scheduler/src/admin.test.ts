@@ -118,13 +118,32 @@ describe("/admin", () => {
     expect(() => new Function(script)).not.toThrow();
     expect(script).toContain(`init.redirect = "manual";`);
     expect(script).toContain(`if (res.type === "opaqueredirect" || (!ours && res.status < 500 && res.status !== 429)) {`);
-    expect(script).toContain(`var transient = answer.status === 0 || answer.status === 429 || answer.status >= 500;`);
+    expect(script).toContain(`if (!outage(answer.status) || attempt > RETRY_PAUSES.length || (walk && walk.stopped)) break;`);
 
     const source = /function edgeError[\s\S]*?\n {6}}\n/.exec(script)![0];
     const edgeError = new Function(`${source}; return edgeError;`)() as (html: string) => string;
     expect(edgeError("<title>Worker exceeded resource limits | frontis-scheduler.pilotariak.com | Cloudflare</title>"))
       .toBe("Cloudflare error page: Worker exceeded resource limits (the Worker ran out of CPU time, crashed or timed out)");
     expect(edgeError("")).toBe("Cloudflare error page (the Worker ran out of CPU time, crashed or timed out)");
+  });
+
+  test("walks past combinations the competition does not offer, and stops only on outages", () => {
+    const html = renderAdminPage(["lcapb"], "1.0.0");
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
+
+    const source = /function outage\(status\) \{[^\n]*\}\n/.exec(script)![0];
+    const outage = new Function(`${source}; return outage;`)() as (status: number) => boolean;
+    for (const status of [0, 429, 500, 503]) expect(outage(status)).toBe(true);
+    // A 400 is the scheduler answering: an FFPB category the specialty does not offer.
+    for (const status of [200, 400, 404]) expect(outage(status)).toBe(false);
+
+    // A 400 is tallied as not offered before any failure, and never asks.
+    expect(script).toMatch(/if \(reply\.status === 400\) \{[\s\S]*?tally\.notOffered\+\+;[\s\S]*?\} else if \(!reply\.ok\) \{/);
+    expect(script).toContain(`inARow = down ? inARow + 1 : 0;`);
+    expect(script).toContain(`inARow = !reply.ok && outage(reply.status) ? inARow + 1 : 0;`);
+    // The last combination ends the walk as finished, not as stopped.
+    expect(script).toContain(`if (inARow >= MAX_FAILURES_IN_A_ROW && done < list.length) {`);
+    expect(script).toContain(`if (inARow >= MAX_FAILURES_IN_A_ROW && done < competitions.length) {`);
   });
 
   test("offers a bootstrap card: the league row first, then /scrape_infos by source_id", () => {
