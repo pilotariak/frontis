@@ -20,7 +20,8 @@ with the uppercase one (`CTPB`).
   `bunx wrangler whoami` to check.
 - The league's results site runs the euskalpilota.fr `resultats.php` application, like the
   [supported leagues](../reference/leagues.md). A site built on another application needs its own
-  scraper, which this guide does not cover.
+  scraper, which this guide does not cover: see how `ffpb` does it in
+  [Supported leagues](../reference/leagues.md#ffpb).
 
 ---
 

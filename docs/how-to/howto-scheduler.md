@@ -169,9 +169,9 @@ answers HTTP 500 and saves nothing, as does a league site that does not answer.
 
 **Required parameters**
 
-| Parameter | Description                         |
-| --------- | ----------------------------------- |
-| `league`  | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
+| Parameter | Description                                 |
+| --------- | ------------------------------------------- |
+| `league`  | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb` |
 
 **Optional parameters**
 
@@ -179,6 +179,11 @@ answers HTTP 500 and saves nothing, as does a league site that does not answer.
 | ------------- | ------- | ------------------------------------------------------------------------------- |
 | `competition` | `""`    | Competition `source_id` whose dropdowns to read; empty for the site default one |
 | `dry_run`     | `false` | If `true`, fetch and display the dropdowns but do not save                      |
+
+For `ffpb`, `competition` is a season (`2026`), whose values are loaded, or a competition `source_id`
+(`2026-1`), whose season's competitions are loaded with the specialties and categories that competition
+offers. Without it, every season the site lists is loaded. `ffpb` loads no club
+and no phase. See [FFPB](../reference/leagues.md#ffpb).
 
 **Examples**
 
@@ -265,10 +270,10 @@ HTTP 500.
 
 **Required parameters**
 
-| Parameter     | Description                         |
-| ------------- | ----------------------------------- |
-| `league`      | `lcapb`, `lidfpb`, `ctpb` or `llpb` |
-| `competition` | Competition DB `id`                 |
+| Parameter     | Description                                 |
+| ------------- | ------------------------------------------- |
+| `league`      | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb` |
+| `competition` | Competition DB `id`                         |
 
 **Optional parameters**
 
@@ -279,6 +284,9 @@ HTTP 500.
 | `phase`     | `0`     | Phase DB `id`; `0` means all phases                      |
 | `dry_run`   | `false` | If `true`, scrape and display results but do not save    |
 | `no_color`  | `false` | If `true`, strip ANSI escape codes — useful for browsers |
+
+`ffpb` takes one specialty and one category: it answers HTTP 400 to `specialty=0`, `category=0` or a
+`phase` other than `0`.
 
 **Examples**
 
@@ -356,7 +364,7 @@ reported in the output and skipped: run `/scrape_infos` for the competition firs
 
 | Parameter     | Required | Description                                                            |
 | ------------- | -------- | ---------------------------------------------------------------------- |
-| `league`      | yes      | `lcapb`, `lidfpb`, `ctpb` or `llpb`                                    |
+| `league`      | yes      | `lcapb`, `lidfpb`, `ctpb`, `llpb` or `ffpb`                            |
 | `competition` | yes      | Competition DB `id`                                                    |
 | `specialty`   | yes      | Specialty DB `id`; `0` means every specialty of the competition        |
 | `category`    | yes      | Category DB `id`; `0` means every category of the competition          |

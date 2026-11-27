@@ -12,6 +12,7 @@ directory.
 | `DB_LEAGUE_LIDFPB` | `pilotariak-lidfpb` | LIDFPB |
 | `DB_LEAGUE_CTPB`   | `pilotariak-ctpb`   | CTPB   |
 | `DB_LEAGUE_LLPB`   | `pilotariak-llpb`   | LLPB   |
+| `DB_LEAGUE_FFPB`   | `pilotariak-ffpb`   | FFPB   |
 
 The schema is identical across all databases. Each database is populated independently by the
 scheduler worker. [Supported leagues](../reference/leagues.md) lists each league's results site and database ID.
@@ -61,6 +62,7 @@ wrangler d1 migrations apply pilotariak-lcapb --local --persist-to ../.wrangler/
 wrangler d1 migrations apply pilotariak-lidfpb --local --persist-to ../.wrangler/state
 wrangler d1 migrations apply pilotariak-ctpb --local --persist-to ../.wrangler/state
 wrangler d1 migrations apply pilotariak-llpb --local --persist-to ../.wrangler/state
+wrangler d1 migrations apply pilotariak-ffpb --local --persist-to ../.wrangler/state
 ```
 
 ### Remote (production)
@@ -328,12 +330,14 @@ bun run db:reset:lcapb:local
 bun run db:reset:lidfpb:local
 bun run db:reset:ctpb:local
 bun run db:reset:llpb:local
+bun run db:reset:ffpb:local
 
 # Remote (production) — irreversible
 bun run db:reset:lcapb:remote
 bun run db:reset:lidfpb:remote
 bun run db:reset:ctpb:remote
 bun run db:reset:llpb:remote
+bun run db:reset:ffpb:remote
 ```
 
 > **Note:** After a reset the lookup tables are empty, so `/scrape_results` and `/scrape_rankings`

@@ -12,6 +12,9 @@ request per competition, the same way the nightly cron does it.
 
 In the commands below, replace `<league>` with the lowercase league code, for example `ctpb`.
 
+> **FFPB.** `ffpb` refuses `specialty=0&category=0`, so the loops below do not apply to it. Load it
+> one specialty and category at a time: see [FFPB bootstrap](../reference/leagues.md#bootstrap).
+
 ## Prerequisites
 
 - The league is bootstrapped, including the specialties of every competition you load:

@@ -6,6 +6,7 @@ export interface Env {
   DB_LEAGUE_LIDFPB: D1Database;
   DB_LEAGUE_CTPB: D1Database;
   DB_LEAGUE_LLPB: D1Database;
+  DB_LEAGUE_FFPB: D1Database;
   INTERNAL_SERVICE_TOKEN: string;
 }
 

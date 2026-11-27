@@ -28,3 +28,9 @@ binding = "DB_LEAGUE_LLPB"
 database_name = "pilotariak-llpb"
 database_id = "6f3f9566-33a9-4f20-bf54-1cc4e2f76e43"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "DB_LEAGUE_FFPB"
+database_name = "pilotariak-ffpb"
+database_id = "ba5e1944-0cf0-425c-b59c-5398a85a411e"
+migrations_dir = "migrations"

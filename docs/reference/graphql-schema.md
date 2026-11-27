@@ -2,7 +2,7 @@
 
 This reference documents all types, queries, and fields available in the Frontis unified GraphQL API. All queries are available through the gateway at `/graphql`.
 
-Subgraphs that access D1 databases require the `X-Pilotariak-League` header on every request. Supported values: `lcapb`, `lidfpb`, `ctpb`, `llpb` (see [Supported leagues](leagues.md)).
+Subgraphs that access D1 databases require the `X-Pilotariak-League` header on every request. Supported values: `lcapb`, `lidfpb`, `ctpb`, `llpb`, `ffpb` (see [Supported leagues](leagues.md)).
 
 ---
 
@@ -351,7 +351,7 @@ neither returns a `BAD_USER_INPUT` error.
 
 ## Required headers
 
-| Header                | Required by                                                                 | Values                            |
-| --------------------- | --------------------------------------------------------------------------- | --------------------------------- |
-| `Content-Type`        | All requests                                                                | `application/json`                |
-| `X-Pilotariak-League` | `clubs`, `competitions`, `results`, `specialties`, `categories`, `rankings` | `lcapb`, `lidfpb`, `ctpb`, `llpb` |
+| Header                | Required by                                                                 | Values                                    |
+| --------------------- | --------------------------------------------------------------------------- | ----------------------------------------- |
+| `Content-Type`        | All requests                                                                | `application/json`                        |
+| `X-Pilotariak-League` | `clubs`, `competitions`, `results`, `specialties`, `categories`, `rankings` | `lcapb`, `lidfpb`, `ctpb`, `llpb`, `ffpb` |
