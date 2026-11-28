@@ -9,6 +9,7 @@ import {
   parsePageForm,
   parseRows,
   parseScore,
+  parseTableLines,
   parseTeam,
 } from "./ffpb";
 
@@ -26,9 +27,26 @@ const SPECIALTY = await fixture("home-specialty.xml");
 const CATEGORY = await fixture("home-category.xml");
 // The competitions page the search answers for those choices.
 const RESULTS = await fixture("results.html");
+// The answer of its "Afficher plus" button when the counter reads 5 / 7 lignes:
+// row 5 sent again, rows 6 and 7 added.
+const MORE = await fixture("results-more.xml");
 
 const SITE = "https://competition.ffpb.net/FFPB_COMPETITION/";
 const HOME_ACTION = "https://competition.ffpb.net/FFPB_COMPETITION/PAGE_ACCUEIL_INVITE/SESSION-TOKEN-HOME";
+const COMPETITIONS_ACTION =
+  "https://competition.ffpb.net/FFPB_COMPETITION/PAGE_COMPETITION_INVITE/SESSION-TOKEN-COMPETITIONS";
+
+/** The competitions page with its counter at `<shown> / <total> lignes`. */
+const cutShort = (shown: number, total: number) => RESULTS.replace("5 / 5 lignes", `${shown} / ${total} lignes`);
+
+/**
+ * The answer of a later "Afficher plus": the fixture's rows moved down by
+ * `by`, the table then holding `held` rows of `total`.
+ */
+const moreRows = (by: number, held: number, total: number) =>
+  MORE.replace(/(zrl_|I158_|INDICE=")(\d+)/g, (_, head: string, row: string) => `${head}${Number(row) + by}`)
+    .replace('NOMBRE="7"', `NOMBRE="${held}"`)
+    .replace("7 / 7 lignes", `${held} / ${total} lignes`);
 
 // Source ids (VALMEM) of the fixtures' options.
 const CHAMPIONNAT_DE_FRANCE = "1";
@@ -112,6 +130,32 @@ describe("parseCount", () => {
     expect(parseCount(RESULTS)).toEqual({ shown: 5, total: 5 });
     expect(parseCount("<html></html>")).toBeNull();
   });
+
+  test("reads the counter an \"Afficher plus\" answer sends", () => {
+    expect(parseCount(MORE)).toEqual({ shown: 7, total: 7 });
+  });
+});
+
+describe("parseTableLines", () => {
+  const lines = parseTableLines(MORE, "I158")!;
+
+  test("reads the table's new state", () => {
+    expect(lines).toMatchObject({ start: "1", count: "7", selection: "1" });
+  });
+
+  test("reads each row with its number, the last row shown included", () => {
+    expect(lines.rows.map((r) => r.index)).toEqual([5, 6, 7]);
+    expect(lines.rows[1].html).toContain('id="zrl_6_ATT_I165_1"');
+  });
+
+  test("leaves out the CSS each row carries", () => {
+    for (const row of lines.rows) expect(row.html).not.toContain("<style");
+  });
+
+  test("is null for an answer without the table", () => {
+    expect(parseTableLines(CATEGORY, "I158")).toBeNull();
+    expect(parseTableLines(MORE, "I40")).toBeNull();
+  });
 });
 
 describe("parsePageForm", () => {
@@ -163,8 +207,14 @@ type FetchMock = ReturnType<typeof mock<(url: string | URL | Request, init?: Req
 let fetchMock: FetchMock;
 const realFetch = globalThis.fetch;
 
-/** The fake site: the home page sets two cookies, each choice answers its capture. */
-function fakeSite(answers: { results?: string; home?: () => Response; category?: string } = {}) {
+/**
+ * The fake site: the home page sets two cookies, each choice answers its
+ * capture, and each "Afficher plus" press answers `more(<press, from 1>)`.
+ */
+function fakeSite(
+  answers: { results?: string; home?: () => Response; category?: string; more?: (press: number) => string } = {}
+) {
+  let press = 0;
   fetchMock = mock(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url === SITE) {
@@ -187,6 +237,10 @@ function fakeSite(answers: { results?: string; home?: () => Response; category?:
       const answer = byContext[body.get("WD_CONTEXTE_") ?? ""];
       if (answer) return new Response(answer);
     }
+    if (url === COMPETITIONS_ACTION && answers.more) {
+      const body = new URLSearchParams(String(init?.body));
+      if (body.get("EXECUTE") === "16" && body.get("WD_CONTEXTE_") === "I166") return new Response(answers.more(++press));
+    }
     return new Response("not found", { status: 404, statusText: "Not Found" });
   });
   globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -199,6 +253,9 @@ const contexts = () =>
     .map(([, init]) => new URLSearchParams(String(init?.body)).get("WD_CONTEXTE_"));
 const searches = () =>
   fetchMock.mock.calls.filter(([, init]) => new URLSearchParams(String(init?.body)).get("WD_BUTTON_CLICK_") === "A32");
+/** The bodies of the "Afficher plus" presses. */
+const presses = () =>
+  fetchMock.mock.calls.filter(([url]) => String(url) === COMPETITIONS_ACTION).map(([, init]) => String(init?.body));
 
 const scraper = new FfpbScraper();
 const results2026 = {
@@ -300,9 +357,10 @@ describe("FfpbScraper.fetchResults", () => {
     expect(searches()).toHaveLength(0);
   });
 
-  test("fails on a table the site cut short", async () => {
-    fakeSite({ results: RESULTS.replace("5 / 5 lignes", "5 / 60 lignes") });
-    await expect(scraper.fetchResults(results2026)).rejects.toThrow("lists 60 matches but sent 5");
+  test("does not press \"Afficher plus\" when the page shows every row", async () => {
+    fakeSite({ more: () => MORE });
+    await scraper.fetchResults(results2026);
+    expect(presses()).toEqual([]);
   });
 
   test("fails when the search does not answer the competitions page", async () => {
@@ -349,6 +407,95 @@ describe("FfpbScraper.fetchResults", () => {
     expect(err).toBeInstanceOf(UpstreamError);
     expect(err).toMatchObject({
       message: "[FFPB] The A41 change did not answer WAJAX XML",
+      upstreamStatus: 200,
+      upstreamBody: "CGI1910 ERR_BAD_URL",
+    });
+  });
+});
+
+describe("FfpbScraper.fetchResults on a table with more rows than the page shows", () => {
+  // What the browser posts: the competitions page's form, with the hidden fields of the table.
+  const press = (held: number) =>
+    `WD_ACTION_=AJAXPAGE&EXECUTE=16&WD_CONTEXTE_=I166&I158=1&I158_DEB=1&_I158_OCC=${held}`;
+
+  test("presses \"Afficher plus\" in the same session and merges the rows", async () => {
+    fakeSite({ results: cutShort(5, 7), more: () => MORE });
+    const results = await scraper.fetchResults(results2026);
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      SITE, ...Array(5).fill(HOME_ACTION), COMPETITIONS_ACTION,
+    ]);
+    expect(presses()).toEqual([press(5)]);
+    const headers = fetchMock.mock.calls[6][1]?.headers as Record<string, string>;
+    expect(headers["Cookie"]).toBe("FFPB_COMPETITION_HOST=test-host; DYN_SECURITEd10=test-value");
+
+    // Row 5, sent again, is read once; rows 6 and 7 take the headers of the page.
+    expect(results).toHaveLength(7);
+    expect(results.map((r) => r.date_match)).toEqual([
+      "17/01/2026", "06/02/2026", "08/03/2026", "21/02/2026", "07/03/2026", "14/03/2026", "21/03/2026",
+    ]);
+    expect(results.slice(5)).toEqual([
+      expect.objectContaining({
+        competition: "CHAMPIONNAT DE FRANCE 2026",
+        specialty: "Trinquet Paleta Pelote de Gomme Pleine Masculin",
+        category: "Nationale A",
+        phase: "FINALE",
+        club_a: "AVIRON BAYONNAIS 01",
+        club_b: "GOIZEKO IZARRA 01",
+        scores: "40/31",
+      }),
+      expect.objectContaining({ phase: "FINALE", club_a: "BIARRITZ ATHLETIC CLUB 01", scores: "38/40" }),
+    ]);
+  });
+
+  test("posts the rows the table holds with the next press, as the browser does", async () => {
+    // 5 of 9 rows, then 7 of 9, then 9 of 9.
+    fakeSite({ results: cutShort(5, 9), more: (n) => (n === 1 ? moreRows(0, 7, 9) : moreRows(2, 9, 9)) });
+    const results = await scraper.fetchResults(results2026);
+
+    expect(presses()).toEqual([press(5), press(7)]);
+    expect(results).toHaveLength(9);
+  });
+
+  test("logs the presses in its summary", async () => {
+    fakeSite({ results: cutShort(5, 7), more: () => MORE });
+    await scraper.fetchResults(results2026);
+    expect(console.log).toHaveBeenCalledWith(expect.objectContaining({
+      found: 7,
+      message: expect.stringMatching(/: 7 results, 1 "Afficher plus"$/),
+    }));
+  });
+
+  test("still fails when an answer adds no row and rows stay missing", async () => {
+    // Every press answers rows 5 to 7 of 9: the second one adds nothing.
+    fakeSite({ results: cutShort(5, 9), more: () => moreRows(0, 7, 9) });
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow(
+      '[FFPB] The site lists 9 matches but sent 7, after 2 "Afficher plus"'
+    );
+    expect(presses()).toHaveLength(2);
+  });
+
+  test("fails when the counter is reached but a row never came", async () => {
+    // The answer counts 7 of 7 lignes, without row 7.
+    fakeSite({ results: cutShort(5, 7), more: () => MORE.replace(/<LIGNE INDICE="7">[\s\S]*?<\/LIGNE>/, "") });
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow("lists 7 matches but sent 6");
+  });
+
+  test("stops pressing after 20 presses", async () => {
+    // Each press adds two rows, and the counter is never reached.
+    fakeSite({ results: cutShort(5, 1000), more: (n) => moreRows(2 * (n - 1), 5 + 2 * n, 1000) });
+    await expect(scraper.fetchResults(results2026)).rejects.toThrow(
+      'lists 1000 matches but sent 45, after 20 "Afficher plus"'
+    );
+    expect(presses()).toHaveLength(20);
+  });
+
+  test("fails when \"Afficher plus\" does not answer rows of the table", async () => {
+    fakeSite({ results: cutShort(5, 7), more: () => "<html>CGI1910 ERR_BAD_URL</html>" });
+    const err = await scraper.fetchResults(results2026).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err).toMatchObject({
+      message: '[FFPB] "Afficher plus" did not answer rows of the results table',
       upstreamStatus: 200,
       upstreamBody: "CGI1910 ERR_BAD_URL",
     });
