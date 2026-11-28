@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.15.0](https://github.com/pilotariak/frontis/compare/v0.14.0...v0.15.0) (2026-11-28)
+
+
+### 🚀 Features
+
+* **leagues:** add the ffpb league and its WebDev scraper ([#108](https://github.com/pilotariak/frontis/issues/108)) ([75adde9](https://github.com/pilotariak/frontis/commit/75adde9323a9b2b0074f5a7afdca5ca7237e89e3))
+* **scheduler:** log why a scrape failed as structured objects ([#127](https://github.com/pilotariak/frontis/issues/127)) ([40c870a](https://github.com/pilotariak/frontis/commit/40c870a669b6aba443d8e6e579b19cf0db1a35c5)), closes [#126](https://github.com/pilotariak/frontis/issues/126)
+
+
+### 🐛 Bug Fixes
+
+* **leagues:** read every page of ffpb results tables ([#130](https://github.com/pilotariak/frontis/issues/130)) ([98e27ae](https://github.com/pilotariak/frontis/commit/98e27ae1264ee8d835ac80be4ed48d5306ebcc63)), closes [#129](https://github.com/pilotariak/frontis/issues/129)
+* **scheduler:** skip combinations the site does not offer in admin walk ([#125](https://github.com/pilotariak/frontis/issues/125)) ([052377b](https://github.com/pilotariak/frontis/commit/052377b2795284ef9c4cfdf98ac4c0cea85e791b))
+* **scheduler:** walk the combinations for an ffpb all choice in admin ([#128](https://github.com/pilotariak/frontis/issues/128)) ([9d6e4fd](https://github.com/pilotariak/frontis/commit/9d6e4fd130aa3cf40bdd59ae5cc5a086556c6d15))
+
 ## [0.14.0](https://github.com/pilotariak/frontis/compare/v0.13.0...v0.14.0) (2026-11-25)
 
 
