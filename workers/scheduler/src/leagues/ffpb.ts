@@ -20,6 +20,10 @@ import type { FormOption, FormOptions, LeagueScraper, RankingSource, ScrapeOptio
  *   3. The search button (A32) posts the form and answers the competitions
  *      page with the results table already filtered. That page takes about
  *      11 s to build, whatever the filters.
+ *   4. The table shows its first 50 rows ("50 / 81 lignes"). Its "Afficher
+ *      plus" button (I166) is an AJAX POST to the competitions page's form, in
+ *      the same session: it answers WAJAX XML with the next rows, the last row
+ *      already shown sent again, and the new counter, in about 6 s.
  * A token from another session fails with HTTP 400 (CGI1910 ERR_BAD_URL), so
  * tokens are always read from the form action, never stored.
  *
@@ -58,6 +62,8 @@ export const WEBDEV = {
   search: "A32",
   /** The AJAX event a select runs on change: `_JAEE(_PAGE_, "<id>", 47, …)`. */
   changeEvent: "47",
+  /** The AJAX event a button runs on click: `_JAEE(_PAGE_, "<id>", 16, …)`. */
+  clickEvent: "16",
   /** Home page selects. */
   season: "A34",
   type: "A33",
@@ -68,10 +74,23 @@ export const WEBDEV = {
    */
   specialty: "A39",
   category: "A41",
-  /** The competitions page's results table and its "<shown> / <total> lignes" counter. */
+  /**
+   * The competitions page's results table and its "<shown> / <total> lignes"
+   * counter. The table posts three hidden fields: `I158` (its selected row),
+   * `I158_DEB` (its first row) and `_I158_OCC` (the rows it holds).
+   */
   table: "I158",
   tableCount: "I164",
+  /** The "Afficher plus" button under the results table. */
+  more: "I166",
 } as const;
+
+/**
+ * Most "Afficher plus" presses for one results table. One press sent the 31
+ * rows left of an 81-row table on 2026-11-27. The cap only stops answers that
+ * keep adding rows without ever reaching the counter.
+ */
+const MAX_MORE = 20;
 
 /**
  * Cells of a results row, `zrl_<row>_ATT_<id>_1`. The first four head a group
@@ -185,6 +204,24 @@ export function parsePageForm(page: string): PageForm {
   return { fields, lists, chosen };
 }
 
+/** A form's fields in document order, as the browser posts them, after `head`. */
+function formBody(form: PageForm, head: Record<string, string>, overrides: Record<string, string>): URLSearchParams {
+  const body = new URLSearchParams(head);
+  for (const field of form.fields) {
+    if (field.name in head) continue;
+    // Posted empty, as in the browser's requests.
+    const value = field.name === "WD_JSON_PROPRIETE_" ? "" : field.value ?? form.chosen.get(field.name) ?? "";
+    body.append(field.name, overrides[field.name] ?? value);
+  }
+  return body;
+}
+
+/** Change a field the form posts, as the page script does between requests. */
+function setField(form: PageForm, name: string, value: string): void {
+  const field = form.fields.find((f) => f.name === name);
+  if (field) field.value = value;
+}
+
 // ── WAJAX parsing ─────────────────────────────────────────────────────────────
 
 /**
@@ -210,6 +247,34 @@ export function parseAjaxLists(xml: string): Map<string, { choices?: Choice[]; c
     out.set(m[1], change);
   }
   return out;
+}
+
+/** The rows a WAJAX answer adds to a table, and the table's new state. */
+export interface TableLines {
+  /**
+   * LIGNES DEBUT, NOMBRE and SELECTION: the table's first row, the rows it
+   * holds, its selected row. "" when the answer leaves one out.
+   */
+  start: string;
+  count: string;
+  selection: string;
+  /** Each LIGNE: its row number, and its HTML from DEBUT, CORPS and FIN (STYLE holds CSS only). */
+  rows: { index: number; html: string }[];
+}
+
+/** The LIGNES a WAJAX answer sends for a table, null when it sends none. */
+export function parseTableLines(xml: string, table: string): TableLines | null {
+  const m = new RegExp(`<CHAMP ALIAS="${table}"[^>]*><LIGNES\\b([^>]*)>([\\s\\S]*?)</LIGNES>`).exec(xml);
+  if (!m) return null;
+  return {
+    start: attr(m[1], "DEBUT") ?? "",
+    count: attr(m[1], "NOMBRE") ?? "",
+    selection: attr(m[1], "SELECTION") ?? "",
+    rows: [...m[2].matchAll(/<LIGNE INDICE="(\d+)">([\s\S]*?)<\/LIGNE>/g)].map((l) => ({
+      index: Number(l[1]),
+      html: [...l[2].matchAll(/<(DEBUT|CORPS|FIN)><!\[CDATA\[([\s\S]*?)\]\]><\/\1>/g)].map((c) => c[2]).join(""),
+    })),
+  };
 }
 
 /** "<shown> / <total> lignes" of the results table, when the page has it. */
@@ -247,10 +312,15 @@ export function parseScore(text: string): string | null {
   return sets ? sets.join(" ") : null;
 }
 
+/** Row numbers of the results table's cells, `zrl_<row>_ATT_<id>_1`, in document order. */
+const rowNumbers = (html: string): number[] =>
+  [...html.matchAll(/id="zrl_(\d+)_ATT_I\d+_1"/g)].map((m) => Number(m[1]));
+
 /**
- * Rows of the results table of the competitions page. Cells are read in
- * document order and grouped by their row number. Group headers (specialty,
- * category, competition, phase) are carried to the rows that follow them.
+ * Rows of the results table of the competitions page, followed by the rows the
+ * "Afficher plus" answers added. Cells are read in document order and grouped
+ * by their row number. Group headers (specialty, category, competition, phase)
+ * are carried to the rows that follow them, from the page to the added rows.
  * Under a POULES header the phase is the row's pool ("Poule 1"), otherwise
  * the header ("1/4 DE FINALE").
  */
@@ -314,6 +384,18 @@ export function parseRows(page: string, year: number): ScrapedResult[] {
 
 // ── Session ───────────────────────────────────────────────────────────────────
 
+/** The results table, once "Afficher plus" was pressed as needed. */
+interface ResultsTable {
+  /** The competitions page, then the HTML of each row the answers added. */
+  html: string;
+  /** Rows the table holds, each counted once. */
+  rows: number;
+  /** The last "<shown> / <total> lignes" counter the site sent. */
+  count: { shown: number; total: number } | null;
+  /** "Afficher plus" presses. */
+  presses: number;
+}
+
 /** One anonymous session on the guest home page. */
 class Session {
   private constructor(
@@ -337,18 +419,6 @@ class Session {
     return this.list(control).find((c) => c.position === position);
   }
 
-  /** The form fields in document order, with the given overrides. */
-  private body(head: Record<string, string>, overrides: Record<string, string>): URLSearchParams {
-    const body = new URLSearchParams(head);
-    for (const field of this.form.fields) {
-      if (field.name in head) continue;
-      // Posted empty, as in the browser's requests.
-      const value = field.name === "WD_JSON_PROPRIETE_" ? "" : field.value ?? this.form.chosen.get(field.name) ?? "";
-      body.append(field.name, overrides[field.name] ?? value);
-    }
-    return body;
-  }
-
   /**
    * Choose an option, as a browser does: fire the select's change event and
    * apply the lists and choices the answer carries.
@@ -356,7 +426,7 @@ class Session {
   async choose(control: string, choice: Choice): Promise<void> {
     this.form.chosen.set(control, choice.position);
     const head = { WD_ACTION_: "AJAXPAGE", EXECUTE: WEBDEV.changeEvent, WD_CONTEXTE_: control };
-    const res = await send(this.url, this.jar, this.body(head, {}));
+    const res = await send(this.url, this.jar, formBody(this.form, head, {}));
     const xml = await text(res, `${control} change`);
     if (!xml.includes("<WAJAX>")) {
       throw new UpstreamError(`[${LEAGUE}] The ${control} change did not answer WAJAX XML`, res.status, excerpt(xml));
@@ -378,7 +448,7 @@ class Session {
 
   /** Press the search button: the competitions page, filtered by the chosen options. */
   async search(): Promise<string> {
-    const body = this.body({}, { WD_ACTION_: "", WD_BUTTON_CLICK_: WEBDEV.search });
+    const body = formBody(this.form, {}, { WD_ACTION_: "", WD_BUTTON_CLICK_: WEBDEV.search });
     const res = await send(this.url, this.jar, body);
     const page = await text(res, "competitions page");
     // An error or session page would otherwise read as a table without rows.
@@ -386,6 +456,52 @@ class Session {
       throw new UpstreamError(`[${LEAGUE}] The search did not answer the competitions page`, res.status, excerpt(page));
     }
     return page;
+  }
+
+  /**
+   * Press "Afficher plus" under the results table of the competitions page
+   * until the table holds every row its counter announces, as a browser does.
+   * Each press posts the competitions page's form, and each answer adds the
+   * next rows. The browser then stores the answer's DEBUT, NOMBRE and
+   * SELECTION in the table's hidden fields, which the next press posts: so
+   * does this. A row the table already holds (each answer sends the last one
+   * again) is skipped.
+   *
+   * Stops when the counter is reached, when an answer adds no row, or after
+   * MAX_MORE presses: the caller checks the rows held against the counter.
+   */
+  async showAll(page: string): Promise<ResultsTable> {
+    let count = parseCount(page);
+    const held = new Set(rowNumbers(page));
+    const parts = [page];
+    let presses = 0;
+    if (count && count.shown < count.total) {
+      const url = ORIGIN + formAction(page, WEBDEV.competitionsForm);
+      const form = parsePageForm(page);
+      const head = { WD_ACTION_: "AJAXPAGE", EXECUTE: WEBDEV.clickEvent, WD_CONTEXTE_: WEBDEV.more };
+      while (count.shown < count.total && presses < MAX_MORE) {
+        presses++;
+        const res = await send(url, this.jar, formBody(form, head, {}));
+        const xml = await text(res, `"Afficher plus" rows`);
+        const lines = xml.includes("<WAJAX>") ? parseTableLines(xml, WEBDEV.table) : null;
+        if (!lines) {
+          throw new UpstreamError(
+            `[${LEAGUE}] "Afficher plus" did not answer rows of the results table`, res.status, excerpt(xml)
+          );
+        }
+        const added = lines.rows.filter((r) => !held.has(r.index));
+        if (added.length === 0) break;
+        for (const row of added) {
+          held.add(row.index);
+          parts.push(row.html);
+        }
+        if (lines.start) setField(form, `${WEBDEV.table}_DEB`, lines.start);
+        if (lines.count) setField(form, `_${WEBDEV.table}_OCC`, lines.count);
+        if (lines.selection && Number(lines.selection) >= 0) setField(form, WEBDEV.table, lines.selection);
+        count = parseCount(xml) ?? count;
+      }
+    }
+    return { html: parts.join("\n"), rows: held.size, count, presses };
   }
 
   /** What the shown season and type offer. */
@@ -557,17 +673,19 @@ export class FfpbScraper implements LeagueScraper {
     await session.choose(WEBDEV.category, category);
 
     const page = await session.search();
-    const count = parseCount(page);
-    if (count && count.shown < count.total) {
+    const table = await session.showAll(page);
+    // A table still cut short fails rather than saving part of the matches.
+    const { count } = table;
+    if (count && (count.shown < count.total || table.rows < count.total)) {
       throw new Error(
-        `[${LEAGUE}] The site lists ${count.total} matches but sent ${count.shown}: ` +
-          `its "Afficher plus" paging is not supported`
+        `[${LEAGUE}] The site lists ${count.total} matches but sent ${Math.min(count.shown, table.rows)}, ` +
+          `after ${table.presses} "Afficher plus"`
       );
     }
 
     // The group headers must name what was asked for: anything else means the
     // positions did not match the lists the server holds.
-    const results = parseRows(page, Number(season.id));
+    const results = parseRows(table.html, Number(season.id));
     for (const result of results) {
       const got = [result.competition, result.specialty, result.category];
       const want = [competitionName, specialty.label, category.label];
@@ -581,7 +699,9 @@ export class FfpbScraper implements LeagueScraper {
       found: results.length,
       pageSize: page.length,
       durationMs: Date.now() - started,
-      message: `${competitionName} / ${specialty.label} / ${category.label}: ${results.length} results`,
+      message:
+        `${competitionName} / ${specialty.label} / ${category.label}: ${results.length} results` +
+        (table.presses > 0 ? `, ${table.presses} "Afficher plus"` : ""),
     });
     return results;
   }

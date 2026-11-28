@@ -94,6 +94,15 @@ page. No login is needed.
    competition types, the type its specialties and categories, the specialty its categories.
 3. The search button (`A32`) posts the form and answers the competitions page, its results table
    already filtered, with its counter (`<shown> / <total> lignes`).
+4. The table shows its first 50 rows. While its counter shows fewer rows than its total, the scraper
+   presses the "Afficher plus" button (`I166`) in the same session, as a browser does: an AJAX `POST`
+   to the competitions page's action, `WD_ACTION_=AJAXPAGE&EXECUTE=16&WD_CONTEXTE_=I166` followed by
+   every field of that page's form. The answer is `text/xml` (`<WAJAX>`) with the next rows of the
+   table (`<LIGNES DEBUT=… NOMBRE=… SELECTION=…>`, one `<LIGNE INDICE="<row>">` each, the last row
+   already shown sent again) and the new counter. These rows carry no specialty, category or
+   competition header: they take the headers of the rows before them. Before the next press, the
+   scraper copies `DEBUT`, `NOMBRE` and `SELECTION` into the table's hidden fields `I158_DEB`,
+   `_I158_OCC` and `I158`, as the page script does.
 
 A token from another session fails with HTTP 400 `CGI1910 ERR_BAD_URL`, so the scraper reads the token
 from the form action and never stores it.
@@ -116,7 +125,10 @@ Requests per call, as measured on 2026-11-19:
 | `/scrape_results`                     | the `/admin/options` requests, then a second session: home page, season, type, specialty, category, search | 4 to 15 s |
 | `/scrape_rankings`                    | none                                                                                                       | —         |
 
-The search is the slow request: the competitions page took between 2 and 11 s to build.
+The search is the slow request: the competitions page took between 2 and 11 s to build. A table of
+more than 50 rows adds one "Afficher plus" request per press to `/scrape_results`: on 2026-11-27, for
+the 81 matches of CHAMPIONNAT DE FRANCE 2026, Trinquet Paleta Pelote de Gomme Creuse Masculin,
+Nationale B, the search took 10 s and one press answered the 31 rows left in 6 s.
 
 ### WebDev ids
 
@@ -131,6 +143,7 @@ and `CELL` in `workers/scheduler/src/leagues/ffpb.ts` hold every id the scraper 
 | `A41`, `A36`   | Catégorie, home page: the browser changes `A41`, the server syncs `A36`  |
 | `A32`          | "Chercher rencontres / résultats" button of the home page                |
 | `I158`, `I164` | Results table of the competitions page, and its row counter              |
+| `I166`         | "Afficher plus" button under the results table, AJAX event `16`          |
 
 A `<select>` is posted as the 1-based position of its option in the list the server holds for the
 session, and each choice changes the next lists. Each option also carries the site's own id,
@@ -190,8 +203,11 @@ unit tests mock `fetch()`, it uses `fetch()`.
   the "général à l'issue des poules" request answered an empty table.
 - **Phases and clubs.** No phase or club is loaded, and `/scrape_results` answers HTTP 400 to a
   `phase` other than `0`.
-- **Paging.** The table shows 50 rows, then an "Afficher plus" button. The scraper does not follow it:
-  a specialty and category with more than 50 matches fails the scrape instead of saving part of them.
+- **Paging.** The scraper follows the "Afficher plus" button (step 4 of the session flow), but only an
+  81-match table was measured, where one press answered every row left. How many rows a press
+  answers on a longer table is not known. The scraper presses again while each answer adds rows, up
+  to 20 presses, then checks the rows it holds against the counter: a table still cut short fails the
+  scrape instead of saving part of its matches.
 - **setup-league.** `/bootstrap` reads the `InCompet` select of `resultats.php`, which this site does
   not have, so it finds nothing. Bootstrap `ffpb` with the scheduler.
 - **Every combination walk.** The admin page's walk runs one `/scrape_results` per specialty and

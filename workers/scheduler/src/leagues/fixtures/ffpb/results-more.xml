@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?><!-- Sanitized and trimmed answer of the "Afficher plus" button (I166) of the results table, after the
+     search of results.html, its counter set to 5 of 7 rows. Structure of a capture of 2026-11-27
+     (CHAMPIONNAT DE FRANCE 2026, Trinquet Paleta Pelote de Gomme Creuse Masculin, Nationale B, which
+     answered rows 50 to 81 of 81): the last row shown sent again (5), the added rows (6, 7), a
+     property of the button (I166) and the new counter (I164). Cells trimmed; players, licences and
+     notes replaced. --><WAJAX><CHAMP ALIAS="I158" TYPE="11"><LIGNES DEBUT="1" NOMBRE="7" SELECTION="1" RUPTURES="4" STYLE="1"><LIGNE INDICE="5"><DEBUT></DEBUT><CORPS><![CDATA[<tr><td class="PI_COMPETITION_MOTEUR-28 wbImpaire padding"><div id="I158_5"><table><tr>
+<td id="tzzrl_5_I181"><div id="zrl_5_ATT_I162_1">FINALE</div></td>
+<td id="zrl_5_I145"><div id="zrl_5_ATT_I163_1">07/03/2026 à 17:00</div></td>
+<td id="tzzrl_5_I239"><div id="zrl_5_ATT_I240_1">BAYONNE (T. Moderne)</div></td>
+<td id="tzzrl_5_I217"><div id="zrl_5_ATT_I220_1">Poule 0</div></td>
+<td id="zrl_5_I188"><div id="zrl_5_ATT_I165_1"><div ><b>SOCIETE NAUTIQUE BAYONNE 01</b><br>- JOUEUR11 Prenom (900011) (E)<br>- JOUEUR12 Prenom (900012)</div></div></td>
+<td id="zrl_5_I187"><div id="zrl_5_ATT_I167_1"><div ><b>CA BEGLAIS 02</b><br>- JOUEUR13 Prenom (900013)<br>- JOUEUR14 Prenom (900014)</div></div></td>
+<td id="tzzrl_5_I189"><div id="zrl_5_ATT_I168_1">39/40</div></td>
+<td id="zrl_5_I219"><div id="zrl_5_ATT_I222_1">Le 1er nommé enregistre le résultat.</div></td>
+</tr></table></div></td></tr>]]></CORPS><FIN></FIN><STYLE><![CDATA[<style type="text/css" id="rgs-I158-5">.czI171{border-top:solid 1px #006699;}</style>]]></STYLE></LIGNE><LIGNE INDICE="6"><DEBUT></DEBUT><CORPS><![CDATA[<tr><td class="PI_COMPETITION_MOTEUR-28 wbPaire padding"><div id="I158_6"><table><tr>
+<td id="zrl_6_I145"><div id="zrl_6_ATT_I163_1">14/03/2026 à 17:00</div></td>
+<td id="tzzrl_6_I239"><div id="zrl_6_ATT_I240_1">BAYONNE (T. Moderne)</div></td>
+<td id="tzzrl_6_I217"><div id="zrl_6_ATT_I220_1">Poule 0</div></td>
+<td id="zrl_6_I188"><div id="zrl_6_ATT_I165_1"><div ><b>AVIRON BAYONNAIS 01</b><br>- JOUEUR01 Prenom (900001)<br>- JOUEUR02 Prenom (900002)</div></div></td>
+<td id="zrl_6_I187"><div id="zrl_6_ATT_I167_1"><div ><b>GOIZEKO IZARRA 01</b><br>- JOUEUR03 Prenom (900003)<br>- JOUEUR04 Prenom (900004)</div></div></td>
+<td id="tzzrl_6_I189"><div id="zrl_6_ATT_I168_1">40/31</div></td>
+<td id="zrl_6_I219"><div id="zrl_6_ATT_I222_1">Le 1er nommé enregistre le résultat.</div></td>
+</tr></table></div></td></tr>]]></CORPS><FIN></FIN><STYLE><![CDATA[<style type="text/css" id="rgs-I158-6">.czI171{border-top:solid 1px #006699;}</style>]]></STYLE></LIGNE><LIGNE INDICE="7"><DEBUT></DEBUT><CORPS><![CDATA[<tr><td class="PI_COMPETITION_MOTEUR-28 wbImpaire padding"><div id="I158_7"><table><tr>
+<td id="zrl_7_I145"><div id="zrl_7_ATT_I163_1">21/03/2026 à 17:00</div></td>
+<td id="tzzrl_7_I239"><div id="zrl_7_ATT_I240_1">BAYONNE (T. Moderne)</div></td>
+<td id="tzzrl_7_I217"><div id="zrl_7_ATT_I220_1">Poule 0</div></td>
+<td id="zrl_7_I188"><div id="zrl_7_ATT_I165_1"><div ><b>BIARRITZ ATHLETIC CLUB 01</b><br>- JOUEUR05 Prenom (900005)<br>- JOUEUR06 Prenom (900006)</div></div></td>
+<td id="zrl_7_I187"><div id="zrl_7_ATT_I167_1"><div ><b>ESQUIULE ATHLETIC CLUB 02</b><br>- JOUEUR07 Prenom (900007)<br>- JOUEUR08 Prenom (900008)</div></div></td>
+<td id="tzzrl_7_I189"><div id="zrl_7_ATT_I168_1">38/40</div></td>
+<td id="zrl_7_I219"><div id="zrl_7_ATT_I222_1">Le 1er nommé enregistre le résultat.</div></td>
+</tr></table></div></td></tr>]]></CORPS><FIN></FIN><STYLE><![CDATA[<style type="text/css" id="rgs-I158-7">.czI171{border-top:solid 1px #006699;}</style>]]></STYLE></LIGNE></LIGNES></CHAMP><CHAMP ALIAS="I166" TYPE="4"><PROP NUM="18">0</PROP></CHAMP><CHAMP ALIAS="I164" TYPE="3"><PROP NUM="1">7 / 7 lignes</PROP></CHAMP></WAJAX>
